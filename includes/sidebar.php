@@ -1,16 +1,15 @@
-<!-- Sidebar -->
+<!-- Sidebar (Matching Reference Image 1) -->
 <div class="sidebar" id="sidebar">
     <div class="sidebar-brand">
-        <a href="<?php echo $base; ?>dashboard.php" class="text-decoration-none text-white d-flex align-items-center gap-2">
-            <div class="brand-icon">
+        <a href="<?php echo $base; ?>dashboard.php" class="text-decoration-none d-flex align-items-center gap-2">
+            <div class="brand-logo-icon">
                 <i class="fas fa-graduation-cap"></i>
             </div>
-            <span class="brand-text"><?php echo APP_NAME; ?></span>
+            <span class="brand-title">EduSphere</span>
         </a>
     </div>
 
     <nav class="sidebar-nav">
-        <div class="nav-section">Main</div>
         <div class="nav-item">
             <a href="<?php echo $base; ?>dashboard.php" class="nav-link <?php echo basename($_SERVER['PHP_SELF']) === 'dashboard.php' ? 'active' : ''; ?>">
                 <i class="fas fa-th-large"></i>
@@ -18,12 +17,17 @@
             </a>
         </div>
 
-        <div class="nav-section">Academic</div>
         <?php if (isStaff()): ?>
         <div class="nav-item">
             <a href="<?php echo $base; ?>students/index.php" class="nav-link <?php echo strpos($_SERVER['PHP_SELF'], 'students/') !== false ? 'active' : ''; ?>">
                 <i class="fas fa-user-graduate"></i>
                 <span>Students</span>
+            </a>
+        </div>
+        <div class="nav-item">
+            <a href="<?php echo $base; ?>admin/users.php?role=teacher" class="nav-link <?php echo strpos($_SERVER['PHP_SELF'], 'role=teacher') !== false ? 'active' : ''; ?>">
+                <i class="fas fa-chalkboard-teacher"></i>
+                <span>Teachers</span>
             </a>
         </div>
         <?php else: ?>
@@ -49,30 +53,30 @@
         <?php endif; ?>
 
         <div class="nav-item">
+            <a href="<?php echo $base; ?>reports/index.php" class="nav-link <?php echo strpos($_SERVER['PHP_SELF'], 'reports/') !== false ? 'active' : ''; ?>">
+                <i class="fas fa-user-check"></i>
+                <span><?php echo isStudent() ? 'My Report Card' : 'Attendance & Reports'; ?></span>
+            </a>
+        </div>
+
+        <div class="nav-item">
             <a href="<?php echo $base; ?>courses/index.php" class="nav-link <?php echo strpos($_SERVER['PHP_SELF'], 'courses/') !== false ? 'active' : ''; ?>">
-                <i class="fas fa-book"></i>
+                <i class="fas fa-book-open"></i>
                 <span>Courses</span>
             </a>
         </div>
+
         <div class="nav-item">
             <a href="<?php echo $base; ?>tasks/index.php" class="nav-link <?php echo strpos($_SERVER['PHP_SELF'], 'tasks/') !== false ? 'active' : ''; ?>">
-                <i class="fas fa-tasks"></i>
-                <span>Tasks</span>
+                <i class="fas fa-clipboard-check"></i>
+                <span>Tasks & Exams</span>
             </a>
         </div>
 
-        <div class="nav-item">
-            <a href="<?php echo $base; ?>reports/index.php" class="nav-link <?php echo strpos($_SERVER['PHP_SELF'], 'reports/') !== false ? 'active' : ''; ?>">
-                <i class="fas fa-chart-bar"></i>
-                <span><?php echo isStudent() ? 'My Report Card' : 'Reports & Exports'; ?></span>
-            </a>
-        </div>
-
-        <div class="nav-section">Campus & Calendar</div>
         <div class="nav-item">
             <a href="<?php echo $base; ?>events/index.php" class="nav-link <?php echo strpos($_SERVER['PHP_SELF'], 'events/') !== false ? 'active' : ''; ?>">
                 <i class="fas fa-calendar-alt"></i>
-                <span>Events & Holidays</span>
+                <span>Events Calendar</span>
             </a>
         </div>
 
@@ -80,23 +84,17 @@
         <div class="nav-item">
             <a href="<?php echo $base; ?>admin/emergency_alert.php" class="nav-link <?php echo strpos($_SERVER['PHP_SELF'], 'emergency_alert.php') !== false ? 'active' : ''; ?>">
                 <i class="fas fa-bullhorn text-warning"></i>
-                <span>Emergency Closure</span>
+                <span>Emergency Off</span>
             </a>
         </div>
         <?php endif; ?>
 
         <?php if (isAdmin()): ?>
-        <div class="nav-section">Administration</div>
+        <div class="nav-section mt-2">Admin Tools</div>
         <div class="nav-item">
             <a href="<?php echo $base; ?>admin/users.php" class="nav-link <?php echo strpos($_SERVER['PHP_SELF'], 'admin/users.php') !== false ? 'active' : ''; ?>">
                 <i class="fas fa-users-cog"></i>
-                <span>User Management</span>
-            </a>
-        </div>
-        <div class="nav-item">
-            <a href="<?php echo $base; ?>admin/settings.php" class="nav-link <?php echo strpos($_SERVER['PHP_SELF'], 'admin/settings.php') !== false ? 'active' : ''; ?>">
-                <i class="fas fa-cog"></i>
-                <span>Settings</span>
+                <span>User Access</span>
             </a>
         </div>
         <div class="nav-item">
@@ -106,25 +104,23 @@
             </a>
         </div>
         <?php endif; ?>
-
-        <div class="nav-section">Public Portal</div>
-        <div class="nav-item">
-            <a href="<?php echo $base; ?>index.php" target="_blank" class="nav-link text-info">
-                <i class="fas fa-globe"></i>
-                <span>School Website <i class="fas fa-external-link-alt fa-xs ms-1"></i></span>
-            </a>
-        </div>
     </nav>
 
-    <div class="sidebar-user">
-        <div class="user-info">
-            <div class="user-avatar">
-                <?php echo strtoupper(substr($_SESSION['user_name'] ?? 'U', 0, 1)); ?>
-            </div>
-            <div>
-                <div class="user-name"><?php echo e($_SESSION['user_name'] ?? 'User'); ?></div>
-                <div class="user-role badge bg-secondary"><?php echo e($_SESSION['user_role'] ?? 'student'); ?></div>
-            </div>
+    <!-- Bottom Pinned Actions (Settings & Logout) -->
+    <div class="sidebar-bottom">
+        <?php if (isAdmin()): ?>
+        <div class="nav-item mb-1">
+            <a href="<?php echo $base; ?>admin/settings.php" class="nav-link py-2 <?php echo strpos($_SERVER['PHP_SELF'], 'admin/settings.php') !== false ? 'active' : ''; ?>">
+                <i class="fas fa-cog"></i>
+                <span>Settings</span>
+            </a>
+        </div>
+        <?php endif; ?>
+        <div class="nav-item">
+            <a href="<?php echo $base; ?>auth/logout.php" class="nav-link py-2 text-danger">
+                <i class="fas fa-sign-out-alt"></i>
+                <span>Logout</span>
+            </a>
         </div>
     </div>
 </div>

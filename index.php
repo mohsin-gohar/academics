@@ -1,522 +1,446 @@
 <?php
 /**
- * EduSphere Academy — World-Class School Website & Academic Portal
- * Public homepage for students, parents, faculty, and prospective scholars.
+ * EduSphere Public Portal (Matching Reference Image 2 - Learnify)
+ * High-End Luxury Education Platform & School Website
  */
-$page_title = 'EduSphere Academy — Premier Student Management & Academic Portal';
+$page_title = 'EduSphere — Take your time and learn from anywhere';
 require_once 'includes/header.php';
 
 // Fetch Active Emergency Alert
 $activeAlert = getActiveEmergencyAlert($pdo);
 
-// Fetch Upcoming Events & Functions
-$events = getSchoolEventsList($pdo, 6, true);
+// Fetch Upcoming Events
+$events = getSchoolEventsList($pdo, 3, true);
 
 // Fetch Next Gazetted Holidays
-$holidayStmt = $pdo->query("SELECT * FROM school_events WHERE is_holiday = 1 AND event_date >= CURDATE() AND status != 'Cancelled' ORDER BY event_date ASC LIMIT 4");
+$holidayStmt = $pdo->query("SELECT * FROM school_events WHERE is_holiday = 1 AND event_date >= CURDATE() AND status != 'Cancelled' ORDER BY event_date ASC LIMIT 3");
 $holidays = $holidayStmt->fetchAll();
 
-// Fetch Active Courses Overview
-$courseStmt = $pdo->query("SELECT c.*, COALESCE(u.full_name, 'Senior Faculty') as instructor_name, (SELECT COUNT(*) FROM enrollments e WHERE e.course_id = c.id AND e.status = 'Enrolled') as enrolled_students FROM courses c LEFT JOIN users u ON c.instructor_id = u.id WHERE c.status = 'Active' ORDER BY c.created_at DESC LIMIT 6");
-$featuredCourses = $courseStmt->fetchAll();
-
-// Live Institutional Statistics
-$totalScholars = $pdo->query("SELECT COUNT(*) FROM students WHERE status = 'Active'")->fetchColumn() ?: 1250;
-$totalFaculty = $pdo->query("SELECT COUNT(*) FROM users WHERE role IN ('teacher', 'admin') AND is_active = 1")->fetchColumn() ?: 48;
-$totalCoursesCount = $pdo->query("SELECT COUNT(*) FROM courses WHERE status = 'Active'")->fetchColumn() ?: 24;
+// Counts for achievements
+$totalStudents = $pdo->query("SELECT COUNT(*) FROM students WHERE status = 'Active'")->fetchColumn() ?: 50000;
 ?>
 
-<!-- Public Top Utility Header -->
-<div class="bg-dark text-white py-2 px-3 border-bottom border-secondary small">
-    <div class="container d-flex justify-content-between align-items-center flex-wrap gap-2">
-        <div class="d-flex align-items-center gap-3">
-            <span><i class="fas fa-phone-alt text-primary me-1"></i> +92 (21) 3456-7890</span>
-            <span class="d-none d-md-inline"><i class="fas fa-envelope text-primary me-1"></i> info@edusphere.edu.pk</span>
-            <span class="d-none d-lg-inline"><i class="fas fa-clock text-primary me-1"></i> Mon - Sat: 8:00 AM - 3:00 PM</span>
-        </div>
-        <div class="d-flex align-items-center gap-3">
-            <a href="public_events.php" class="text-white-50 text-decoration-none hover-white">
-                <i class="fas fa-calendar-alt text-warning me-1"></i> Academic Calendar
+<div class="learnify-public-page">
+
+    <!-- Top Navigation Header (Matching Learnify Navbar in Image 2) -->
+    <nav class="navbar navbar-expand-lg learnify-nav">
+        <div class="container">
+            <a class="learnify-brand d-flex align-items-center gap-2" href="index.php">
+                <span style="color: #1e293b; font-weight: 800; font-size: 1.75rem; letter-spacing: -0.03em;">EduSphere</span>
             </a>
-            <span class="text-secondary">|</span>
-            <?php if (isLoggedIn()): ?>
-                <a href="dashboard.php" class="text-info text-decoration-none fw-semibold">
-                    <i class="fas fa-th-large me-1"></i> My Dashboard (<?php echo e($_SESSION['user_name'] ?? 'User'); ?>)
-                </a>
-                <span class="text-secondary">|</span>
-                <a href="auth/logout.php" class="text-danger text-decoration-none small">
-                    <i class="fas fa-sign-out-alt me-1"></i> Logout
-                </a>
-            <?php else: ?>
-                <a href="auth/login.php" class="text-white-50 text-decoration-none hover-white">
-                    <i class="fas fa-lock me-1"></i> Portal Sign In
-                </a>
-            <?php endif; ?>
-        </div>
-    </div>
-</div>
 
-<!-- Public Main Sticky Navigation -->
-<nav class="navbar navbar-expand-lg glass-nav sticky-top py-3">
-    <div class="container">
-        <a class="navbar-brand d-flex align-items-center gap-3" href="index.php">
-            <div class="rounded-3 bg-primary text-white d-flex align-items-center justify-content-center shadow" style="width: 44px; height: 44px; font-size: 1.35rem;">
-                <i class="fas fa-graduation-cap"></i>
-            </div>
-            <div>
-                <span class="fw-bold fs-4 text-dark d-block lh-1" style="letter-spacing: -0.02em;">EduSphere</span>
-                <span class="text-muted small fw-semibold text-uppercase tracking-wider" style="font-size: 0.65rem; letter-spacing: 1.2px;">Academy & Enterprise Portal</span>
-            </div>
-        </a>
+            <button class="navbar-toggler border-0 shadow-none" type="button" data-bs-toggle="collapse" data-bs-target="#learnifyNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
 
-        <button class="navbar-toggler border-0 shadow-none" type="button" data-bs-toggle="collapse" data-bs-target="#publicNav">
-            <span class="navbar-toggler-icon"></span>
-        </button>
+            <div class="collapse navbar-collapse" id="learnifyNav">
+                <ul class="navbar-nav mx-auto mb-2 mb-lg-0 fw-semibold text-secondary">
+                    <li class="nav-item"><a class="nav-link active text-success px-3" href="index.php">Home</a></li>
+                    <li class="nav-item"><a class="nav-link px-3" href="#features">Features</a></li>
+                    <li class="nav-item"><a class="nav-link px-3" href="public_events.php">Events</a></li>
+                    <li class="nav-item"><a class="nav-link px-3" href="public_events.php?type=Holiday">Holidays</a></li>
+                    <li class="nav-item"><a class="nav-link px-3" href="#testimonials">Reviews</a></li>
+                    <li class="nav-item"><a class="nav-link px-3" href="auth/login.php">Login</a></li>
+                </ul>
 
-        <div class="collapse navbar-collapse" id="publicNav">
-            <ul class="navbar-nav mx-auto mb-2 mb-lg-0 fw-semibold text-secondary">
-                <li class="nav-item"><a class="nav-link active text-primary px-3" href="index.php">Home</a></li>
-                <li class="nav-item"><a class="nav-link px-3" href="#events">School Functions</a></li>
-                <li class="nav-item"><a class="nav-link px-3" href="#holidays">Holidays & Off Days</a></li>
-                <li class="nav-item"><a class="nav-link px-3" href="#programs">Academic Programs</a></li>
-                <li class="nav-item"><a class="nav-link px-3" href="#portal">ERP Features</a></li>
-                <li class="nav-item"><a class="nav-link px-3" href="#contact">Contact</a></li>
-            </ul>
-
-            <div class="d-flex align-items-center gap-2">
-                <?php if (isLoggedIn()): ?>
-                    <a href="dashboard.php" class="btn btn-primary btn-sm px-4 py-2 rounded-pill shadow-sm fw-semibold">
-                        <i class="fas fa-th-large me-1"></i> Go to Dashboard
-                    </a>
-                <?php else: ?>
-                    <a href="auth/login.php" class="btn btn-outline-primary btn-sm px-3 py-2 rounded-pill fw-semibold">
-                        <i class="fas fa-sign-in-alt me-1"></i> Sign In
-                    </a>
-                    <a href="auth/register.php" class="btn btn-primary btn-sm px-3 py-2 rounded-pill shadow-sm fw-semibold">
-                        <i class="fas fa-user-plus me-1"></i> Register
-                    </a>
-                <?php endif; ?>
+                <div class="d-flex align-items-center gap-2">
+                    <?php if (isLoggedIn()): ?>
+                        <a href="dashboard.php" class="btn btn-outline-dark rounded-pill px-4 py-2 fw-semibold">
+                            My Dashboard
+                        </a>
+                    <?php else: ?>
+                        <a href="auth/register.php" class="btn btn-outline-dark rounded-pill px-4 py-2 fw-semibold" style="border-color: #cbd5e1;">
+                            Signup
+                        </a>
+                    <?php endif; ?>
+                </div>
             </div>
         </div>
-    </div>
-</nav>
+    </nav>
 
-<!-- ACTIVE EMERGENCY SCHOOL CLOSURE BROADCAST BANNER -->
-<?php if ($activeAlert): ?>
-<div class="bg-danger text-white py-3 shadow border-bottom border-danger position-relative">
-    <div class="container">
-        <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
-            <div class="d-flex align-items-center gap-3">
-                <span class="badge bg-white text-danger px-3 py-2 fw-bold text-uppercase fs-6 shadow-sm">
-                    <span class="pulse-dot text-danger me-1"></span> <?php echo e($activeAlert['alert_type']); ?>
-                </span>
+    <!-- LIVE EMERGENCY CLOSURE NOTIFICATION BANNER (IF ACTIVE) -->
+    <?php if ($activeAlert): ?>
+    <div class="bg-danger text-white py-3 shadow-sm border-bottom border-danger">
+        <div class="container">
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+                <div class="d-flex align-items-center gap-3">
+                    <span class="badge bg-white text-danger px-3 py-2 fw-bold text-uppercase fs-6">
+                        <span class="pulse-dot text-danger me-1"></span> <?php echo e($activeAlert['alert_type']); ?>
+                    </span>
+                    <div>
+                        <h5 class="mb-0 fw-bold"><?php echo e($activeAlert['title']); ?></h5>
+                        <div class="small opacity-90 mt-1"><?php echo e($activeAlert['message']); ?></div>
+                    </div>
+                </div>
                 <div>
-                    <h5 class="mb-0 fw-bold"><?php echo e($activeAlert['title']); ?></h5>
-                    <div class="small opacity-90 mt-1"><?php echo e($activeAlert['message']); ?></div>
-                </div>
-            </div>
-            <div class="d-flex align-items-center gap-2">
-                <span class="badge bg-black bg-opacity-25 text-white px-3 py-2 border border-white border-opacity-25 fw-semibold">
-                    Effective: <?php echo formatDate($activeAlert['effective_date']); ?>
-                    <?php if (!empty($activeAlert['end_date'])): ?>
-                        — Reopening: <?php echo formatDate($activeAlert['end_date']); ?>
-                    <?php endif; ?>
-                </span>
-                <button type="button" class="btn btn-outline-light btn-sm px-3" data-bs-toggle="modal" data-bs-target="#emergencyModal">
-                    Notice Details
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Emergency Notice Modal -->
-<div class="modal fade" id="emergencyModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
-            <div class="modal-header bg-danger text-white py-3">
-                <h5 class="modal-title fw-bold"><i class="fas fa-exclamation-triangle me-2"></i>Official Campus Closure Notice</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body p-4">
-                <div class="badge bg-danger-subtle text-danger border border-danger mb-2 px-3 py-1"><?php echo e($activeAlert['alert_type']); ?></div>
-                <h4 class="fw-bold text-dark mb-2"><?php echo e($activeAlert['title']); ?></h4>
-                <div class="p-3 bg-light rounded-3 text-secondary border mb-3 small">
-                    <div><strong>Effective Date:</strong> <?php echo formatDate($activeAlert['effective_date'], 'l, F j, Y'); ?></div>
-                    <?php if (!empty($activeAlert['end_date'])): ?>
-                        <div><strong>Expected Reopening Date:</strong> <?php echo formatDate($activeAlert['end_date'], 'l, F j, Y'); ?></div>
-                    <?php endif; ?>
-                </div>
-                <div class="mb-3 text-secondary">
-                    <?php echo nl2br(e($activeAlert['message'])); ?>
-                </div>
-                <div class="alert alert-info py-2 small mb-0">
-                    <i class="fas fa-info-circle me-1"></i> All enrolled students must monitor their student portal for online class links and homework tasks.
-                </div>
-            </div>
-            <div class="modal-footer bg-light py-2">
-                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
-                <a href="auth/login.php" class="btn btn-primary btn-sm">Student Portal Login</a>
-            </div>
-        </div>
-    </div>
-</div>
-<?php endif; ?>
-
-<!-- HERO SECTION -->
-<section class="py-5 bg-mesh-gradient position-relative">
-    <div class="container py-lg-5">
-        <div class="row align-items-center g-5">
-            <div class="col-lg-7">
-                <div class="d-inline-flex align-items-center gap-2 bg-white px-3 py-2 rounded-pill shadow-sm mb-4 border">
-                    <span class="badge bg-primary rounded-pill px-3 py-1">Aptech Academic Honors</span>
-                    <span class="small fw-semibold text-secondary">Next-Generation School Management & SaaS ERP</span>
-                </div>
-                <h1 class="saas-hero-title mb-3">
-                    Empowering Next-Gen Leaders with Rigorous Academics & Modern ERP
-                </h1>
-                <p class="lead text-secondary mb-4" style="font-size: 1.15rem; line-height: 1.7;">
-                    Welcome to <strong>EduSphere Academy</strong> — an enterprise-grade academic ecosystem combining world-class curriculum, real-time parent transparency, interactive task manager, and instant emergency broadcast controls.
-                </p>
-                <div class="d-flex flex-wrap gap-3 mb-5">
-                    <a href="auth/login.php" class="btn btn-primary btn-lg px-4 py-3 rounded-pill shadow fw-semibold">
-                        <i class="fas fa-user-lock me-2"></i> Access Student & Parent Portal
-                    </a>
-                    <a href="#events" class="btn btn-outline-dark btn-lg px-4 py-3 rounded-pill fw-semibold">
-                        <i class="fas fa-calendar-alt me-2"></i> View School Events
-                    </a>
-                </div>
-                <div class="row g-4 pt-4 border-top">
-                    <div class="col-4">
-                        <div class="h2 fw-bold text-dark mb-0"><?php echo (int)$totalScholars; ?>+</div>
-                        <small class="text-muted fw-semibold">Active Scholars</small>
-                    </div>
-                    <div class="col-4">
-                        <div class="h2 fw-bold text-primary mb-0"><?php echo (int)$totalFaculty; ?>+</div>
-                        <small class="text-muted fw-semibold">Certified Faculty</small>
-                    </div>
-                    <div class="col-4">
-                        <div class="h2 fw-bold text-success mb-0">98.5%</div>
-                        <small class="text-muted fw-semibold">Graduation Rate</small>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-lg-5">
-                <!-- Live Noticeboard & Academic Preview Card -->
-                <div class="card border-0 shadow-lg rounded-4 overflow-hidden bg-white stat-glow">
-                    <div class="card-header bg-dark text-white py-3 px-4 d-flex justify-content-between align-items-center">
-                        <div class="d-flex align-items-center gap-2">
-                            <span class="pulse-dot text-danger"></span>
-                            <span class="fw-bold">Campus Live Noticeboard</span>
-                        </div>
-                        <span class="badge bg-primary"><?php echo date('F Y'); ?></span>
-                    </div>
-                    <div class="card-body p-4">
-                        <?php if ($activeAlert): ?>
-                            <div class="p-3 mb-3 rounded-3 bg-danger bg-opacity-10 border border-danger">
-                                <div class="d-flex align-items-center justify-content-between mb-1">
-                                    <span class="badge bg-danger">CAMPUS ALERT</span>
-                                    <small class="text-danger fw-bold"><?php echo formatDate($activeAlert['effective_date']); ?></small>
-                                </div>
-                                <h6 class="fw-bold text-danger mb-1"><?php echo e($activeAlert['title']); ?></h6>
-                                <p class="small text-muted mb-0"><?php echo mb_strimwidth(e($activeAlert['message']), 0, 95, '...'); ?></p>
-                            </div>
+                    <span class="badge bg-black bg-opacity-25 text-white px-3 py-2 border border-white border-opacity-25 fw-semibold">
+                        Effective: <?php echo formatDate($activeAlert['effective_date']); ?>
+                        <?php if (!empty($activeAlert['end_date'])): ?>
+                            — Reopening: <?php echo formatDate($activeAlert['end_date']); ?>
                         <?php endif; ?>
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
 
-                        <h6 class="fw-bold text-dark mb-3"><i class="fas fa-calendar-check text-primary me-2"></i>Upcoming School Highlights</h6>
-                        <div class="d-flex flex-column gap-2 mb-4">
-                            <?php foreach (array_slice($events, 0, 3) as $ev): ?>
-                            <div class="p-3 rounded-3 bg-light border d-flex justify-content-between align-items-start">
-                                <div>
-                                    <div class="fw-semibold text-dark small"><?php echo e($ev['title']); ?></div>
-                                    <div class="text-muted" style="font-size: 0.75rem;"><i class="fas fa-clock me-1 text-primary"></i><?php echo formatDate($ev['event_date']); ?></div>
-                                </div>
-                                <span class="badge bg-<?php echo $ev['is_holiday'] ? 'danger' : 'primary'; ?>-subtle text-<?php echo $ev['is_holiday'] ? 'danger' : 'primary'; ?> border"><?php echo e($ev['event_type']); ?></span>
-                            </div>
-                            <?php endforeach; ?>
+    <!-- HERO SECTION (Matching Image 2 Top Section) -->
+    <section class="learnify-hero-section">
+        <div class="container py-lg-4">
+            <div class="row align-items-center g-5">
+                <!-- Left Title & Lead -->
+                <div class="col-lg-6">
+                    <h1 class="learnify-hero-title mb-4">
+                        Take your time and learn from anywhere
+                    </h1>
+                    <p class="learnify-hero-lead mb-4">
+                        The world's most trusted open-source learning management system. An easy tool helping educators efficiently manage and assess progress.
+                    </p>
+                    <a href="auth/login.php" class="learnify-btn-green">
+                        Get started
+                    </a>
+                </div>
+
+                <!-- Right Hero Image with 3 Floating Badges (Image 2) -->
+                <div class="col-lg-6 position-relative text-center">
+                    <div class="position-relative d-inline-block">
+                        <!-- Floating Badge 1: Top Right (Course is started) -->
+                        <div class="learnify-floating-badge" style="top: 25px; left: -10px;">
+                            <span class="badge rounded-circle p-1" style="background-color: #84cc16; color: #fff;"><i class="fas fa-check fa-xs"></i></span>
+                            <span>Course is started</span>
                         </div>
 
-                        <a href="public_events.php" class="btn btn-outline-primary w-100 py-2 rounded-pill fw-semibold">
-                            Open Full Academic Calendar <i class="fas fa-arrow-right ms-1"></i>
+                        <!-- Floating Badge 2: Right Middle (Course Completed) -->
+                        <div class="learnify-floating-badge" style="top: 110px; right: -20px;">
+                            <span class="badge rounded-circle p-1" style="background-color: #06b6d4; color: #fff;"><i class="fas fa-graduation-cap fa-xs"></i></span>
+                            <span>Course Completed</span>
+                        </div>
+
+                        <!-- Floating Badge 3: Left Bottom (Inbox / 3 Tasks) -->
+                        <div class="learnify-floating-badge" style="bottom: 120px; left: -25px;">
+                            <span class="badge rounded-circle p-1" style="background-color: #f97316; color: #fff;"><i class="fas fa-envelope fa-xs"></i></span>
+                            <span>Inbox (3 Tasks)</span>
+                        </div>
+
+                        <!-- Main Student Image -->
+                        <img src="https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&w=700&q=80" 
+                             alt="Student learning" 
+                             class="img-fluid rounded-4 shadow-lg" 
+                             style="max-height: 440px; width: 100%; object-fit: cover; border: 4px solid #ffffff;">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- SECTION 2: OUR ACHIEVEMENTS (Matching Image 2) -->
+    <section class="py-5 bg-white">
+        <div class="container py-lg-4">
+            <div class="text-center mb-5">
+                <h2 class="fw-bold text-dark mb-2" style="font-size: 2.25rem;">Our Achievements</h2>
+                <p class="text-muted">With our super powers we have reached this</p>
+            </div>
+
+            <div class="row g-4 justify-content-center">
+                <!-- Card 1: 125+ University -->
+                <div class="col-md-4">
+                    <div class="achievement-card">
+                        <div class="achievement-icon-wrap" style="background-color: #fef3c7; color: #d97706;">
+                            <i class="fas fa-university"></i>
+                        </div>
+                        <div>
+                            <div class="h2 fw-bold text-dark mb-0">125+</div>
+                            <div class="text-muted fw-semibold">University Programs</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card 2: 304+ School -->
+                <div class="col-md-4">
+                    <div class="achievement-card">
+                        <div class="achievement-icon-wrap" style="background-color: #fee2e2; color: #dc2626;">
+                            <i class="fas fa-school"></i>
+                        </div>
+                        <div>
+                            <div class="h2 fw-bold text-dark mb-0">304+</div>
+                            <div class="text-muted fw-semibold">School Campuses</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card 3: 50K+ Students -->
+                <div class="col-md-4">
+                    <div class="achievement-card">
+                        <div class="achievement-icon-wrap" style="background-color: #e0f2fe; color: #0284c7;">
+                            <i class="fas fa-user-graduate"></i>
+                        </div>
+                        <div>
+                            <div class="h2 fw-bold text-dark mb-0">50K+</div>
+                            <div class="text-muted fw-semibold">Students Enrolled</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- SECTION 3: POWERFUL FEATURES (Matching Image 2 Alternating Feature Rows) -->
+    <section id="features" class="py-5" style="background-color: #fafbfc;">
+        <div class="container py-lg-4">
+            <div class="text-center mb-5">
+                <h2 class="fw-bold text-dark mb-2" style="font-size: 2.25rem;">Powerful Features</h2>
+                <p class="text-muted mx-auto" style="max-width: 550px;">Special features which help you keep students on track and engaged during class time.</p>
+            </div>
+
+            <!-- Feature Row 1: View Student Screen -->
+            <div class="row align-items-center g-5 mb-5 pb-lg-4">
+                <div class="col-lg-6">
+                    <div class="feature-img-box">
+                        <img src="https://images.unsplash.com/photo-1577896851231-70ef18881754?auto=format&fit=crop&w=800&q=80" alt="View Student Screen">
+                    </div>
+                </div>
+                <div class="col-lg-6 ps-lg-5">
+                    <h3 class="fw-bold text-dark mb-3" style="font-size: 1.85rem;">View Student Screen</h3>
+                    <p class="text-muted mb-4" style="line-height: 1.8;">
+                        Teacher can see everything your students are doing on their computers. Be able to see at a glance who is on track and who needs extra help.
+                    </p>
+                    <a href="auth/login.php" class="learnify-btn-green">
+                        Learn More
+                    </a>
+                </div>
+            </div>
+
+            <!-- Feature Row 2: Assignment & Quiz (Matching Image 2 Top Right) -->
+            <div class="row align-items-center g-5 mb-5 pb-lg-4 flex-lg-row-reverse">
+                <div class="col-lg-6">
+                    <div class="feature-img-box">
+                        <img src="https://images.unsplash.com/photo-1509062522246-3755977927d7?auto=format&fit=crop&w=800&q=80" alt="Assignment and Quiz">
+                    </div>
+                </div>
+                <div class="col-lg-6 pe-lg-5">
+                    <h3 class="fw-bold text-dark mb-3" style="font-size: 1.85rem;">Assignment & Quiz</h3>
+                    <p class="text-muted mb-4" style="line-height: 1.8;">
+                        Teacher can create a assignment or quiz or in Classroom. And also schedule it to post later, add a due date and time and add attachments.
+                    </p>
+                    <a href="auth/login.php" class="learnify-btn-green">
+                        Learn More
+                    </a>
+                </div>
+            </div>
+
+            <!-- Feature Row 3: Automatically Grading (Matching Image 2) -->
+            <div class="row align-items-center g-5">
+                <div class="col-lg-6">
+                    <div class="feature-img-box">
+                        <img src="https://images.unsplash.com/photo-1503676260728-1c00da094a0b?auto=format&fit=crop&w=800&q=80" alt="Automatically Grading">
+                    </div>
+                </div>
+                <div class="col-lg-6 ps-lg-5">
+                    <h3 class="fw-bold text-dark mb-3" style="font-size: 1.85rem;">Automatically Grading</h3>
+                    <p class="text-muted mb-4" style="line-height: 1.8;">
+                        It automatically grade the quiz and import the grades into Classroom. Students can see their grades after teacher review their answers.
+                    </p>
+                    <a href="auth/login.php" class="learnify-btn-green">
+                        Learn More
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- SECTION 4: SCHOOL FUNCTIONS & GAZETTED HOLIDAYS (Added value for parents & students) -->
+    <section class="py-5 bg-white">
+        <div class="container py-lg-4">
+            <div class="d-flex justify-content-between align-items-end mb-4 flex-wrap gap-2">
+                <div>
+                    <h2 class="fw-bold text-dark mb-1" style="font-size: 2.25rem;">Upcoming Events & Holidays</h2>
+                    <p class="text-muted mb-0">What is happening at school and scheduled off days for parents and students.</p>
+                </div>
+                <a href="public_events.php" class="learnify-btn-green" style="padding: 0.5rem 1.4rem;">
+                    Full Calendar <i class="fas fa-calendar-alt ms-1"></i>
+                </a>
+            </div>
+
+            <div class="row g-4">
+                <?php foreach ($events as $ev): ?>
+                <div class="col-md-4">
+                    <div class="p-4 rounded-4 border bg-light h-100 d-flex flex-column justify-content-between">
+                        <div>
+                            <span class="badge bg-<?php echo $ev['is_holiday'] ? 'danger' : 'primary'; ?> mb-2"><?php echo e($ev['event_type']); ?></span>
+                            <h5 class="fw-bold text-dark mb-2"><?php echo e($ev['title']); ?></h5>
+                            <p class="text-muted small mb-3"><?php echo mb_strimwidth(e($ev['description']), 0, 95, '...'); ?></p>
+                        </div>
+                        <div class="pt-2 border-top text-secondary small fw-semibold">
+                            <i class="fas fa-calendar-day me-1 text-primary"></i> <?php echo formatDate($ev['event_date']); ?>
+                        </div>
+                    </div>
+                </div>
+                <?php endforeach; ?>
+            </div>
+        </div>
+    </section>
+
+    <!-- SECTION 5: THEY ALL ARE LOVED US (Testimonials matching Image 2) -->
+    <section id="testimonials" class="py-5" style="background-color: #fafbfc;">
+        <div class="container py-lg-4">
+            <div class="text-center mb-5">
+                <h2 class="fw-bold text-dark mb-2" style="font-size: 2.25rem;">They all are loved us</h2>
+                <p class="text-muted">We have been working with clients around the world</p>
+            </div>
+
+            <div class="row g-4">
+                <!-- Card 1: Easy Collaborating -->
+                <div class="col-md-4">
+                    <div class="testimonial-card">
+                        <div>
+                            <h5 class="fw-bold text-dark mb-3">Easy Collaborating</h5>
+                            <p class="text-muted small" style="line-height: 1.8;">
+                                "Its platform allows users to plan through many functions from video conferencing to creating."
+                            </p>
+                        </div>
+                        <div class="d-flex align-items-center gap-3 pt-3 border-top mt-3">
+                            <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=60&q=80" alt="Brandon" class="rounded-circle" style="width: 44px; height: 44px; object-fit: cover;">
+                            <div>
+                                <div class="fw-bold text-dark small">Brandon</div>
+                                <div class="text-muted" style="font-size: 0.75rem;">Teacher, MIT University</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card 2: Very Efficient -->
+                <div class="col-md-4">
+                    <div class="testimonial-card">
+                        <div>
+                            <h5 class="fw-bold text-dark mb-3">Very Efficient</h5>
+                            <p class="text-muted small" style="line-height: 1.8;">
+                                "Learnify is done very effective works well and produces the results that were intended."
+                            </p>
+                        </div>
+                        <div class="d-flex align-items-center gap-3 pt-3 border-top mt-3">
+                            <img src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=60&q=80" alt="Cheyenne Geidt" class="rounded-circle" style="width: 44px; height: 44px; object-fit: cover;">
+                            <div>
+                                <div class="fw-bold text-dark small">Cheyenne Geidt</div>
+                                <div class="text-muted" style="font-size: 0.75rem;">Principal, Science College</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card 3: Time Saving -->
+                <div class="col-md-4">
+                    <div class="testimonial-card">
+                        <div>
+                            <h5 class="fw-bold text-dark mb-3">Time Saving</h5>
+                            <p class="text-muted small" style="line-height: 1.8;">
+                                "It is help us to manage our all things in one platform, its saves almost 20 hours a week."
+                            </p>
+                        </div>
+                        <div class="d-flex align-items-center gap-3 pt-3 border-top mt-3">
+                            <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=60&q=80" alt="Phillip Donin" class="rounded-circle" style="width: 44px; height: 44px; object-fit: cover;">
+                            <div>
+                                <div class="fw-bold text-dark small">Phillip Donin</div>
+                                <div class="text-muted" style="font-size: 0.75rem;">CEO at Online Hub Edu</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Green Pagination Dots (Image 2) -->
+            <div class="d-flex justify-content-center gap-2 mt-4 pt-2">
+                <span class="rounded-circle" style="width: 8px; height: 8px; background-color: var(--brand-green);"></span>
+                <span class="rounded-circle" style="width: 8px; height: 8px; background-color: #cbd5e1;"></span>
+                <span class="rounded-circle" style="width: 8px; height: 8px; background-color: #cbd5e1;"></span>
+            </div>
+        </div>
+    </section>
+
+    <!-- SECTION 6: READY CTA BANNER (Matching Image 2 Bottom Blue Card with Thumbs-Up Student) -->
+    <section class="py-5 bg-white">
+        <div class="container">
+            <div class="ready-cta-banner">
+                <div class="row align-items-center g-4">
+                    <div class="col-md-7 ps-md-4">
+                        <h2 class="fw-bold text-dark mb-3" style="font-size: 2.2rem; line-height: 1.25;">
+                            Ready to be more productive with Learnify?
+                        </h2>
+                        <a href="auth/login.php" class="learnify-btn-green mt-2">
+                            Get started
+                        </a>
+                    </div>
+                    <div class="col-md-5 text-center text-md-end">
+                        <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80" 
+                             alt="Happy Scholar" 
+                             class="rounded-4 shadow" 
+                             style="max-height: 240px; width: 100%; max-width: 320px; object-fit: cover;">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- FOOTER (Matching Image 2 Dark Navy Footer) -->
+    <footer class="learnify-footer">
+        <div class="container">
+            <div class="row g-4 mb-5">
+                <div class="col-lg-4">
+                    <h4 class="fw-bold text-white mb-3">EduSphere</h4>
+                    <p class="small text-muted mb-4" style="max-width: 300px; line-height: 1.8;">
+                        Get in Touch<br>
+                        Questions or feedback?<br>
+                        We'd love to hear from you.
+                    </p>
+                    <div class="d-flex gap-3 fs-5">
+                        <a href="#"><i class="fab fa-facebook-f"></i></a>
+                        <a href="#"><i class="fab fa-twitter"></i></a>
+                        <a href="#"><i class="fab fa-linkedin-in"></i></a>
+                        <a href="#"><i class="fab fa-instagram"></i></a>
+                    </div>
+                </div>
+
+                <div class="col-6 col-lg-2">
+                    <h6 class="fw-bold text-white mb-3 small text-uppercase">Products</h6>
+                    <ul class="list-unstyled small d-flex flex-column gap-2 mb-0">
+                        <li><a href="#">Student Screen</a></li>
+                        <li><a href="#">Remote Access</a></li>
+                        <li><a href="#">Grading</a></li>
+                        <li><a href="#">Monitoring</a></li>
+                    </ul>
+                </div>
+
+                <div class="col-6 col-lg-2">
+                    <h6 class="fw-bold text-white mb-3 small text-uppercase">Support</h6>
+                    <ul class="list-unstyled small d-flex flex-column gap-2 mb-0">
+                        <li><a href="#">Help Desk</a></li>
+                        <li><a href="#">Contact</a></li>
+                        <li><a href="#">Privacy Center</a></li>
+                        <li><a href="#">FAQ</a></li>
+                    </ul>
+                </div>
+
+                <div class="col-lg-4">
+                    <h6 class="fw-bold text-white mb-3 small text-uppercase">Available on</h6>
+                    <div class="d-flex flex-column gap-2" style="max-width: 170px;">
+                        <a href="#" class="btn btn-dark btn-sm text-start py-2 px-3 border border-secondary rounded-3">
+                            <small class="d-block" style="font-size: 0.65rem;">Download on the</small>
+                            <i class="fab fa-apple me-1"></i> <strong>App Store</strong>
+                        </a>
+                        <a href="#" class="btn btn-dark btn-sm text-start py-2 px-3 border border-secondary rounded-3">
+                            <small class="d-block" style="font-size: 0.65rem;">GET IT ON</small>
+                            <i class="fab fa-google-play me-1"></i> <strong>Google Play</strong>
                         </a>
                     </div>
                 </div>
             </div>
-        </div>
-    </div>
-</section>
 
-<!-- SCHOOL FUNCTIONS & CAMPUS LIFE SHOWCASE -->
-<section id="events" class="py-5 bg-white">
-    <div class="container py-lg-4">
-        <div class="d-flex justify-content-between align-items-end mb-5 flex-wrap gap-2">
-            <div>
-                <span class="saas-badge-pill bg-primary-subtle text-primary border border-primary mb-2">CAMPUS HAPPENINGS</span>
-                <h2 class="display-6 fw-bold text-dark mb-1">School Functions & Co-Curricular Life</h2>
-                <p class="text-muted mb-0">Upcoming athletic competitions, robotics fairs, exhibitions, and parent-teacher conferences.</p>
-            </div>
-            <a href="public_events.php" class="btn btn-outline-primary rounded-pill px-4">
-                View Calendar <i class="fas fa-calendar-alt ms-1"></i>
-            </a>
-        </div>
-
-        <?php if (empty($events)): ?>
-            <div class="p-5 text-center text-muted bg-light rounded-4">
-                <i class="fas fa-calendar-times fa-3x mb-2 text-secondary opacity-50"></i>
-                <h5>No upcoming events currently listed.</h5>
-            </div>
-        <?php else: ?>
-            <div class="row g-4">
-                <?php foreach ($events as $ev): 
-                    $today = date('Y-m-d');
-                    $diff = (int)round((strtotime($ev['event_date']) - strtotime($today)) / 86400);
-                    $tag = ($diff === 0) ? '<span class="badge bg-danger">TODAY</span>' : (($diff === 1) ? '<span class="badge bg-warning text-dark">TOMORROW</span>' : '<span class="badge bg-light text-dark border">In ' . $diff . ' days</span>');
-                ?>
-                <div class="col-md-6 col-lg-4">
-                    <div class="saas-card h-100 p-4 d-flex flex-column border-top border-4 <?php echo $ev['is_holiday'] ? 'border-danger' : 'border-primary'; ?>">
-                        <div class="d-flex justify-content-between align-items-center mb-3">
-                            <span class="badge bg-<?php echo $ev['is_holiday'] ? 'danger' : 'primary'; ?> px-3 py-2"><?php echo e($ev['event_type']); ?></span>
-                            <?php echo $tag; ?>
-                        </div>
-                        <h5 class="fw-bold text-dark mb-2"><?php echo e($ev['title']); ?></h5>
-                        <div class="text-muted small mb-3">
-                            <i class="fas fa-calendar-alt text-primary me-1"></i>
-                            <strong><?php echo formatDate($ev['event_date'], 'l, F j, Y'); ?></strong>
-                            <?php if (!empty($ev['end_date'])): ?>
-                                <br><i class="fas fa-flag-checkered text-muted me-1"></i> Through: <?php echo formatDate($ev['end_date'], 'F j, Y'); ?>
-                            <?php endif; ?>
-                        </div>
-                        <p class="text-secondary small mb-3 flex-grow-1">
-                            <?php echo nl2br(e($ev['description'])); ?>
-                        </p>
-                        <?php if ($ev['is_holiday']): ?>
-                            <div class="p-2 rounded bg-danger bg-opacity-10 text-danger small fw-semibold mt-auto">
-                                <i class="fas fa-sun me-1"></i> School Off (Campus Closed)
-                            </div>
-                        <?php endif; ?>
-                    </div>
-                </div>
-                <?php endforeach; ?>
-            </div>
-        <?php endif; ?>
-    </div>
-</section>
-
-<!-- SCHEDULED HOLIDAYS & DAYS OFF -->
-<section id="holidays" class="py-5 bg-light">
-    <div class="container py-lg-4">
-        <div class="row align-items-center mb-4">
-            <div class="col-md-8">
-                <span class="saas-badge-pill bg-danger-subtle text-danger border border-danger mb-2">OFFICIAL CALENDAR</span>
-                <h2 class="display-6 fw-bold text-dark mb-1">Gazetted Holidays & Scheduled Days Off</h2>
-                <p class="text-muted mb-0">Official gazetted holidays, national observances, and seasonal vacations for students & parents.</p>
-            </div>
-            <div class="col-md-4 text-md-end mt-3 mt-md-0">
-                <a href="public_events.php?type=Holiday" class="btn btn-outline-danger rounded-pill px-4">
-                    <i class="fas fa-sun me-1"></i> View All Holidays
-                </a>
+            <div class="pt-4 border-top border-secondary text-center small text-muted">
+                Designed with ❤️ for EduSphere — Enterprise Student Management System
             </div>
         </div>
+    </footer>
 
-        <div class="row g-3">
-            <?php if (empty($holidays)): ?>
-                <div class="col-12 text-center p-4 text-muted bg-white rounded-3 shadow-sm">
-                    No scheduled upcoming holidays in the immediate schedule.
-                </div>
-            <?php else: ?>
-                <?php foreach ($holidays as $h): 
-                    $hDiff = (int)round((strtotime($h['event_date']) - strtotime(date('Y-m-d'))) / 86400);
-                ?>
-                <div class="col-md-6 col-lg-3">
-                    <div class="saas-card h-100 p-3 bg-white">
-                        <div class="d-flex align-items-center gap-3">
-                            <div class="rounded-3 bg-danger text-white d-flex flex-column align-items-center justify-content-center p-2" style="width: 54px; height: 54px;">
-                                <span class="fw-bold fs-6 lh-1"><?php echo date('d', strtotime($h['event_date'])); ?></span>
-                                <span class="small text-uppercase" style="font-size: 0.65rem;"><?php echo date('M', strtotime($h['event_date'])); ?></span>
-                            </div>
-                            <div>
-                                <h6 class="fw-bold text-dark mb-1"><?php echo e($h['title']); ?></h6>
-                                <span class="badge bg-light text-danger border">
-                                    <?php echo $hDiff === 0 ? 'Today' : ($hDiff === 1 ? 'Tomorrow' : 'In ' . $hDiff . ' days'); ?>
-                                </span>
-                            </div>
-                        </div>
-                        <?php if (!empty($h['description'])): ?>
-                            <p class="text-muted small mt-3 mb-0"><?php echo mb_strimwidth(e($h['description']), 0, 75, '...'); ?></p>
-                        <?php endif; ?>
-                    </div>
-                </div>
-                <?php endforeach; ?>
-            <?php endif; ?>
-        </div>
-    </div>
-</section>
-
-<!-- ACADEMIC PROGRAMS & CURRICULUM -->
-<section id="programs" class="py-5 bg-white">
-    <div class="container py-lg-4">
-        <div class="text-center mb-5">
-            <span class="saas-badge-pill bg-primary-subtle text-primary border border-primary mb-2">CURRICULUM DISCIPLINES</span>
-            <h2 class="display-6 fw-bold text-dark mb-2">Academics Built for the Future</h2>
-            <p class="text-muted mx-auto" style="max-width: 650px;">Rigorous STEM, software engineering, and business disciplines backed by practical projects, verified transcripts, and task management.</p>
-        </div>
-
-        <div class="row g-4">
-            <?php foreach ($featuredCourses as $fc): ?>
-            <div class="col-md-6 col-lg-4">
-                <div class="saas-card h-100 p-4 d-flex flex-column bg-light rounded-4">
-                    <div class="d-flex justify-content-between align-items-start mb-3">
-                        <code class="fs-6"><?php echo e($fc['course_code']); ?></code>
-                        <span class="badge bg-success-subtle text-success border border-success px-3 py-1"><?php echo (int)($fc['credits'] ?? 3); ?> Credits</span>
-                    </div>
-                    <h5 class="fw-bold text-dark mb-2"><?php echo e($fc['course_name']); ?></h5>
-                    <p class="text-muted small mb-4 flex-grow-1"><?php echo e($fc['description'] ?: 'Rigorous academic curriculum focusing on fundamental subject mastery and real-world project delivery.'); ?></p>
-                    <div class="pt-3 border-top d-flex justify-content-between align-items-center small text-secondary">
-                        <span><i class="fas fa-chalkboard-teacher me-1 text-primary"></i><?php echo e($fc['instructor_name']); ?></span>
-                        <span><i class="fas fa-users me-1 text-success"></i><?php echo $fc['enrolled_students']; ?> Enrolled</span>
-                    </div>
-                </div>
-            </div>
-            <?php endforeach; ?>
-        </div>
-    </div>
-</section>
-
-<!-- ENTERPRISE ERP ARCHITECTURE & DEMO SANDBOX -->
-<section id="portal" class="py-5 bg-dark text-white">
-    <div class="container py-lg-5">
-        <div class="row align-items-center g-5">
-            <div class="col-lg-6">
-                <span class="badge bg-primary px-3 py-2 rounded-pill fw-semibold mb-3">DIGITAL CAMPUS ERP 2.0</span>
-                <h2 class="display-6 fw-bold mb-3">Enterprise SaaS Student Management System</h2>
-                <p class="text-white-50 mb-4" style="line-height: 1.7;">
-                    EduSphere provides a single source of truth for faculty, students, and administration. Built with pure PHP 8.2+, MySQL 8+, and PDO prepared statements with zero framework bloat.
-                </p>
-                <div class="d-flex flex-column gap-3">
-                    <div class="d-flex gap-3 align-items-start">
-                        <div class="feature-icon-wrapper bg-primary text-white">
-                            <i class="fas fa-tasks"></i>
-                        </div>
-                        <div>
-                            <h6 class="fw-bold mb-1">Mandatory Student Task Manager</h6>
-                            <p class="small text-white-50 mb-0">Live AJAX search, debounced status changes, overdue highlights, priority filters.</p>
-                        </div>
-                    </div>
-                    <div class="d-flex gap-3 align-items-start">
-                        <div class="feature-icon-wrapper bg-danger text-white">
-                            <i class="fas fa-bullhorn"></i>
-                        </div>
-                        <div>
-                            <h6 class="fw-bold mb-1">Administrative Emergency Closure Controls</h6>
-                            <p class="small text-white-50 mb-0">Staff can toggle instant campus closure notices across portals with one click.</p>
-                        </div>
-                    </div>
-                    <div class="d-flex gap-3 align-items-start">
-                        <div class="feature-icon-wrapper bg-success text-white">
-                            <i class="fas fa-file-invoice"></i>
-                        </div>
-                        <div>
-                            <h6 class="fw-bold mb-1">Official Student Academic Transcripts</h6>
-                            <p class="small text-white-50 mb-0">Printable official report cards, course grades, credits, and completion standing.</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-lg-6">
-                <!-- Sandbox Credentials Box -->
-                <div class="saas-card p-4 p-lg-5 bg-white text-dark rounded-4 shadow-lg">
-                    <h5 class="fw-bold text-dark mb-1"><i class="fas fa-shield-alt text-primary me-2"></i>Portal Sign-In Demo Sandbox</h5>
-                    <p class="small text-muted mb-4">Click to login directly with pre-configured role credentials:</p>
-
-                    <div class="table-responsive mb-4">
-                        <table class="table table-bordered table-sm small align-middle mb-0">
-                            <thead class="table-light">
-                                <tr><th>Role</th><th>Email Account</th><th>Password</th></tr>
-                            </thead>
-                            <tbody>
-                                <tr>
-                                    <td><span class="badge bg-danger">Administrator</span></td>
-                                    <td><code>admin@edusphere.com</code></td>
-                                    <td><code>Admin@123</code></td>
-                                </tr>
-                                <tr>
-                                    <td><span class="badge bg-warning text-dark">Teacher</span></td>
-                                    <td><code>teacher@edusphere.com</code></td>
-                                    <td><code>Teacher@123</code></td>
-                                </tr>
-                                <tr>
-                                    <td><span class="badge bg-primary">Student</span></td>
-                                    <td><code>student@edusphere.com</code></td>
-                                    <td><code>Student@123</code></td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <a href="auth/login.php" class="btn btn-primary w-100 py-3 rounded-pill fw-bold shadow">
-                        Sign In to EduSphere Portal <i class="fas fa-arrow-right ms-2"></i>
-                    </a>
-                </div>
-            </div>
-        </div>
-    </div>
-</section>
-
-<!-- FOOTER -->
-<footer id="contact" class="bg-black text-white-50 py-5">
-    <div class="container py-4">
-        <div class="row g-4 mb-5">
-            <div class="col-lg-4">
-                <div class="d-flex align-items-center gap-2 mb-3">
-                    <i class="fas fa-graduation-cap text-primary fs-3"></i>
-                    <h5 class="fw-bold text-white mb-0">EduSphere Academy</h5>
-                </div>
-                <p class="small mb-4" style="line-height: 1.7;">
-                    A premier educational institution delivering excellence in STEM, Computer Science, and Leadership. Committed to academic integrity, digital innovation, and transparent student success.
-                </p>
-                <div class="small">
-                    <div><i class="fas fa-map-marker-alt text-primary me-2"></i> Plot 45-C, Academic Boulevard, Education District, Karachi</div>
-                    <div class="mt-2"><i class="fas fa-phone-alt text-primary me-2"></i> +92 (21) 3456-7890</div>
-                    <div class="mt-2"><i class="fas fa-envelope text-primary me-2"></i> admissions@edusphere.edu.pk</div>
-                </div>
-            </div>
-
-            <div class="col-6 col-lg-2">
-                <h6 class="fw-bold text-white mb-3">Quick Navigation</h6>
-                <ul class="list-unstyled small d-flex flex-column gap-2 mb-0">
-                    <li><a href="index.php" class="text-white-50 text-decoration-none">Home</a></li>
-                    <li><a href="public_events.php" class="text-white-50 text-decoration-none">Events & Functions</a></li>
-                    <li><a href="public_events.php?type=Holiday" class="text-white-50 text-decoration-none">School Off Days</a></li>
-                    <li><a href="auth/login.php" class="text-white-50 text-decoration-none">Portal Login</a></li>
-                    <li><a href="auth/register.php" class="text-white-50 text-decoration-none">New Admission</a></li>
-                </ul>
-            </div>
-
-            <div class="col-6 col-lg-3">
-                <h6 class="fw-bold text-white mb-3">Student & Parent Desk</h6>
-                <ul class="list-unstyled small d-flex flex-column gap-2 mb-0">
-                    <li><a href="auth/login.php" class="text-white-50 text-decoration-none">Task Submissions</a></li>
-                    <li><a href="auth/login.php" class="text-white-50 text-decoration-none">Course Enrollments</a></li>
-                    <li><a href="auth/login.php" class="text-white-50 text-decoration-none">Academic Transcripts</a></li>
-                    <li><a href="public_events.php?type=Exam" class="text-white-50 text-decoration-none">Examination Date Sheet</a></li>
-                </ul>
-            </div>
-
-            <div class="col-lg-3">
-                <h6 class="fw-bold text-white mb-3">Accreditation & Standards</h6>
-                <p class="small mb-3" style="line-height: 1.6;">
-                    EduSphere Academy operates in compliance with Aptech academic standards, featuring full relational schema, CSRF-hardened PDO security, and session defense.
-                </p>
-                <span class="badge bg-secondary">PHP 8.2+ | MySQL 8+ | Bootstrap 5</span>
-            </div>
-        </div>
-
-        <div class="pt-4 border-top border-secondary text-center small">
-            &copy; <?php echo date('Y'); ?> EduSphere — Student Management System & Academy Portal. All rights reserved.
-        </div>
-    </div>
-</footer>
+</div>
 
 <?php require_once 'includes/footer.php'; ?>
