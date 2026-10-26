@@ -5,10 +5,9 @@
  */
 
 // Database credentials
-define('DB_HOST', 'localhost');
-define('DB_NAME', 'edusphere');
-define('DB_USER', 'root');
-define('DB_PASS', '');
+define('DB_HOST', getenv('DB_HOST') ?: 'localhost');
+define('DB_NAME', getenv('DB_NAME') ?: 'edusphere');
+define('DB_USER', getenv('DB_USER') ?: 'root');
 define('DB_CHARSET', 'utf8mb4');
 
 // App configuration
@@ -25,19 +24,34 @@ $options = [
     PDO::ATTR_EMULATE_PREPARES   => false,
 ];
 
-// Connect to MySQL server (without selecting a database) so we can ensure the DB exists
-try {
-    $serverPdo = new PDO(
-        "mysql:host=" . DB_HOST . ";charset=" . DB_CHARSET,
-        DB_USER,
-        DB_PASS,
-        $options
-    );
-} catch (PDOException $e) {
-    error_log("MySQL connection failed: " . $e->getMessage());
+// Determine working password (supports both empty and 'root' passwords)
+$serverPdo = null;
+$workingPass = '';
+$envPass = getenv('DB_PASS');
+$passCandidates = array_unique([$envPass !== false ? $envPass : '', '', 'root']);
+
+foreach ($passCandidates as $candidate) {
+    try {
+        $serverPdo = new PDO(
+            "mysql:host=" . DB_HOST . ";charset=" . DB_CHARSET,
+            DB_USER,
+            $candidate,
+            $options
+        );
+        $workingPass = $candidate;
+        break;
+    } catch (PDOException $e) {
+        // Try next candidate
+    }
+}
+
+if (!$serverPdo) {
+    error_log("MySQL connection failed across candidate passwords.");
     http_response_code(500);
     die("Database connection failed. Please check your configuration.");
 }
+
+define('DB_PASS', $workingPass);
 
 // Ensure the application database exists; create + import schema if missing or empty
 try {
