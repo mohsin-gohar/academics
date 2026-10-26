@@ -258,3 +258,27 @@ function generateStudentNumber($pdo) {
     return 'STU-' . $year . '-' . str_pad($next, 4, '0', STR_PAD_LEFT);
 }
 
+// Get active emergency closure alert (if any)
+function getActiveEmergencyAlert($pdo) {
+    try {
+        $stmt = $pdo->query("SELECT * FROM emergency_alerts WHERE is_active = 1 AND effective_date <= CURDATE() AND (end_date IS NULL OR end_date >= CURDATE()) ORDER BY id DESC LIMIT 1");
+        return $stmt->fetch(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) {
+        return null;
+    }
+}
+
+// Get upcoming school events and holidays
+function getSchoolEventsList($pdo, $limit = 6, $onlyUpcoming = true) {
+    try {
+        $where = $onlyUpcoming ? "WHERE event_date >= CURDATE() AND status != 'Cancelled'" : "";
+        $stmt = $pdo->prepare("SELECT e.*, u.full_name as author_name FROM school_events e LEFT JOIN users u ON e.created_by = u.id $where ORDER BY e.event_date ASC LIMIT ?");
+        $stmt->bindValue(1, (int)$limit, PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) {
+        return [];
+    }
+}
+
+

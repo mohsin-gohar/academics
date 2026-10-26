@@ -1,6 +1,27 @@
 <?php
 $page_title = 'Students';
 require_once '../includes/header.php';
+requireAuth();
+
+// If student user visits students index, automatically redirect to their personal profile
+if (isStudent()) {
+    $myId = $_SESSION['student_id'] ?? null;
+    if (!$myId && isset($_SESSION['user_id'])) {
+        $st = $pdo->prepare("SELECT id FROM students WHERE user_id = ?");
+        $st->execute([$_SESSION['user_id']]);
+        $myId = $st->fetchColumn();
+        if ($myId) {
+            $_SESSION['student_id'] = (int)$myId;
+        }
+    }
+    if ($myId) {
+        header("Location: show.php?id=" . (int)$myId);
+        exit;
+    }
+    header("Location: ../dashboard.php");
+    exit;
+}
+
 requireStaff();
 
 // Pagination

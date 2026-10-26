@@ -92,17 +92,25 @@ $enrolledIds = array_column($enrollments, 'student_id');
                 <?php else: ?>
                     <div class="table-responsive">
                         <table class="table table-hover mb-0">
-                            <thead><tr><th>Student</th><th>Enrolled</th><th>Status</th><th>Grade</th><th>Action</th></tr></thead>
+                            <thead><tr><th>Student</th><th>Enrolled</th><th>Status</th><th>Grade</th><?php if (isStaff()): ?><th>Action</th><?php endif; ?></tr></thead>
                             <tbody>
                                 <?php foreach ($enrollments as $e): ?>
                                 <tr>
-                                    <td><a href="../students/show.php?id=<?php echo $e['student_id']; ?>" class="text-decoration-none"><?php echo e($e['student_number'] . ' - ' . $e['full_name']); ?></a></td>
+                                    <td>
+                                        <?php if (isStaff() || (isset($_SESSION['student_id']) && (int)$e['student_id'] === (int)$_SESSION['student_id'])): ?>
+                                            <a href="../students/show.php?id=<?php echo $e['student_id']; ?>" class="text-decoration-none fw-medium"><?php echo e($e['student_number'] . ' - ' . $e['full_name']); ?></a>
+                                        <?php else: ?>
+                                            <span><?php echo e($e['student_number'] . ' - ' . $e['full_name']); ?></span>
+                                        <?php endif; ?>
+                                    </td>
                                     <td><?php echo formatDate($e['enrollment_date']); ?></td>
                                     <td><span class="badge bg-<?php echo $e['status'] === 'Enrolled' ? 'primary' : ($e['status'] === 'Completed' ? 'success' : 'secondary'); ?>"><?php echo e($e['status']); ?></span></td>
                                     <td><?php echo e($e['grade'] ?: '-'); ?></td>
+                                    <?php if (isStaff()): ?>
                                     <td>
                                         <a href="unenroll.php?id=<?php echo $e['id']; ?>&course=<?php echo $course['id']; ?>&csrf_token=<?php echo generateCsrfToken(); ?>" class="btn btn-sm btn-outline-danger" onclick="return confirm('Unenroll this student?')"><i class="fas fa-times"></i></a>
                                     </td>
+                                    <?php endif; ?>
                                 </tr>
                                 <?php endforeach; ?>
                             </tbody>

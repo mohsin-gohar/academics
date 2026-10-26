@@ -8,10 +8,9 @@ $errors = [];
 $form_data = [];
 
 $students = [];
-$courses = [];
+$courses = $pdo->query("SELECT id, course_code, course_name FROM courses WHERE status = 'Active' ORDER BY course_name")->fetchAll();
 if (isStaff()) {
     $students = $pdo->query("SELECT id, full_name, student_number FROM students WHERE status = 'Active' ORDER BY full_name")->fetchAll();
-    $courses = $pdo->query("SELECT id, course_code, course_name FROM courses WHERE status = 'Active' ORDER BY course_name")->fetchAll();
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {

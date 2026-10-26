@@ -12,18 +12,24 @@ $stmt->execute([$id]);
 $task = $stmt->fetch();
 if (!$task) { header('Location: index.php?error=' . urlencode('Task not found.')); exit; }
 
-// Permission: staff can edit own tasks, admin all, student cannot edit
-if (isStudent()) { header('Location: ../errors/403.php'); exit; }
-if (!isAdmin() && $task['user_id'] != $user_id) { header('Location: ../errors/403.php'); exit; }
+// Permission: staff can edit own tasks, admin all; student can edit tasks they created themselves
+if (isStudent()) {
+    if ((int)$task['user_id'] !== (int)$user_id) {
+        header('Location: show.php?id=' . $id . '&error=' . urlencode('Only the task creator or teacher can edit this task. You can change your status directly.'));
+        exit;
+    }
+} elseif (!isAdmin() && (int)$task['user_id'] !== (int)$user_id) {
+    header('Location: index.php?error=' . urlencode('You do not have permission to edit this task.'));
+    exit;
+}
 
 $errors = [];
 $form_data = $task;
 
 $students = [];
-$courses = [];
+$courses = $pdo->query("SELECT id, course_code, course_name FROM courses WHERE status = 'Active' ORDER BY course_name")->fetchAll();
 if (isStaff()) {
     $students = $pdo->query("SELECT id, full_name, student_number FROM students WHERE status = 'Active' ORDER BY full_name")->fetchAll();
-    $courses = $pdo->query("SELECT id, course_code, course_name FROM courses WHERE status = 'Active' ORDER BY course_name")->fetchAll();
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {

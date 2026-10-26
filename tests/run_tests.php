@@ -16,6 +16,7 @@ require_once __DIR__ . '/AuthTest.php';
 require_once __DIR__ . '/TasksTest.php';
 require_once __DIR__ . '/StudentsCoursesTest.php';
 require_once __DIR__ . '/SecurityTest.php';
+require_once __DIR__ . '/EventsAlertsTest.php';
 
 echo "\n";
 echo "====================================================================\n";
@@ -31,6 +32,7 @@ $suites = [
     'Mandatory Tasks Module & Lifecycle' => new TasksTest($pdo),
     'Students, Courses & Enrollments'   => new StudentsCoursesTest($pdo),
     'Security, SQLi, XSS & Injection'   => new SecurityTest($pdo),
+    'School Events, Holidays & Alerts'  => new EventsAlertsTest($pdo),
 ];
 
 $totalTests = 0;

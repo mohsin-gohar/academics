@@ -146,3 +146,34 @@ CREATE TABLE IF NOT EXISTS login_attempts (
     INDEX idx_ip (ip_address),
     INDEX idx_attempted_at (attempted_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- SCHOOL EVENTS & HOLIDAYS TABLE
+CREATE TABLE IF NOT EXISTS school_events (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    title VARCHAR(200) NOT NULL,
+    event_type ENUM('Function', 'Holiday', 'Exam', 'Meeting', 'Other') DEFAULT 'Function',
+    description TEXT,
+    event_date DATE NOT NULL,
+    end_date DATE NULL,
+    is_holiday TINYINT(1) DEFAULT 0,
+    status ENUM('Upcoming', 'Ongoing', 'Completed', 'Cancelled') DEFAULT 'Upcoming',
+    created_by INT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+    INDEX idx_event_date (event_date),
+    INDEX idx_is_holiday (is_holiday)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- EMERGENCY ALERTS TABLE (School Closure / Announcements)
+CREATE TABLE IF NOT EXISTS emergency_alerts (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    title VARCHAR(255) NOT NULL,
+    message TEXT NOT NULL,
+    alert_type ENUM('Emergency Closure', 'Severe Weather', 'Administrative Off', 'General Alert') DEFAULT 'Emergency Closure',
+    effective_date DATE NOT NULL,
+    end_date DATE NULL,
+    is_active TINYINT(1) DEFAULT 1,
+    updated_by INT,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

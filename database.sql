@@ -147,6 +147,37 @@ CREATE TABLE IF NOT EXISTS login_attempts (
     INDEX idx_attempted_at (attempted_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- SCHOOL EVENTS & HOLIDAYS TABLE
+CREATE TABLE IF NOT EXISTS school_events (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    title VARCHAR(200) NOT NULL,
+    event_type ENUM('Function', 'Holiday', 'Exam', 'Meeting', 'Other') DEFAULT 'Function',
+    description TEXT,
+    event_date DATE NOT NULL,
+    end_date DATE NULL,
+    is_holiday TINYINT(1) DEFAULT 0,
+    status ENUM('Upcoming', 'Ongoing', 'Completed', 'Cancelled') DEFAULT 'Upcoming',
+    created_by INT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+    INDEX idx_event_date (event_date),
+    INDEX idx_is_holiday (is_holiday)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- EMERGENCY ALERTS TABLE (School Closure / Announcements)
+CREATE TABLE IF NOT EXISTS emergency_alerts (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    title VARCHAR(255) NOT NULL,
+    message TEXT NOT NULL,
+    alert_type ENUM('Emergency Closure', 'Severe Weather', 'Administrative Off', 'General Alert') DEFAULT 'Emergency Closure',
+    effective_date DATE NOT NULL,
+    end_date DATE NULL,
+    is_active TINYINT(1) DEFAULT 1,
+    updated_by INT,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- SEED DATA (Idempotent: safe to run multiple times)
 INSERT INTO application_settings (setting_key, setting_value, description) VALUES
 ('app_name', 'EduSphere', 'Application name'),
@@ -197,3 +228,18 @@ INSERT INTO tasks (id, user_id, student_id, course_id, title, description, prior
 ON DUPLICATE KEY UPDATE title = VALUES(title), status = VALUES(status);
 
 UPDATE tasks SET completed_at = NOW() WHERE status = 'Completed' AND completed_at IS NULL;
+
+-- Demo School Events & Holidays
+INSERT INTO school_events (id, title, event_type, description, event_date, end_date, is_holiday, status, created_by) VALUES
+(1, 'Annual Sports Gala 2026', 'Function', 'Grand sports competitions, track events, and prize distribution ceremony.', DATE_ADD(CURDATE(), INTERVAL 12 DAY), DATE_ADD(CURDATE(), INTERVAL 13 DAY), 0, 'Upcoming', 1),
+(2, 'Science & Robotics Exhibition', 'Function', 'Students showcase STEM, AI, and science projects in the school auditorium.', DATE_ADD(CURDATE(), INTERVAL 25 DAY), NULL, 0, 'Upcoming', 1),
+(3, 'Parent-Teacher Conference (PTM)', 'Meeting', 'Individual progress discussions between teachers and parents for semester review.', DATE_ADD(CURDATE(), INTERVAL 6 DAY), NULL, 0, 'Upcoming', 1),
+(4, 'Mid-Term Examination Commencement', 'Exam', 'Formal examination period for all grades. Date sheet published on notice board.', DATE_ADD(CURDATE(), INTERVAL 18 DAY), DATE_ADD(CURDATE(), INTERVAL 28 DAY), 0, 'Upcoming', 1),
+(5, 'Kashmir Solidarity Day (Gazetted Holiday)', 'Holiday', 'School will remain closed in observance of National Kashmir Day.', DATE_ADD(CURDATE(), INTERVAL 9 DAY), NULL, 1, 'Upcoming', 1),
+(6, 'Winter Break Holidays', 'Holiday', 'Annual winter vacation for all classes. Administrative offices will remain open.', DATE_ADD(CURDATE(), INTERVAL 35 DAY), DATE_ADD(CURDATE(), INTERVAL 45 DAY), 1, 'Upcoming', 1)
+ON DUPLICATE KEY UPDATE title = VALUES(title), event_type = VALUES(event_type);
+
+-- Demo Emergency Alert (School Closure / Announcements)
+INSERT INTO emergency_alerts (id, title, message, alert_type, effective_date, end_date, is_active, updated_by) VALUES
+(1, 'URGENT: Rain Emergency Closure Notice', 'As per local government directives and weather advisory regarding torrential rains, the school campus will remain closed on the specified date. All scheduled classes will be conducted online via student portal.', 'Emergency Closure', CURDATE(), DATE_ADD(CURDATE(), INTERVAL 1 DAY), 1, 1)
+ON DUPLICATE KEY UPDATE title = VALUES(title), message = VALUES(message);

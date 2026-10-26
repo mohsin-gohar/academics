@@ -9,13 +9,16 @@ if ($id <= 0) {
     exit; 
 }
 
-// Student can only view their own profile
+// Student can only view their own profile - gracefully redirect instead of 403
 if (!isStaff()) {
     $stmt = $pdo->prepare("SELECT id FROM students WHERE user_id = ?");
     $stmt->execute([$_SESSION['user_id']]);
     $ownId = (int)$stmt->fetchColumn();
-    if (!$ownId || $id !== $ownId) {
-        header('Location: ../errors/403.php');
+    if ($ownId && $id !== $ownId) {
+        header('Location: show.php?id=' . $ownId);
+        exit;
+    } elseif (!$ownId) {
+        header('Location: ../dashboard.php');
         exit;
     }
 }
@@ -47,7 +50,9 @@ foreach ($tasks as $t) {
 
 <div class="row mb-3">
     <div class="col-12">
-        <a href="index.php" class="btn btn-outline-secondary btn-sm"><i class="fas fa-arrow-left me-1"></i> Back to Students</a>
+        <a href="<?php echo isStaff() ? 'index.php' : '../dashboard.php'; ?>" class="btn btn-outline-secondary btn-sm">
+            <i class="fas fa-arrow-left me-1"></i> <?php echo isStaff() ? 'Back to Students' : 'Back to Dashboard'; ?>
+        </a>
     </div>
 </div>
 

@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 /**
  * Header Template
  * EduSphere Student Management System
@@ -12,10 +12,10 @@ require_once __DIR__ . '/../config/db.php';
 // Determine relative path prefix from current script to project root
 $base = getBasePath();
 
-// Redirect to login if not authenticated (except for auth pages)
+// Redirect to login if not authenticated (except for auth and public portal pages)
 $current_page = basename($_SERVER['PHP_SELF']);
 $auth_pages = ['login.php', 'register.php', 'login_process.php', 'register_process.php'];
-$public_pages = ['403.php', '404.php', '500.php'];
+$public_pages = ['403.php', '404.php', '500.php', 'index.php', 'public_events.php'];
 
 if (!in_array($current_page, $auth_pages) && !in_array($current_page, $public_pages)) {
     if (!isLoggedIn()) {
@@ -25,14 +25,24 @@ if (!in_array($current_page, $auth_pages) && !in_array($current_page, $public_pa
 }
 
 // Set session variables from DB if not set
-if (isLoggedIn() && !isset($_SESSION['user_role'])) {
-    $stmt = $pdo->prepare("SELECT role, full_name, email FROM users WHERE id = ?");
-    $stmt->execute([$_SESSION['user_id']]);
-    $user = $stmt->fetch();
-    if ($user) {
-        $_SESSION['user_role'] = $user['role'];
-        $_SESSION['user_name'] = $user['full_name'];
-        $_SESSION['user_email'] = $user['email'];
+if (isLoggedIn()) {
+    if (!isset($_SESSION['user_role'])) {
+        $stmt = $pdo->prepare("SELECT role, full_name, email FROM users WHERE id = ?");
+        $stmt->execute([$_SESSION['user_id']]);
+        $user = $stmt->fetch();
+        if ($user) {
+            $_SESSION['user_role'] = $user['role'];
+            $_SESSION['user_name'] = $user['full_name'];
+            $_SESSION['user_email'] = $user['email'];
+        }
+    }
+    if (($_SESSION['user_role'] ?? '') === 'student' && !isset($_SESSION['student_id'])) {
+        $st = $pdo->prepare("SELECT id FROM students WHERE user_id = ?");
+        $st->execute([$_SESSION['user_id']]);
+        $stuId = $st->fetchColumn();
+        if ($stuId) {
+            $_SESSION['student_id'] = (int)$stuId;
+        }
     }
 }
 

@@ -17,17 +17,14 @@ $stmt->execute([$id]);
 $task = $stmt->fetch();
 if (!$task) { header('Location: index.php?error=' . urlencode('Task not found.')); exit; }
 
-if (isStudent()) { header('Location: ../errors/403.php'); exit; }
-if (!isAdmin() && $task['user_id'] != $user_id) { header('Location: ../errors/403.php'); exit; }
-
-try {
-    $pdo->prepare("DELETE FROM tasks WHERE id = ?")->execute([$id]);
-    logActivity($pdo, $user_id, 'delete', 'task', $id, 'Deleted task: ' . $task['title']);
-    header('Location: index.php?success=' . urlencode('Task deleted successfully.'));
-    exit;
-} catch (PDOException $e) {
-    error_log("Task delete failed: " . $e->getMessage());
-    header('Location: index.php?error=' . urlencode('Failed to delete task.'));
+// Permission: admin can delete any, staff can delete own, student can delete self-created tasks
+if (isStudent()) {
+    if ((int)$task['user_id'] !== (int)$user_id) {
+        header('Location: index.php?error=' . urlencode('You can only delete tasks created by yourself.'));
+        exit;
+    }
+} elseif (!isAdmin() && (int)$task['user_id'] !== (int)$user_id) {
+    header('Location: index.php?error=' . urlencode('You do not have permission to delete this task.'));
     exit;
 }
 
