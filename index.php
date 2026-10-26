@@ -17,7 +17,7 @@ $holidayStmt = $pdo->query("SELECT * FROM school_events WHERE is_holiday = 1 AND
 $holidays = $holidayStmt->fetchAll();
 
 // Fetch Active Courses Overview
-$courseStmt = $pdo->query("SELECT c.*, COALESCE(u.full_name, 'Senior Faculty') as instructor_name, (SELECT COUNT(*) FROM enrollments e WHERE e.course_id = c.id AND e.status = 'Enrolled') as enrolled_students FROM courses c WHERE c.status = 'Active' ORDER BY c.created_at DESC LIMIT 6");
+$courseStmt = $pdo->query("SELECT c.*, COALESCE(u.full_name, 'Senior Faculty') as instructor_name, (SELECT COUNT(*) FROM enrollments e WHERE e.course_id = c.id AND e.status = 'Enrolled') as enrolled_students FROM courses c LEFT JOIN users u ON c.instructor_id = u.id WHERE c.status = 'Active' ORDER BY c.created_at DESC LIMIT 6");
 $featuredCourses = $courseStmt->fetchAll();
 
 // Overall Stats for Hero
