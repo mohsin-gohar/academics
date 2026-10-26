@@ -70,6 +70,7 @@ $csrf_token = generateCsrfToken();
     <div class="app-wrapper">
         <?php require_once __DIR__ . '/sidebar.php'; ?>
         <div class="main-content">
+            <?php if ($current_page !== 'dashboard.php'): ?>
             <nav class="top-navbar">
                 <div class="d-flex align-items-center gap-3">
                     <button class="btn btn-sm btn-outline-secondary d-lg-none" id="sidebarToggle">
@@ -86,6 +87,7 @@ $csrf_token = generateCsrfToken();
                     </a>
                 </div>
             </nav>
+            <?php endif; ?>
             <div class="content-area">
     <?php endif; ?>
 

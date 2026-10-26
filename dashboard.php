@@ -359,7 +359,7 @@ document.addEventListener("DOMContentLoaded", function() {
                     {
                         label: "Earnings",
                         data: [33, 26, 18, 26, 3, 22, 40, 18, 32, 26, 17, 22],
-                        backgroundColor: "#1e293b",
+                        backgroundColor: "#273244",
                         borderRadius: 4,
                         barPercentage: 0.5,
                         categoryPercentage: 0.7
@@ -367,7 +367,7 @@ document.addEventListener("DOMContentLoaded", function() {
                     {
                         label: "Expense",
                         data: [20, 19, 7, 22, 16, 19, 23, 27, 16, 21, 14, 27],
-                        backgroundColor: "#eab308",
+                        backgroundColor: "#f6c065",
                         borderRadius: 4,
                         barPercentage: 0.5,
                         categoryPercentage: 0.7
@@ -399,7 +399,7 @@ document.addEventListener("DOMContentLoaded", function() {
         });
     }
 
-    // 2. Concentric Attendance Gauge
+    // 2. Concentric Attendance Gauge (Matching Image 1 Rings)
     const ctxGauge = document.getElementById("attendanceConcentricGauge");
     if (ctxGauge) {
         new Chart(ctxGauge, {
@@ -408,14 +408,14 @@ document.addEventListener("DOMContentLoaded", function() {
                 datasets: [
                     {
                         data: [84, 16],
-                        backgroundColor: ["#1e293b", "#f1f5f9"],
+                        backgroundColor: ["#273244", "#f1f5f9"],
                         borderWidth: 0,
                         circumference: 360,
                         rotation: 0
                     },
                     {
                         data: [91, 9],
-                        backgroundColor: ["#eab308", "#f1f5f9"],
+                        backgroundColor: ["#f6c065", "#f1f5f9"],
                         borderWidth: 0,
                         circumference: 360,
                         rotation: 0

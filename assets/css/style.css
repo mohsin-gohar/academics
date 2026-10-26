@@ -1,27 +1,34 @@
 /* ============================================
    EduSphere Design System — Enterprise Edition
    Ultra-Luxury SaaS & School Management System
+   Pixel-Matched to Reference Images 1 & 2
    ============================================ */
 
 :root {
-    /* Core Palette */
-    --canvas-bg: #f0f3f8;
+    /* Image 1 Dashboard Palette */
+    --canvas-bg: #e8eef6;
     --canvas-light: #f8fafc;
-    --sidebar-dark: #1e293b;
-    --sidebar-darker: #0f172a;
-    --sidebar-item-hover: #334155;
+    --sidebar-dark: #273244;
+    --sidebar-darker: #1e2634;
+    --sidebar-item-hover: #344256;
     
+    --brand-navy: #273244;
+    --brand-gold: #f6c065;
+    --brand-gold-hover: #e5b054;
+    --brand-cyan: #38bdf8;
+    --brand-rose: #ef4444;
+    
+    /* Image 2 Learnify Palette */
+    --brand-green: #70b33f;
+    --brand-green-hover: #5d9932;
+    --learnify-hero-bg: #edf7fa;
+    --learnify-cta-bg: #ddf0f7;
+    --learnify-footer-bg: #1f2937;
+    
+    /* System Accents */
     --primary: #4f46e5;
     --primary-light: #6366f1;
     --primary-dark: #3730a3;
-    
-    --brand-green: #65a30d;
-    --brand-green-hover: #4d7c0f;
-    --brand-gold: #eab308;
-    --brand-navy: #1e293b;
-    --brand-cyan: #06b6d4;
-    --brand-rose: #f43f5e;
-    
     --success: #10b981;
     --warning: #f59e0b;
     --danger: #ef4444;
@@ -72,6 +79,7 @@ h1, h2, h3, h4, h5, h6 {
     display: flex;
     min-height: 100vh;
     background-color: var(--canvas-bg);
+    padding: 12px;
 }
 
 /* Floating Clean Sidebar */
@@ -88,7 +96,7 @@ h1, h2, h3, h4, h5, h6 {
     transition: transform 0.3s ease;
     display: flex;
     flex-direction: column;
-    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.18);
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.15);
     overflow: hidden;
 }
 
@@ -103,7 +111,7 @@ h1, h2, h3, h4, h5, h6 {
     width: 38px;
     height: 38px;
     border-radius: 10px;
-    background: linear-gradient(135deg, #f43f5e 0%, #eab308 50%, #3b82f6 100%);
+    background: linear-gradient(135deg, #f43f5e 0%, #eab308 50%, #38bdf8 100%);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -115,7 +123,7 @@ h1, h2, h3, h4, h5, h6 {
 .sidebar-brand .brand-title {
     font-size: 1.25rem;
     font-weight: 800;
-    letter-spacing: 1px;
+    letter-spacing: 1.5px;
     color: #ffffff;
     text-transform: uppercase;
 }
@@ -139,7 +147,7 @@ h1, h2, h3, h4, h5, h6 {
     margin-bottom: 0.3rem;
 }
 
-/* Active Nav Item - White Floating Capsule Card */
+/* Active Nav Item - White Floating Capsule Card (Matching Image 1) */
 .sidebar-nav .nav-link {
     display: flex;
     align-items: center;
@@ -166,7 +174,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .sidebar-nav .nav-link.active i {
-    color: var(--primary);
+    color: var(--sidebar-dark);
 }
 
 .sidebar-nav .nav-link i {
@@ -180,15 +188,19 @@ h1, h2, h3, h4, h5, h6 {
     border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-/* Main Dashboard Canvas */
+/* Main Dashboard Canvas - Enclosed Rounded Card */
 .main-content {
-    margin-left: 278px;
+    margin-left: 274px;
     flex: 1;
-    padding: 18px 24px 30px 10px;
-    min-height: 100vh;
+    padding: 24px 28px 30px;
+    min-height: calc(100vh - 28px);
+    background-color: #ffffff;
+    border-radius: var(--radius-xl);
+    border: 1px solid rgba(226, 232, 240, 0.8);
+    box-shadow: 0 10px 40px -10px rgba(15, 23, 42, 0.05);
 }
 
-/* Topbar with Search Pill */
+/* Topbar with Search Pill (Image 1 Header) */
 .top-dashboard-header {
     display: flex;
     align-items: center;
@@ -199,7 +211,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .dashboard-title {
-    font-size: 1.75rem;
+    font-size: 1.85rem;
     font-weight: 800;
     color: var(--text-main);
     letter-spacing: -0.03em;
@@ -226,8 +238,8 @@ h1, h2, h3, h4, h5, h6 {
 
 .search-pill-input:focus {
     outline: none;
-    border-color: var(--primary-light);
-    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+    border-color: var(--brand-cyan);
+    box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2);
 }
 
 .search-pill-icon {
@@ -261,13 +273,19 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .bell-btn .dot-alert {
-    width: 8px;
-    height: 8px;
+    width: 18px;
+    height: 18px;
     background-color: var(--danger);
+    color: #ffffff;
+    font-size: 0.65rem;
+    font-weight: 700;
     border-radius: 50%;
     position: absolute;
-    top: 8px;
-    right: 8px;
+    top: -4px;
+    right: -4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     border: 2px solid #ffffff;
 }
 
@@ -278,6 +296,17 @@ h1, h2, h3, h4, h5, h6 {
     overflow: hidden;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     border: 2px solid #ffffff;
+    object-fit: cover;
+}
+
+/* Secondary standard topbar for subpages */
+.top-navbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border-subtle);
 }
 
 /* ========================================================
@@ -313,11 +342,11 @@ h1, h2, h3, h4, h5, h6 {
 
 .kpi-avatar-icon.students-bg { background-color: #e0f2fe; color: #0284c7; }
 .kpi-avatar-icon.teachers-bg { background-color: #fce7f3; color: #db2777; }
-.kpi-avatar-icon.parents-bg  { background-color: #e0e7ff; color: #4338ca; }
+.kpi-avatar-icon.parents-bg  { background-color: #ede9fe; color: #6366f1; }
 .kpi-avatar-icon.earnings-bg { background-color: #fef3c7; color: #d97706; }
 
 .kpi-stat-label {
-    font-size: 0.8rem;
+    font-size: 0.82rem;
     font-weight: 500;
     color: var(--text-muted);
     margin-bottom: 0.2rem;
@@ -382,9 +411,19 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .mini-event-pill:hover {
-    border-color: var(--primary);
+    border-color: var(--brand-navy);
     background-color: #ffffff;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.mini-event-pill.cyan-pill {
+    background-color: #eff6ff;
+    border-color: #dbeafe;
+}
+
+.mini-event-pill.peach-pill {
+    background-color: #fff7ed;
+    border-color: #ffedd5;
 }
 
 .mini-event-bullet {
@@ -428,19 +467,19 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .cal-day-cell.active-cyan {
-    background-color: #06b6d4;
+    background-color: var(--brand-cyan);
     color: #ffffff;
     font-weight: 700;
 }
 
 .cal-day-cell.active-navy {
-    background-color: #1e293b;
+    background-color: var(--brand-navy);
     color: #ffffff;
     font-weight: 700;
 }
 
 .cal-day-cell.active-red {
-    background-color: #ef4444;
+    background-color: var(--brand-rose);
     color: #ffffff;
     font-weight: 700;
 }
@@ -498,7 +537,7 @@ h1, h2, h3, h4, h5, h6 {
 .progress-thin-bar {
     height: 100%;
     border-radius: 2px;
-    background-color: #f43f5e;
+    background-color: var(--brand-rose);
 }
 
 /* Attendance Gauge Card */
@@ -524,7 +563,7 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Community CTA Banner (Image 1 Bottom Right) */
 .community-cta-card {
-    background-color: var(--sidebar-dark);
+    background-color: var(--brand-navy);
     border-radius: var(--radius-lg);
     padding: 1.5rem;
     color: #ffffff;
@@ -543,17 +582,17 @@ h1, h2, h3, h4, h5, h6 {
     width: 130px;
     height: 130px;
     border-radius: 50%;
-    background: radial-gradient(circle, transparent 35%, #06b6d4 36%, #06b6d4 45%, #eab308 46%, #eab308 65%, transparent 66%);
-    opacity: 0.85;
+    background: radial-gradient(circle, transparent 35%, #38bdf8 36%, #38bdf8 45%, #f6c065 46%, #f6c065 65%, transparent 66%);
+    opacity: 0.9;
 }
 
 .community-cta-btn {
     background-color: #ffffff;
-    color: var(--sidebar-dark);
+    color: var(--brand-navy);
     font-weight: 700;
     font-size: 0.85rem;
-    padding: 0.55rem 1.25rem;
-    border-radius: var(--radius-md);
+    padding: 0.6rem 1.4rem;
+    border-radius: 9999px;
     text-decoration: none;
     display: inline-block;
     align-self: flex-start;
@@ -563,7 +602,7 @@ h1, h2, h3, h4, h5, h6 {
 .community-cta-btn:hover {
     background-color: #f8fafc;
     transform: translateY(-2px);
-    color: var(--sidebar-dark);
+    color: var(--brand-navy);
 }
 
 /* ========================================================
@@ -587,14 +626,14 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .learnify-hero-section {
-    background-color: #edf7fa;
-    padding: 3rem 0 5rem;
+    background-color: var(--learnify-hero-bg);
+    padding: 3.5rem 0 5.5rem;
     position: relative;
     overflow: hidden;
 }
 
 .learnify-hero-title {
-    font-size: 3.5rem;
+    font-size: 3.6rem;
     font-weight: 800;
     line-height: 1.15;
     letter-spacing: -0.035em;
@@ -614,35 +653,38 @@ h1, h2, h3, h4, h5, h6 {
     max-width: 500px;
 }
 
+/* Leaf Green CTA Button (Pixel-Matched to Image 2) */
 .learnify-btn-green {
     background-color: var(--brand-green);
     color: #ffffff;
-    font-weight: 700;
+    font-weight: 600;
     font-size: 0.95rem;
     padding: 0.75rem 1.8rem;
-    border-radius: var(--radius-sm);
+    border-radius: 6px;
     text-decoration: none;
     display: inline-block;
     transition: all 0.2s ease;
     border: none;
-    box-shadow: 0 4px 12px rgba(101, 163, 13, 0.25);
+    box-shadow: 0 4px 12px rgba(112, 179, 63, 0.3);
 }
 
 .learnify-btn-green:hover {
     background-color: var(--brand-green-hover);
     color: #ffffff;
     transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(112, 179, 63, 0.4);
 }
 
+/* Floating Badges in Image 2 Hero */
 .learnify-floating-badge {
     background: #ffffff;
-    border-radius: var(--radius-sm);
+    border-radius: 8px;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
-    padding: 0.5rem 1rem;
+    padding: 0.55rem 1rem;
     display: inline-flex;
     align-items: center;
-    gap: 0.5rem;
-    font-size: 0.78rem;
+    gap: 0.55rem;
+    font-size: 0.8rem;
     font-weight: 600;
     color: var(--text-main);
     position: absolute;
@@ -708,18 +750,18 @@ h1, h2, h3, h4, h5, h6 {
     justify-content: space-between;
 }
 
-/* Ready CTA Blue Banner */
+/* Ready CTA Blue Banner (Matching Image 2 Bottom Card) */
 .ready-cta-banner {
-    background-color: #dbeafe;
+    background-color: var(--learnify-cta-bg);
     border-radius: var(--radius-xl);
-    padding: 3rem;
+    padding: 3.5rem 3rem;
     overflow: hidden;
     position: relative;
 }
 
 /* Deep Charcoal Footer */
 .learnify-footer {
-    background-color: #1e293b;
+    background-color: var(--learnify-footer-bg);
     color: #94a3b8;
     padding: 4rem 0 2rem;
 }
@@ -760,6 +802,6 @@ h1, h2, h3, h4, h5, h6 {
     }
     .main-content {
         margin-left: 0;
-        padding: 14px;
+        padding: 16px;
     }
 }
