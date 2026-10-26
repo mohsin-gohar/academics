@@ -1,0 +1,77 @@
+﻿<?php
+/**
+ * Header Template
+ * EduSphere Student Management System
+ */
+require_once __DIR__ . '/../includes/functions.php';
+startSecureSession();
+
+// Include database connection
+require_once __DIR__ . '/../config/db.php';
+
+// Determine relative path prefix from current script to project root
+$base = getBasePath();
+
+// Redirect to login if not authenticated (except for auth pages)
+$current_page = basename($_SERVER['PHP_SELF']);
+$auth_pages = ['login.php', 'register.php', 'login_process.php', 'register_process.php'];
+$public_pages = ['403.php', '404.php', '500.php'];
+
+if (!in_array($current_page, $auth_pages) && !in_array($current_page, $public_pages)) {
+    if (!isLoggedIn()) {
+        header('Location: ' . $base . 'auth/login.php');
+        exit;
+    }
+}
+
+// Set session variables from DB if not set
+if (isLoggedIn() && !isset($_SESSION['user_role'])) {
+    $stmt = $pdo->prepare("SELECT role, full_name, email FROM users WHERE id = ?");
+    $stmt->execute([$_SESSION['user_id']]);
+    $user = $stmt->fetch();
+    if ($user) {
+        $_SESSION['user_role'] = $user['role'];
+        $_SESSION['user_name'] = $user['full_name'];
+        $_SESSION['user_email'] = $user['email'];
+    }
+}
+
+$csrf_token = generateCsrfToken();
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title><?php echo isset($page_title) ? e($page_title) . ' | ' . APP_NAME : APP_NAME; ?></title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="<?php echo $base; ?>assets/css/style.css">
+    <meta name="csrf-token" content="<?php echo $csrf_token; ?>">
+</head>
+<body>
+    <?php if (isLoggedIn() && !in_array($current_page, $auth_pages)): ?>
+    <div class="app-wrapper">
+        <?php require_once __DIR__ . '/sidebar.php'; ?>
+        <div class="main-content">
+            <nav class="top-navbar">
+                <div class="d-flex align-items-center gap-3">
+                    <button class="btn btn-sm btn-outline-secondary d-lg-none" id="sidebarToggle">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <h1 class="page-title mb-0"><?php echo isset($page_title) ? e($page_title) : 'Dashboard'; ?></h1>
+                </div>
+                <div class="navbar-actions">
+                    <a href="<?php echo $base; ?>auth/logout.php" class="btn btn-sm btn-outline-danger">
+                        <i class="fas fa-sign-out-alt me-1"></i> Logout
+                    </a>
+                </div>
+            </nav>
+            <div class="content-area">
+    <?php endif; ?>
+
+
+
+

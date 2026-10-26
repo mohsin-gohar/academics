@@ -1,0 +1,33 @@
+# EduSphere Apache Security Configuration
+
+# Prevent Directory Browsing
+Options -Indexes
+
+# UTF-8 Encoding
+AddDefaultCharset UTF-8
+
+# Security Headers
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-Frame-Options "SAMEORIGIN"
+    Header set X-XSS-Protection "1; mode=block"
+    Header set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+
+# Protect sensitive files from web access
+<FilesMatch "^(\.env|\.git|\.htaccess|database\.sql|composer\.json|package\.json)$">
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+</FilesMatch>
+
+# Block access to storage and logs
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^storage/logs/ - [F,L]
+    RewriteRule ^tests/ - [F,L]
+</IfModule>
