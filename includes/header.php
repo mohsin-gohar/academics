@@ -62,7 +62,11 @@ $csrf_token = generateCsrfToken();
     <meta name="csrf-token" content="<?php echo $csrf_token; ?>">
 </head>
 <body>
-    <?php if (isLoggedIn() && !in_array($current_page, $auth_pages)): ?>
+    <?php 
+    // Only wrap with backend ERP sidebar and topbar if logged in AND NOT on a public portal page
+    $is_public = in_array($current_page, $public_pages);
+    if (isLoggedIn() && !in_array($current_page, $auth_pages) && !$is_public): 
+    ?>
     <div class="app-wrapper">
         <?php require_once __DIR__ . '/sidebar.php'; ?>
         <div class="main-content">
@@ -73,7 +77,10 @@ $csrf_token = generateCsrfToken();
                     </button>
                     <h1 class="page-title mb-0"><?php echo isset($page_title) ? e($page_title) : 'Dashboard'; ?></h1>
                 </div>
-                <div class="navbar-actions">
+                <div class="navbar-actions d-flex align-items-center gap-2">
+                    <a href="<?php echo $base; ?>index.php" target="_blank" class="btn btn-sm btn-outline-primary" title="View Public School Website">
+                        <i class="fas fa-globe me-1"></i> Public Site
+                    </a>
                     <a href="<?php echo $base; ?>auth/logout.php" class="btn btn-sm btn-outline-danger">
                         <i class="fas fa-sign-out-alt me-1"></i> Logout
                     </a>

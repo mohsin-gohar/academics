@@ -34,18 +34,23 @@ $examCount = $pdo->query("SELECT COUNT(*) FROM school_events WHERE event_type = 
 ?>
 
 <!-- Public Navigation Bar -->
-<nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top shadow-sm py-2">
+<nav class="navbar navbar-expand-lg glass-nav sticky-top py-3">
     <div class="container">
-        <a class="navbar-brand fw-bold d-flex align-items-center gap-2" href="index.php">
-            <i class="fas fa-graduation-cap text-primary fs-4"></i>
-            <span>EduSphere Academy</span>
+        <a class="navbar-brand d-flex align-items-center gap-2" href="index.php">
+            <div class="rounded-3 bg-primary text-white d-flex align-items-center justify-content-center shadow" style="width: 40px; height: 40px; font-size: 1.25rem;">
+                <i class="fas fa-graduation-cap"></i>
+            </div>
+            <div>
+                <span class="fw-bold fs-5 text-dark d-block lh-1">EduSphere Academy</span>
+                <span class="text-muted small fw-semibold" style="font-size: 0.65rem;">Academic Schedule</span>
+            </div>
         </a>
-        <div class="ms-auto d-flex gap-2">
-            <a href="index.php" class="btn btn-outline-light btn-sm"><i class="fas fa-home me-1"></i> School Home</a>
+        <div class="ms-auto d-flex align-items-center gap-2">
+            <a href="index.php" class="btn btn-outline-secondary btn-sm px-3 rounded-pill"><i class="fas fa-home me-1"></i> School Home</a>
             <?php if (isLoggedIn()): ?>
-                <a href="dashboard.php" class="btn btn-primary btn-sm"><i class="fas fa-th-large me-1"></i> My Dashboard</a>
+                <a href="dashboard.php" class="btn btn-primary btn-sm px-3 rounded-pill"><i class="fas fa-th-large me-1"></i> My Dashboard</a>
             <?php else: ?>
-                <a href="auth/login.php" class="btn btn-primary btn-sm"><i class="fas fa-sign-in-alt me-1"></i> Portal Login</a>
+                <a href="auth/login.php" class="btn btn-primary btn-sm px-3 rounded-pill"><i class="fas fa-sign-in-alt me-1"></i> Portal Login</a>
             <?php endif; ?>
         </div>
     </div>
@@ -78,29 +83,29 @@ $examCount = $pdo->query("SELECT COUNT(*) FROM school_events WHERE event_type = 
 
 <div class="container py-5">
     <div class="text-center mb-5">
-        <span class="badge bg-primary bg-opacity-10 text-primary px-3 py-2 rounded-pill fw-semibold mb-2">OFFICIAL ACADEMIC SCHEDULE</span>
-        <h2 class="fw-bold text-dark mb-2">School Functions, Examinations & Gazetted Holidays</h2>
+        <span class="saas-badge-pill bg-primary-subtle text-primary border border-primary mb-2">OFFICIAL ACADEMIC SCHEDULE</span>
+        <h2 class="display-6 fw-bold text-dark mb-2">School Functions, Examinations & Gazetted Holidays</h2>
         <p class="text-muted mx-auto" style="max-width: 650px;">Stay up-to-date with all upcoming co-curricular events, student competitions, parent-teacher conferences, and official school off-days.</p>
         
         <!-- Filter Pills -->
         <div class="d-flex gap-2 justify-content-center flex-wrap mt-4">
-            <a href="public_events.php" class="btn btn-sm <?php echo empty($typeFilter) ? 'btn-primary' : 'btn-light border'; ?> rounded-pill px-3">
+            <a href="public_events.php" class="btn btn-sm <?php echo empty($typeFilter) ? 'btn-primary' : 'btn-light border'; ?> rounded-pill px-3 py-2">
                 All Scheduled Dates (<?php echo (int)$totalCount; ?>)
             </a>
-            <a href="public_events.php?type=Holiday" class="btn btn-sm <?php echo $typeFilter === 'Holiday' ? 'btn-danger' : 'btn-light border'; ?> rounded-pill px-3">
+            <a href="public_events.php?type=Holiday" class="btn btn-sm <?php echo $typeFilter === 'Holiday' ? 'btn-danger' : 'btn-light border'; ?> rounded-pill px-3 py-2">
                 <i class="fas fa-sun me-1"></i> Gazetted Holidays & School Off (<?php echo (int)$holidayCount; ?>)
             </a>
-            <a href="public_events.php?type=Function" class="btn btn-sm <?php echo $typeFilter === 'Function' ? 'btn-primary' : 'btn-light border'; ?> rounded-pill px-3">
+            <a href="public_events.php?type=Function" class="btn btn-sm <?php echo $typeFilter === 'Function' ? 'btn-primary' : 'btn-light border'; ?> rounded-pill px-3 py-2">
                 <i class="fas fa-trophy me-1"></i> Functions & Galas (<?php echo (int)$functionCount; ?>)
             </a>
-            <a href="public_events.php?type=Exam" class="btn btn-sm <?php echo $typeFilter === 'Exam' ? 'btn-warning text-dark' : 'btn-light border'; ?> rounded-pill px-3">
+            <a href="public_events.php?type=Exam" class="btn btn-sm <?php echo $typeFilter === 'Exam' ? 'btn-warning text-dark' : 'btn-light border'; ?> rounded-pill px-3 py-2">
                 <i class="fas fa-file-alt me-1"></i> Examinations (<?php echo (int)$examCount; ?>)
             </a>
         </div>
     </div>
 
     <?php if (empty($events)): ?>
-        <div class="card shadow-sm border-0 py-5 text-center">
+        <div class="saas-card py-5 text-center">
             <div class="card-body">
                 <i class="fas fa-calendar-check fa-3x text-muted mb-3 opacity-50"></i>
                 <h5>No events currently listed</h5>
@@ -133,35 +138,33 @@ $examCount = $pdo->query("SELECT COUNT(*) FROM school_events WHERE event_type = 
                 };
             ?>
             <div class="col-md-6 col-lg-4">
-                <div class="card h-100 shadow-sm border-0 <?php echo $ev['is_holiday'] ? 'border-top border-4 border-danger' : 'border-top border-4 border-primary'; ?>">
-                    <div class="card-body p-4 d-flex flex-column">
-                        <div class="d-flex justify-content-between align-items-center mb-3">
-                            <span class="badge <?php echo $badgeBg; ?> px-2 py-1"><?php echo e($ev['event_type']); ?></span>
-                            <?php echo $tag; ?>
-                        </div>
+                <div class="saas-card h-100 p-4 d-flex flex-column border-top border-4 <?php echo $ev['is_holiday'] ? 'border-danger' : 'border-primary'; ?>">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <span class="badge <?php echo $badgeBg; ?> px-3 py-2"><?php echo e($ev['event_type']); ?></span>
+                        <?php echo $tag; ?>
+                    </div>
 
-                        <h5 class="fw-bold text-dark mb-2"><?php echo e($ev['title']); ?></h5>
+                    <h5 class="fw-bold text-dark mb-2"><?php echo e($ev['title']); ?></h5>
 
-                        <div class="text-muted small mb-3">
-                            <i class="fas fa-calendar-alt text-primary me-1"></i>
-                            <strong><?php echo formatDate($ev['event_date'], 'l, F j, Y'); ?></strong>
-                            <?php if (!empty($ev['end_date'])): ?>
-                                <br><i class="fas fa-arrow-right text-muted me-1"></i> Ending: <?php echo formatDate($ev['end_date'], 'F j, Y'); ?>
-                            <?php endif; ?>
-                        </div>
-
-                        <?php if (!empty($ev['description'])): ?>
-                            <p class="text-secondary small mb-3 flex-grow-1">
-                                <?php echo nl2br(e($ev['description'])); ?>
-                            </p>
-                        <?php endif; ?>
-
-                        <?php if ($ev['is_holiday']): ?>
-                            <div class="p-2 rounded bg-danger bg-opacity-10 text-danger small fw-semibold mt-auto">
-                                <i class="fas fa-sun me-1"></i> <strong>School Holiday:</strong> Campus Closed
-                            </div>
+                    <div class="text-muted small mb-3">
+                        <i class="fas fa-calendar-alt text-primary me-1"></i>
+                        <strong><?php echo formatDate($ev['event_date'], 'l, F j, Y'); ?></strong>
+                        <?php if (!empty($ev['end_date'])): ?>
+                            <br><i class="fas fa-arrow-right text-muted me-1"></i> Ending: <?php echo formatDate($ev['end_date'], 'F j, Y'); ?>
                         <?php endif; ?>
                     </div>
+
+                    <?php if (!empty($ev['description'])): ?>
+                        <p class="text-secondary small mb-3 flex-grow-1">
+                            <?php echo nl2br(e($ev['description'])); ?>
+                        </p>
+                    <?php endif; ?>
+
+                    <?php if ($ev['is_holiday']): ?>
+                        <div class="p-2 rounded bg-danger bg-opacity-10 text-danger small fw-semibold mt-auto">
+                            <i class="fas fa-sun me-1"></i> <strong>School Holiday:</strong> Campus Closed
+                        </div>
+                    <?php endif; ?>
                 </div>
             </div>
             <?php endforeach; ?>
@@ -176,7 +179,7 @@ $examCount = $pdo->query("SELECT COUNT(*) FROM school_events WHERE event_type = 
                 <p class="text-muted small mb-0">Gazetted holiday notifications are synchronized with provincial government advisories. In case of unexpected weather disruptions or emergency campus closures, verified notifications will be broadcasted live on this portal.</p>
             </div>
             <div class="col-md-4 text-md-end">
-                <a href="auth/login.php" class="btn btn-primary btn-sm px-3"><i class="fas fa-user-lock me-1"></i> Student Portal Sign In</a>
+                <a href="auth/login.php" class="btn btn-primary btn-sm px-4 py-2 rounded-pill"><i class="fas fa-user-lock me-1"></i> Student Portal Sign In</a>
             </div>
         </div>
     </div>

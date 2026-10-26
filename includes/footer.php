@@ -1,7 +1,9 @@
 <?php
 // Footer template
 $isAuthPage = in_array($current_page ?? '', ['login.php', 'register.php', 'login_process.php', 'register_process.php']);
-if (function_exists('isLoggedIn') && isLoggedIn() && !$isAuthPage):
+$isPublicPage = in_array($current_page ?? '', ['403.php', '404.php', '500.php', 'index.php', 'public_events.php']);
+
+if (function_exists('isLoggedIn') && isLoggedIn() && !$isAuthPage && !$isPublicPage):
 ?>
             </div><!-- /.content-area -->
         </div><!-- /.main-content -->
