@@ -336,3 +336,4 @@ When presenting this project to your instructor or examiner, highlight these key
 ---
 
 *EduSphere — Built with excellence for Aptech Computer Education.*
+"# academics" 
