@@ -22,31 +22,11 @@ if ($subdomainSchool) {
 $page_title = 'Run your school with clarity';
 require_once 'includes/header.php';
 
-// Fetch Active Emergency Alert
-$activeAlert = getActiveEmergencyAlert($pdo);
 $contactSuccess = $_GET['contact_success'] ?? '';
 $contactError = $_GET['contact_error'] ?? '';
 ?>
 
 <div class="learnify-public-page">
-
-    <!-- URGENT EMERGENCY NOTICE BAR (IF ACTIVE) -->
-    <?php if ($activeAlert): ?>
-    <div class="es-emergency-bar py-2 px-3">
-        <div class="container d-flex align-items-center justify-content-between flex-wrap gap-2 position-relative">
-            <div class="d-flex align-items-center gap-2">
-                <span class="es-alert-badge px-2 py-1 fw-bold text-uppercase">
-                    <span class="pulse-dot me-1"></span> <?php echo e($activeAlert['alert_type']); ?>
-                </span>
-                <span class="fw-semibold small"><strong><?php echo e($activeAlert['title']); ?>:</strong> <?php echo e($activeAlert['message']); ?></span>
-            </div>
-            <span class="es-alert-date px-2 py-1 fw-normal">
-                Effective: <?php echo formatDate($activeAlert['effective_date']); ?>
-                <?php if (!empty($activeAlert['end_date'])): ?> — Reopening: <?php echo formatDate($activeAlert['end_date']); ?><?php endif; ?>
-            </span>
-        </div>
-    </div>
-    <?php endif; ?>
 
     <!-- TOP NAVIGATION (shared public navbar) -->
     <?php $publicNavActive = 'home'; require __DIR__ . '/includes/public_nav.php'; ?>

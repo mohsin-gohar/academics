@@ -1881,47 +1881,6 @@ h1, h2, h3 { font-family: 'Jost', sans-serif; }
 }
 
 /* ---------------------------------------------------------------------------
-   18. Public emergency notice bar
-   --------------------------------------------------------------------------- */
-.es-emergency-bar {
-  position: relative;
-  overflow: hidden;
-  color: #FFFFFF;
-  background:
-    radial-gradient(760px 180px at 8% -20%, rgba(255, 255, 255, 0.20), transparent 62%),
-    linear-gradient(118deg, #9F1239 0%, #E11D48 52%, #F43F5E 100%);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.20);
-  box-shadow: 0 14px 38px -26px rgba(159, 18, 57, 0.95);
-}
-.es-emergency-bar::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(100deg, transparent 30%, rgba(255, 255, 255, 0.10) 50%, transparent 70%);
-  pointer-events: none;
-}
-.es-emergency-bar .es-alert-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  font-size: 0.72rem;
-  letter-spacing: 0.06em;
-  color: #FFFFFF;
-  background: rgba(255, 255, 255, 0.16);
-  border: 1px solid rgba(255, 255, 255, 0.30);
-  border-radius: 999px;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-}
-.es-emergency-bar .es-alert-date {
-  font-size: 0.74rem;
-  color: rgba(255, 255, 255, 0.92);
-  background: rgba(0, 0, 0, 0.18);
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 999px;
-}
-
-/* ---------------------------------------------------------------------------
    19. SaaS pricing & public contact
    --------------------------------------------------------------------------- */
 .es-pricing-section {
