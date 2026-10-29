@@ -15,7 +15,7 @@ AddDefaultCharset UTF-8
 </IfModule>
 
 # Protect sensitive files from web access
-<FilesMatch "^(\.env|\.git|\.htaccess|database\.sql|composer\.json|package\.json)$">
+<FilesMatch "^(\.env|\.git|\.htaccess|.*\.sql|composer\.json|package\.json)$">
     <IfModule !mod_authz_core.c>
         Order allow,deny
         Deny from all

@@ -11,6 +11,7 @@ $stmt = $pdo->prepare("SELECT * FROM tasks WHERE id = ?");
 $stmt->execute([$id]);
 $task = $stmt->fetch();
 if (!$task) { header('Location: index.php?error=' . urlencode('Task not found.')); exit; }
+require_record_school($task);
 
 // Permission: staff can edit own tasks, admin all; student can edit tasks they created themselves
 if (isStudent()) {
@@ -27,9 +28,25 @@ $errors = [];
 $form_data = $task;
 
 $students = [];
-$courses = $pdo->query("SELECT id, course_code, course_name FROM courses WHERE status = 'Active' ORDER BY course_name")->fetchAll();
+$courseSql = "SELECT id, course_code, course_name FROM courses WHERE status = 'Active'";
+$courseParams = [];
+$studentSql = "SELECT id, full_name, student_number FROM students WHERE status = 'Active'";
+$studentParams = [];
+if (!isSuperAdmin()) {
+    $courseSql .= " AND school_id = ?";
+    $courseParams[] = currentSchoolId();
+    $studentSql .= " AND school_id = ?";
+    $studentParams[] = currentSchoolId();
+}
+$courseSql .= " ORDER BY course_name";
+$studentSql .= " ORDER BY full_name";
+$stmt = $pdo->prepare($courseSql);
+$stmt->execute($courseParams);
+$courses = $stmt->fetchAll();
 if (isStaff()) {
-    $students = $pdo->query("SELECT id, full_name, student_number FROM students WHERE status = 'Active' ORDER BY full_name")->fetchAll();
+    $stmt = $pdo->prepare($studentSql);
+    $stmt->execute($studentParams);
+    $students = $stmt->fetchAll();
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -49,6 +66,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (empty($form_data['title'])) $errors[] = 'Task title is required.';
     if (strlen($form_data['title']) < 3) $errors[] = 'Title must be at least 3 characters.';
+
+    // Tenant guard: linked records must belong to the actor's school.
+    if (!isSuperAdmin()) {
+        if ($form_data['student_id']) {
+            $chk = $pdo->prepare("SELECT 1 FROM students WHERE id = ? AND school_id = ?");
+            $chk->execute([$form_data['student_id'], currentSchoolId()]);
+            if (!$chk->fetchColumn()) $errors[] = 'Selected student is not available for your school.';
+        }
+        if ($form_data['course_id']) {
+            $chk = $pdo->prepare("SELECT 1 FROM courses WHERE id = ? AND school_id = ?");
+            $chk->execute([$form_data['course_id'], currentSchoolId()]);
+            if (!$chk->fetchColumn()) $errors[] = 'Selected course is not available for your school.';
+        }
+    }
 
     if (empty($errors)) {
         try {

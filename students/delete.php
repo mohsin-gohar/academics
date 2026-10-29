@@ -1,5 +1,6 @@
 <?php
 require_once '../includes/functions.php';
+require_once '../includes/tenant.php';
 require_once '../config/db.php';
 requireStaff();
 
@@ -15,6 +16,7 @@ $stmt = $pdo->prepare("SELECT * FROM students WHERE id = ?");
 $stmt->execute([$id]);
 $student = $stmt->fetch();
 if (!$student) { header('Location: index.php?error=' . urlencode('Student not found.')); exit; }
+require_record_school($student);
 
 try {
     $pdo->beginTransaction();

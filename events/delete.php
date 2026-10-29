@@ -1,9 +1,10 @@
 <?php
 /**
  * Delete School Event / Holiday
- * EduSphere Student Management System
+ * Academics Student Management System
  */
 require_once '../includes/functions.php';
+require_once '../includes/tenant.php';
 startSecureSession();
 require_once '../config/db.php';
 requireStaff();
@@ -25,6 +26,7 @@ if (!$event) {
     header('Location: index.php?error=' . urlencode('Event not found.'));
     exit;
 }
+require_record_school($event);
 
 try {
     $pdo->prepare("DELETE FROM school_events WHERE id = ?")->execute([$id]);

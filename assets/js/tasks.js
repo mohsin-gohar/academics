@@ -1,5 +1,5 @@
 /**
- * EduSphere - AJAX Student Task Manager
+ * Academics - AJAX Student Task Manager
  * Vanilla JavaScript & Fetch API implementation
  */
 document.addEventListener('DOMContentLoaded', () => {

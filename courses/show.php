@@ -10,6 +10,7 @@ $stmt = $pdo->prepare("SELECT c.*, u.full_name as instructor_name FROM courses c
 $stmt->execute([$id]);
 $course = $stmt->fetch();
 if (!$course) { header('Location: index.php?error=' . urlencode('Course not found.')); exit; }
+require_record_school($course);
 
 // Enrolled students
 $stmt = $pdo->prepare("SELECT e.*, s.full_name, s.student_number FROM enrollments e JOIN students s ON e.student_id = s.id WHERE e.course_id = ? ORDER BY e.enrollment_date DESC");
@@ -21,8 +22,17 @@ $stmt = $pdo->prepare("SELECT t.*, s.full_name as student_name FROM tasks t LEFT
 $stmt->execute([$id]);
 $tasks = $stmt->fetchAll();
 
-// Available students to enroll
-$availableStudents = $pdo->query("SELECT id, full_name, student_number FROM students WHERE status = 'Active' ORDER BY full_name")->fetchAll();
+// Available students to enroll (same school only)
+$studentSql = "SELECT id, full_name, student_number FROM students WHERE status = 'Active'";
+$studentParams = [];
+if (!isSuperAdmin()) {
+    $studentSql .= " AND school_id = ?";
+    $studentParams[] = currentSchoolId();
+}
+$studentSql .= " ORDER BY full_name";
+$stmt = $pdo->prepare($studentSql);
+$stmt->execute($studentParams);
+$availableStudents = $stmt->fetchAll();
 $enrolledIds = array_column($enrollments, 'student_id');
 ?>
 

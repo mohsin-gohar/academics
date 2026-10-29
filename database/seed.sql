@@ -1,9 +1,9 @@
--- EduSphere Demo Seed Data
+-- Academics Demo Seed Data
 USE edusphere;
 
 -- Settings
 INSERT INTO application_settings (setting_key, setting_value, description) VALUES
-('app_name', 'EduSphere', 'Application name'),
+('app_name', 'Academics', 'Application name'),
 ('app_version', '1.0.0', 'Application version'),
 ('timezone', 'Asia/Karachi', 'Default timezone'),
 ('records_per_page', '10', 'Default pagination limit')

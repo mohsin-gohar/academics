@@ -1,13 +1,13 @@
 <?php
 /**
  * Database Configuration - PDO Connection
- * EduSphere Student Management System
+ * Academics School Management Platform
  * Production Multi-Engine Self-Healing Database Layer
  */
 
 // App configuration
 if (!defined('APP_NAME')) {
-    define('APP_NAME', 'EduSphere');
+    define('APP_NAME', 'Academics');
 }
 if (!defined('APP_VERSION')) {
     define('APP_VERSION', '1.0.0');
@@ -15,12 +15,72 @@ if (!defined('APP_VERSION')) {
 if (!defined('APP_TIMEZONE')) {
     define('APP_TIMEZONE', 'Asia/Karachi');
 }
+if (!defined('APP_DOMAIN')) {
+    $appDomainEnv = getenv('APP_DOMAIN');
+    define('APP_DOMAIN', $appDomainEnv !== false ? trim((string)$appDomainEnv) : '');
+}
+if (!defined('APP_SUPPORT_EMAIL')) {
+    $appSupportEnv = getenv('APP_SUPPORT_EMAIL');
+    define('APP_SUPPORT_EMAIL', $appSupportEnv !== false && trim((string)$appSupportEnv) !== ''
+        ? trim((string)$appSupportEnv)
+        : 'support@academics.app');
+}
 date_default_timezone_set(APP_TIMEZONE);
 
-// Database configuration defaults
-define('DB_USER', getenv('DB_USER') ?: 'root');
-define('DB_NAME', getenv('DB_NAME') ?: 'edusphere');
-define('DB_CHARSET', 'utf8mb4');
+// Load external hosting configuration if available
+if (file_exists(__DIR__ . '/db_config.php')) {
+    require_once __DIR__ . '/db_config.php';
+}
+
+if (!defined('DB_CHARSET')) define('DB_CHARSET', 'utf8mb4');
+
+// Production / InfinityFree Direct Connection
+if (defined('IS_PRODUCTION') && IS_PRODUCTION) {
+    $options = [
+        PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        PDO::ATTR_EMULATE_PREPARES   => false,
+        PDO::ATTR_TIMEOUT            => 5,
+    ];
+    
+    $dsn = "mysql:host=" . DB_HOST . ";port=" . DB_PORT . ";dbname=" . DB_NAME . ";charset=" . DB_CHARSET;
+    try {
+        $pdo = new PDO($dsn, DB_USER, DB_PASS, $options);
+    } catch (PDOException $e) {
+        error_log("InfinityFree DB Connection Error: " . $e->getMessage());
+        http_response_code(500);
+        ?>
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <title>Database Connection Error — Academics</title>
+            <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+            <style>
+                body { background: #0F172A; color: #F8FAFC; min-height: 100vh; display: flex; align-items: center; justify-content: center; font-family: sans-serif; }
+                .card-box { background: #1E293B; border-radius: 16px; padding: 32px; max-width: 600px; border: 1px solid #334155; }
+            </style>
+        </head>
+        <body>
+            <div class="card-box text-center">
+                <h3 class="fw-bold mb-3">⚠️ InfinityFree Database Connection Error</h3>
+                <p class="text-secondary small mb-3">Academics cannot connect to the MySQL database on your hosting. Please check your credentials in <code>config/db_config.php</code>.</p>
+                <div class="p-3 bg-dark text-danger small text-start rounded mb-3 font-monospace">
+                    <?= htmlspecialchars($e->getMessage()) ?>
+                </div>
+                <p class="text-muted small">Make sure you have created the database in vPanel and imported <code>edusphere_infinityfree_database.sql</code> via phpMyAdmin.</p>
+            </div>
+        </body>
+        </html>
+        <?php
+        exit;
+    }
+    return;
+}
+
+// Database configuration defaults (Localhost)
+if (!defined('DB_USER')) define('DB_USER', getenv('DB_USER') ?: 'root');
+if (!defined('DB_NAME')) define('DB_NAME', getenv('DB_NAME') ?: 'edusphere');
 
 $options = [
     PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
@@ -109,7 +169,7 @@ if (!$serverPdo) {
     <html lang="en">
     <head>
         <meta charset="UTF-8">
-        <title>Database Service Unavailable — EduSphere</title>
+        <title>Database Service Unavailable — Academics</title>
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
         <style>
@@ -123,7 +183,7 @@ if (!$serverPdo) {
         <div class="db-card text-center">
             <div style="font-size: 3.5rem; margin-bottom: 1rem;">🔌</div>
             <h2 class="fw-bold mb-2">MySQL Server is Not Running</h2>
-            <p class="text-secondary mb-4">EduSphere cannot connect to MySQL on Port 3306 or Port 3307. Please ensure your XAMPP MySQL module is started.</p>
+            <p class="text-secondary mb-4">Academics cannot connect to MySQL on Port 3306 or Port 3307. Please ensure your XAMPP MySQL module is started.</p>
             <div class="p-3 rounded-3 text-start mb-4" style="background: #090D16; font-family: monospace; font-size: 0.82rem; color: #EF4444; overflow-x: auto;">
                 <strong>Attempted Diagnostics:</strong><br>
                 <?php foreach ($connectionErrors as $err): ?>
@@ -196,7 +256,7 @@ try {
         $stmt = $pdo->prepare("SELECT id FROM users WHERE email = ? LIMIT 1");
         $stmt->execute([$acc[1]]);
         if (!$stmt->fetch()) {
-            $ins = $pdo->prepare("INSERT INTO users (full_name, email, password_hash, role, status) VALUES (?, ?, ?, ?, 'active')");
+            $ins = $pdo->prepare("INSERT INTO users (full_name, email, password, role, is_active) VALUES (?, ?, ?, ?, 1)");
             $ins->execute([$acc[0], $acc[1], $acc[2], $acc[3]]);
         }
     }

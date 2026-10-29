@@ -1,4 +1,4 @@
-# EduSphere — Premium Student Management System (SMS)
+# Academics — Premium Student Management System (SMS)
 > **Academic Level:** Aptech Academic Assignment & Commercial SaaS Prototype  
 > **Core Stack:** Plain PHP 8.2+, MySQL 8+ / MariaDB, PDO, Bootstrap 5 CDN, Vanilla JavaScript, Fetch API, HTML5/CSS3
 
@@ -6,7 +6,7 @@
 
 ## 1. Executive Summary
 
-**EduSphere** is an enterprise-grade, responsive Student Management System built without heavy backend frameworks. It combines clean modular PHP architecture, parameterized PDO queries, and Vanilla JavaScript Fetch API interactions with a modern educational SaaS user interface.
+**Academics** is an enterprise-grade, responsive Student Management System built without heavy backend frameworks. It combines clean modular PHP architecture, parameterized PDO queries, and Vanilla JavaScript Fetch API interactions with a modern educational SaaS user interface.
 
 The application retains the **Student Task Manager** as its mandatory, first-class core module, seamlessly integrating it with **Student Management**, **Course & Enrollment Management**, **Role-Based Access Control (RBAC)**, **Visual Analytics Dashboards**, **Secure Audit Logs**, and **Formula-Protected CSV Exports**.
 
@@ -64,6 +64,14 @@ The application retains the **Student Task Manager** as its mandatory, first-cla
 - **Application Settings**: Manage application name, records-per-page defaults, and timezone directly in the database.
 - **Custom Error Pages**: Styled, professional error handlers for `403 Forbidden`, `404 Not Found`, and `500 Server Error`.
 
+### H. SaaS Multi-Tenant Platform
+- **School Self-Registration**: Public `/register.php` creates a school, its first `school_admin`, default public-page settings, and a 30-day trial in one transaction.
+- **Subscription Plans**: Basic ($50/mo), Pro ($150/mo), and Enterprise ($500/mo) are available to the platform team for billing, with legacy `subscription_plan` values kept in sync. Public pricing intentionally shows one **1 Month Free** card; commercial pricing is agreed personally with each school after the trial.
+- **Trials & Access States**: New tenants start on `trial`; active paid subscriptions activate the school and clear `trial_ends_at`. Suspended schools and expired trials are blocked at login and on public pages.
+- **Subdomain Routing**: Each school receives a unique subdomain (`greenvalley.your-domain.com`). Local/staging installs can use `?school=greenvalley` when wildcard DNS is unavailable.
+- **Platform Super-Admin**: `/super-admin/dashboard.php` shows platform KPIs, MRR, trials and expiring subscriptions; `/admin/schools.php`, `/admin/subscriptions.php`, and `/admin/messages.php` manage tenants, billing and contact messages.
+- **Public Marketing Pages**: Landing page with pricing, school directory, per-school public page and events calendar, school signup, and a CSRF-protected contact form with honeypot and throttling.
+
 ---
 
 ## 3. Technology Stack
@@ -92,6 +100,9 @@ student-task-manager/
 ├── database.sql              # Canonical SQL schema & idempotent demo seed
 ├── index.php                 # Public entry point / redirector
 ├── dashboard.php             # Data-driven dashboard with Chart.js analytics
+├── register.php              # Public school self-registration (30-day trial)
+├── contact.php               # Public contact page
+├── contact_process.php       # CSRF-protected contact message intake
 ├── README.md                 # Complete system documentation
 │
 ├── admin/                    # Administrative management
@@ -99,7 +110,10 @@ student-task-manager/
 │   ├── create_user.php       # Add new administrative / teacher / student account
 │   ├── delete_user.php       # CSRF-protected user deletion
 │   ├── edit_user.php         # Edit user credentials and roles
+│   ├── messages.php          # Contact inbox (school or platform scoped)
+│   ├── schools.php           # Super-admin tenant, plan, subdomain & trial manager
 │   ├── settings.php          # Application settings & system health
+│   ├── subscriptions.php     # Subscription creation, history & cancellation
 │   ├── toggle_user.php       # Toggle user active status
 │   └── users.php             # User accounts directory with pagination
 │
@@ -110,7 +124,7 @@ student-task-manager/
 │
 ├── assets/                   # Static UI assets
 │   ├── css/
-│   │   └── style.css         # Custom EduSphere design system & variables
+│   │   └── style.css         # Custom Academics design system & variables
 │   └── js/
 │       ├── app.js            # Global UI scripts (sidebar, toasts, CSRF fetch)
 │       ├── script.js         # Entry helper
@@ -137,7 +151,9 @@ student-task-manager/
 │
 ├── database/                 # Modular database scripts
 │   ├── schema.sql            # Clean DDL table definitions
-│   └── seed.sql              # Seed data for demo accounts and records
+│   ├── seed.sql              # Seed data for demo accounts and records
+│   ├── migrate_multi_school.php # Multi-tenant backfill (invokes SaaS migration)
+│   └── migrate_saas.php      # Idempotent SaaS columns, tables & demo backfill
 │
 ├── errors/                   # Custom HTTP error pages
 │   ├── 403.php               # Forbidden / Unauthorized Access
@@ -148,7 +164,16 @@ student-task-manager/
 │   ├── footer.php            # Layout footer with script loader
 │   ├── functions.php         # Security helpers, CSRF, auth checks, formatting
 │   ├── header.php            # HTML head, top navbar, session bootstrap
-│   └── sidebar.php           # Responsive, role-aware sidebar navigation
+│   ├── public_nav.php        # Shared public marketing navigation
+│   ├── public_footer.php     # Shared public marketing footer
+│   ├── saas.php              # Plans, subdomains, trials, subscriptions, contact
+│   ├── sidebar.php           # Responsive, role-aware sidebar navigation
+│   └── tenant.php            # School context, scoping helpers & safe colors
+│
+├── public/                   # Public school directory & tenant pages
+│   ├── index.php             # School directory (active tenants only)
+│   ├── school.php            # Per-school public page (subdomain aware)
+│   └── school_events.php     # Per-school public events calendar
 │
 ├── reports/                  # Reporting & export engine
 │   └── index.php             # Reports dashboard & safe CSV export handler
@@ -168,11 +193,18 @@ student-task-manager/
 │   ├── show.php              # Task detail view with quick status updater
 │   └── update_status.php     # POST status updater fallback
 │
+├── super-admin/              # Platform-level tenant administration
+│   ├── dashboard.php         # KPIs, MRR, trials & expiring subscriptions
+│   ├── school.php            # Tenant detail, users, subscriptions & settings
+│   └── suspend.php           # CSRF-protected suspend / activate action
+│
 └── tests/                    # Automated testing suite
     ├── AuthTest.php          # Auth, hashing, CSRF & rate limit tests
     ├── TasksTest.php         # Task CRUD & lifecycle tests
     ├── StudentsCoursesTest.php# Relational integrity & unique constraint tests
     ├── SecurityTest.php      # SQLi, XSS, formula injection & RBAC tests
+    ├── EventsAlertsTest.php  # Events, holidays & emergency alerts tests
+    ├── SaasTest.php          # Plans, trials, subdomains & tenant isolation tests
     └── run_tests.php         # CLI test runner
 ```
 
@@ -201,7 +233,13 @@ The application includes a self-healing database bootstrap in `config/db.php`. W
 2. Click the **Import** tab on the top menu bar.
 3. Click **Choose File** and select `database.sql` from the project root.
 4. Click **Import** at the bottom of the page.
-5. MariaDB / MySQL will create the `edusphere` database with all 8 tables and sample seed records.
+5. MariaDB / MySQL will create the `edusphere` database with all 18 tables (tenants, subscriptions, contact messages, and the original academic modules) and sample seed records.
+
+> Upgrading an existing installation? Run the idempotent SaaS migration once:
+> ```powershell
+> php database/migrate_saas.php
+> ```
+> It adds the subdomain/status/plan/trial columns, subscription and contact tables, and backfills the demo schools. `database/migrate_multi_school.php` also invokes it.
 
 ### Step 4: Access the Application
 Open your web browser and navigate to:
@@ -210,23 +248,39 @@ http://localhost/student-task-manager/
 ```
 You will be directed to the modern login screen.
 
+### Step 5: Configure School Subdomains (Optional)
+Set `APP_DOMAIN` in `.env` (or `config/db.php`) to the base domain used for tenant subdomains:
+```dotenv
+APP_DOMAIN=your-domain.com
+```
+Then point wildcard DNS (`*.your-domain.com`) and an Apache wildcard virtual host at the application. Without wildcard DNS (for example on localhost), use the path fallback:
+```
+http://localhost/student-task-manager/auth/login.php?school=greenvalley
+```
+`*.localhost` subdomains are also recognised automatically during local development.
+
 ---
 
 ## 6. Default Demo Accounts & Roles
 
-EduSphere is seeded with 3 pre-configured demo accounts for testing all user roles:
+Academics is seeded with demo accounts covering every role. School-scoped accounts belong to the demo tenants (`SCH001` and `SCH002`):
 
 | Role | Email Address | Password | Permissions & Scope |
 | :--- | :--- | :--- | :--- |
-| **Administrator** | `admin@edusphere.com` | `Admin@123` | Full access: User management, settings, audit logs, all students, courses, and tasks. |
-| **Teacher / Staff** | `teacher@edusphere.com` | `Teacher@123` | Academic access: Create/edit courses, manage students, assign tasks, review student progress. |
-| **Student** | `student@edusphere.com` | `Student@123` | Student access: View personal profile, view courses, view assigned tasks, update task status. |
+| **Platform Super Admin** | `admin@edusphere.com` | `Admin@123` | Platform-wide: schools, plans, subscriptions, contact inbox, users, settings, audit logs. |
+| **School Admin (SCH001)** | `schooladmin@sch001.com` | `School@123` | Full access inside Academics International School only. |
+| **Teacher (SCH001)** | `teacher@sch001.com` | `Teacher@123` | Academic access inside the school: courses, students, tasks, events. |
+| **Student (SCH001)** | `student@sch001.com` | `Student@123` | Student access: own profile, courses, assigned tasks. |
+| **Parent (SCH001)** | `parent@sch001.com` | `Parent@123` | Parent portal: linked children, progress, announcements, tasks. |
+| **School Admin (SCH002)** | `schooladmin@sch002.com` | `School@123` | Full access inside Beaconhouse Model School only. |
+
+Legacy demo accounts `teacher@edusphere.com` / `Teacher@123` and `student@edusphere.com` / `Student@123` remain available under the `SCH001` tenant.
 
 ---
 
 ## 7. How to Run the Automated Test Suite
 
-EduSphere includes an automated test runner verifying 32 critical test cases across authentication, task management, relational integrity, and application security.
+Academics includes an automated test runner verifying 53 critical test cases across authentication, task management, relational integrity, tenant isolation, SaaS billing, and application security.
 
 To run the tests from your terminal (PowerShell or Command Prompt):
 ```powershell
@@ -275,9 +329,59 @@ php tests/run_tests.php
    - `Teacher role correctly validates isStaff=true, isAdmin=false, isStudent=false`
    - `Student role correctly validates isStudent=true, isStaff=false, isAdmin=false`
 
+5. **School Events, Holidays & Alerts Suite**:
+   - Event lifecycle, holiday handling, emergency alerts, and tenant-scoped visibility.
+
+6. **SaaS Plans, Trials & Subscriptions Suite** (15 tests):
+   - Migration adds `subdomain`, `status`, `plan`, and `trial_ends_at`; subscription and contact tables exist.
+   - Three plans are priced Basic $50, Pro $150, Enterprise $500; legacy plans map correctly.
+   - Subdomain validation rejects reserved/malformed names; host resolution supports `APP_DOMAIN`, `*.localhost`, ports, and ignores raw IPs.
+   - School self-registration creates a 30-day trial, a hashed `school_admin` login, and a zero-price trial subscription.
+   - Duplicate subdomains are rejected.
+   - Expired trials and suspended schools are blocked; active paid subscriptions activate the school and clear the trial.
+   - New tenant users stay isolated by `school_id`; contact intake stores messages with school scoping.
+
 ---
 
-## 8. Git & GitHub Publishing Instructions
+## 8. SaaS Setup, Plans & Trial Behavior
+
+### Plans
+| Plan | Price | Intended For |
+| :--- | ---: | :--- |
+| **Basic** | $50 / month | Small schools getting started (up to 100 students) |
+| **Pro** | $150 / month | Growing schools (up to 500 students, parent portal, reports) |
+| **Enterprise** | $500 / month | Large institutions (unlimited students, custom branding, dedicated onboarding) |
+
+Prices live in `includes/saas.php` (`saas_plans()`), so the landing page, signup form, super-admin screens, and tests all read from one source.
+
+### Tenant Lifecycle
+1. A visitor registers at `/register.php`; the app creates the school, its first `school_admin`, default public settings, and a **30-day trial** with a zero-price subscription.
+2. The trial school has `status = 'trial'`, `is_active = 1`, and `trial_ends_at = now + 30 days`.
+3. A super admin records an active paid subscription in `/admin/subscriptions.php`; the school becomes `status = 'active'`, `trial_ends_at = NULL`, and its plan is updated.
+4. Suspending a school sets `status = 'suspended'` and `is_active = 0`. Suspended schools and expired trials are blocked at login and return **HTTP 403** on public school pages.
+5. Activating a school restores access without changing its subscription history.
+
+### Subdomain Routing
+- `APP_DOMAIN` defines the base domain. For `APP_DOMAIN=academics.com`, the school `greenvalley` is served at `greenvalley.academics.com`.
+- Wildcard DNS (`*.academics.com`) and a wildcard Apache virtual host are required in production.
+- Local fallback: `/auth/login.php?school=greenvalley`, `/public/school.php?code=SCH001`, or any `*.localhost` host.
+- Reserved names (`www`, `admin`, `api`, `mail`, etc.) and malformed subdomains are rejected by `saas_validate_subdomain()`.
+
+### Key SaaS Files
+| File | Purpose |
+| :--- | :--- |
+| `includes/saas.php` | Plans, subdomain validation/resolution, registration, subscriptions, trial access, contact intake |
+| `register.php` | Public school signup with CSRF, honeypot, and throttling |
+| `contact.php` / `contact_process.php` | Public contact page and CSRF-protected message intake |
+| `super-admin/dashboard.php` | Platform KPIs, MRR, trials, expiring subscriptions |
+| `admin/schools.php` | Create/edit schools, subdomains, plans, status, trial dates |
+| `admin/subscriptions.php` | Record, cancel, and review subscription history |
+| `admin/messages.php` | Contact inbox scoped to the current school/platform admin |
+| `database/migrate_saas.php` | Idempotent upgrade for existing databases |
+
+---
+
+## 9. Git & GitHub Publishing Instructions
 
 Follow these exact commands to publish the project to your personal GitHub repository:
 
@@ -289,7 +393,7 @@ git init
 git add .
 
 # 3. Create initial commit
-git commit -m "Build EduSphere - Premium Student Management System"
+git commit -m "Build Academics - Premium Student Management System"
 
 # 4. Set main branch
 git branch -M main
@@ -303,9 +407,9 @@ git push -u origin main
 
 ---
 
-## 9. Security & Hardening Architecture
+## 10. Security & Hardening Architecture
 
-EduSphere follows strict defense-in-depth security principles:
+Academics follows strict defense-in-depth security principles:
 
 1. **SQL Injection**:
    - Zero string concatenation in database queries.
@@ -324,7 +428,7 @@ EduSphere follows strict defense-in-depth security principles:
 
 ---
 
-## 10. Aptech Viva & Presentation Tips
+## 11. Aptech Viva & Presentation Tips
 
 When presenting this project to your instructor or examiner, highlight these key engineering decisions:
 1. **Explain the Architecture**: Emphasize that the system uses plain PHP with a clean modular MVC-inspired separation (`includes/`, `config/`, `ajax/`, `assets/`, `tests/`) rather than an bloated framework.
@@ -335,5 +439,4 @@ When presenting this project to your instructor or examiner, highlight these key
 
 ---
 
-*EduSphere — Built with excellence for Aptech Computer Education.*
-"# academics" 
+*Academics — Built with excellence for Aptech Computer Education.*

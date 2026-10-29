@@ -1,9 +1,9 @@
 <?php
-// Footer template
-$isAuthPage = in_array($current_page ?? '', ['login.php', 'register.php', 'login_process.php', 'register_process.php']);
-$isPublicPage = in_array($current_page ?? '', ['403.php', '404.php', '500.php', 'index.php', 'public_events.php']);
-
-if (function_exists('isLoggedIn') && isLoggedIn() && !$isAuthPage && !$isPublicPage):
+/**
+ * Footer Template
+ * Academics Student Management System
+ */
+if (function_exists('isLoggedIn') && isLoggedIn() && empty($is_auth) && empty($is_public)):
 ?>
             </div><!-- /.content-area -->
         </div><!-- /.main-content -->
@@ -15,5 +15,3 @@ if (function_exists('isLoggedIn') && isLoggedIn() && !$isAuthPage && !$isPublicP
     <?php if (isset($extra_js)) echo $extra_js; ?>
 </body>
 </html>
-
-

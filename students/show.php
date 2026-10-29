@@ -9,8 +9,18 @@ if ($id <= 0) {
     exit; 
 }
 
+// Parents may only open children linked to their own account in their school.
+if (isParent()) {
+    $stmt = $pdo->prepare("SELECT 1 FROM parent_student WHERE parent_id = ? AND student_id = ? AND school_id = ? LIMIT 1");
+    $stmt->execute([$_SESSION['user_id'], $id, currentSchoolId()]);
+    if (!$stmt->fetchColumn()) {
+        header('Location: ../parent/children.php?error=' . urlencode('That student is not linked to your account.'));
+        exit;
+    }
+}
+
 // Student can only view their own profile - gracefully redirect instead of 403
-if (!isStaff()) {
+if (!isStaff() && !isParent()) {
     $stmt = $pdo->prepare("SELECT id FROM students WHERE user_id = ?");
     $stmt->execute([$_SESSION['user_id']]);
     $ownId = (int)$stmt->fetchColumn();
@@ -27,6 +37,7 @@ $stmt = $pdo->prepare("SELECT s.*, u.is_active as user_active, u.last_login FROM
 $stmt->execute([$id]);
 $student = $stmt->fetch();
 if (!$student) { header('Location: index.php?error=' . urlencode('Student not found.')); exit; }
+require_record_school($student);
 
 // Enrollments
 $stmt = $pdo->prepare("SELECT e.*, c.course_code, c.course_name FROM enrollments e JOIN courses c ON e.course_id = c.id WHERE e.student_id = ? ORDER BY e.enrollment_date DESC");

@@ -1,12 +1,19 @@
 <?php
 /**
  * Reports & Academic Transcripts
- * EduSphere Student Management System
+ * Academics Student Management System
  */
 require_once '../includes/functions.php';
+require_once '../includes/tenant.php';
 startSecureSession();
 require_once '../config/db.php';
 requireAuth();
+
+// Parents have a dedicated read-only portal; institutional reports are staff-only.
+if (isParent()) {
+    header('Location: ../parent/progress.php');
+    exit;
+}
 
 $user_id = $_SESSION['user_id'];
 $isStudent = isStudent();
@@ -24,7 +31,7 @@ if ($isStudent && isset($_GET['export']) && $_GET['export'] === 'csv') {
     $output = fopen('php://output', 'w');
     fprintf($output, chr(0xEF).chr(0xBB).chr(0xBF));
 
-    fputcsv($output, ['EDUSPHERE ACADEMY - OFFICIAL STUDENT ACADEMIC TRANSCRIPT']);
+    fputcsv($output, ['ACADEMICS - OFFICIAL STUDENT ACADEMIC TRANSCRIPT']);
     fputcsv($output, ['Student Name', $student['full_name'], 'Student Number', $student['student_number']]);
     fputcsv($output, ['Email', $student['email'], 'Enrollment Date', $student['enrollment_date']]);
     fputcsv($output, []);
@@ -43,7 +50,7 @@ if ($isStudent && isset($_GET['export']) && $_GET['export'] === 'csv') {
 if (!$isStudent && isset($_GET['export']) && $_GET['export'] === 'csv') {
     requireStaff();
     $report_type = $_GET['type'] ?? 'students';
-    $filename = 'edusphere_' . $report_type . '_' . date('Y-m-d') . '.csv';
+    $filename = 'academics_' . $report_type . '_' . date('Y-m-d') . '.csv';
     header('Content-Type: text/csv; charset=utf-8');
     header('Content-Disposition: attachment; filename=' . $filename);
     $output = fopen('php://output', 'w');
@@ -51,19 +58,31 @@ if (!$isStudent && isset($_GET['export']) && $_GET['export'] === 'csv') {
 
     if ($report_type === 'students') {
         fputcsv($output, array_map('safeCsvCell', ['Student #', 'Full Name', 'Email', 'Phone', 'Gender', 'Enrollment Date', 'Status']));
-        $rows = $pdo->query("SELECT student_number, full_name, email, phone, gender, enrollment_date, status FROM students ORDER BY full_name")->fetchAll(PDO::FETCH_ASSOC);
+        [$scopeSql, $scopeParams] = school_scope('school_id');
+        $rowsStmt = $pdo->prepare("SELECT student_number, full_name, email, phone, gender, enrollment_date, status FROM students WHERE {$scopeSql} ORDER BY full_name");
+        $rowsStmt->execute($scopeParams);
+        $rows = $rowsStmt->fetchAll(PDO::FETCH_ASSOC);
         foreach ($rows as $r) fputcsv($output, array_map('safeCsvCell', array_values($r)));
     } elseif ($report_type === 'courses') {
         fputcsv($output, array_map('safeCsvCell', ['Course Code', 'Course Name', 'Credits', 'Instructor', 'Schedule', 'Status', 'Enrolled Count']));
-        $rows = $pdo->query("SELECT c.course_code, c.course_name, c.credits, COALESCE(u.full_name, 'None') as instructor, c.schedule, c.status, (SELECT COUNT(*) FROM enrollments e WHERE e.course_id = c.id AND e.status='Enrolled') as enrolled FROM courses c LEFT JOIN users u ON c.instructor_id = u.id ORDER BY c.course_name")->fetchAll(PDO::FETCH_ASSOC);
+        [$scopeSql, $scopeParams] = school_scope('c.school_id');
+        $rowsStmt = $pdo->prepare("SELECT c.course_code, c.course_name, c.credits, COALESCE(u.full_name, 'None') as instructor, c.schedule, c.status, (SELECT COUNT(*) FROM enrollments e WHERE e.course_id = c.id AND e.status='Enrolled') as enrolled FROM courses c LEFT JOIN users u ON c.instructor_id = u.id WHERE {$scopeSql} ORDER BY c.course_name");
+        $rowsStmt->execute($scopeParams);
+        $rows = $rowsStmt->fetchAll(PDO::FETCH_ASSOC);
         foreach ($rows as $r) fputcsv($output, array_map('safeCsvCell', array_values($r)));
     } elseif ($report_type === 'tasks') {
         fputcsv($output, array_map('safeCsvCell', ['Title', 'Student', 'Course', 'Priority', 'Status', 'Due Date', 'Created']));
-        $rows = $pdo->query("SELECT t.title, COALESCE(s.full_name, 'Unassigned') as student, COALESCE(c.course_name, 'General') as course, t.priority, t.status, COALESCE(t.due_date, '-') as due_date, t.created_at FROM tasks t LEFT JOIN students s ON t.student_id=s.id LEFT JOIN courses c ON t.course_id=c.id ORDER BY t.created_at DESC")->fetchAll(PDO::FETCH_ASSOC);
+        [$scopeSql, $scopeParams] = school_scope('t.school_id');
+        $rowsStmt = $pdo->prepare("SELECT t.title, COALESCE(s.full_name, 'Unassigned') as student, COALESCE(c.course_name, 'General') as course, t.priority, t.status, COALESCE(t.due_date, '-') as due_date, t.created_at FROM tasks t LEFT JOIN students s ON t.student_id=s.id LEFT JOIN courses c ON t.course_id=c.id WHERE {$scopeSql} ORDER BY t.created_at DESC");
+        $rowsStmt->execute($scopeParams);
+        $rows = $rowsStmt->fetchAll(PDO::FETCH_ASSOC);
         foreach ($rows as $r) fputcsv($output, array_map('safeCsvCell', array_values($r)));
     } elseif ($report_type === 'enrollments') {
         fputcsv($output, array_map('safeCsvCell', ['Student #', 'Student Name', 'Course Code', 'Course Name', 'Enrollment Date', 'Status', 'Grade']));
-        $rows = $pdo->query("SELECT s.student_number, s.full_name, c.course_code, c.course_name, e.enrollment_date, e.status, COALESCE(e.grade, '-') as grade FROM enrollments e JOIN students s ON e.student_id=s.id JOIN courses c ON e.course_id=c.id ORDER BY e.enrollment_date DESC")->fetchAll(PDO::FETCH_ASSOC);
+        [$scopeSql, $scopeParams] = school_scope('e.school_id');
+        $rowsStmt = $pdo->prepare("SELECT s.student_number, s.full_name, c.course_code, c.course_name, e.enrollment_date, e.status, COALESCE(e.grade, '-') as grade FROM enrollments e JOIN students s ON e.student_id=s.id JOIN courses c ON e.course_id=c.id WHERE {$scopeSql} ORDER BY e.enrollment_date DESC");
+        $rowsStmt->execute($scopeParams);
+        $rows = $rowsStmt->fetchAll(PDO::FETCH_ASSOC);
         foreach ($rows as $r) fputcsv($output, array_map('safeCsvCell', array_values($r)));
     }
     fclose($output);
@@ -281,12 +300,27 @@ else:
     // STAFF & ADMIN VIEW
     $report_type = $_GET['type'] ?? 'students';
 
-    // Summary stats
+    // Summary stats (school-scoped)
     $summary = [];
-    $summary['students'] = $pdo->query("SELECT COUNT(*) as total, SUM(CASE WHEN status='Active' THEN 1 ELSE 0 END) as active FROM students")->fetch();
-    $summary['courses'] = $pdo->query("SELECT COUNT(*) as total, SUM(CASE WHEN status='Active' THEN 1 ELSE 0 END) as active FROM courses")->fetch();
-    $summary['tasks'] = $pdo->query("SELECT COUNT(*) as total, SUM(CASE WHEN status='Completed' THEN 1 ELSE 0 END) as completed, SUM(CASE WHEN due_date < CURDATE() AND status != 'Completed' THEN 1 ELSE 0 END) as overdue FROM tasks")->fetch();
-    $summary['enrollments'] = $pdo->query("SELECT COUNT(*) as total FROM enrollments WHERE status='Enrolled'")->fetch();
+    [$ss, $sp] = school_scope('school_id');
+    $stmt = $pdo->prepare("SELECT COUNT(*) as total, SUM(CASE WHEN status='Active' THEN 1 ELSE 0 END) as active FROM students WHERE {$ss}");
+    $stmt->execute($sp);
+    $summary['students'] = $stmt->fetch();
+
+    [$cs, $cp] = school_scope('school_id');
+    $stmt = $pdo->prepare("SELECT COUNT(*) as total, SUM(CASE WHEN status='Active' THEN 1 ELSE 0 END) as active FROM courses WHERE {$cs}");
+    $stmt->execute($cp);
+    $summary['courses'] = $stmt->fetch();
+
+    [$ts, $tp] = school_scope('school_id');
+    $stmt = $pdo->prepare("SELECT COUNT(*) as total, SUM(CASE WHEN status='Completed' THEN 1 ELSE 0 END) as completed, SUM(CASE WHEN due_date < CURDATE() AND status != 'Completed' THEN 1 ELSE 0 END) as overdue FROM tasks WHERE {$ts}");
+    $stmt->execute($tp);
+    $summary['tasks'] = $stmt->fetch();
+
+    [$es, $ep] = school_scope('school_id');
+    $stmt = $pdo->prepare("SELECT COUNT(*) as total FROM enrollments WHERE status='Enrolled' AND {$es}");
+    $stmt->execute($ep);
+    $summary['enrollments'] = $stmt->fetch();
 ?>
 
 <div class="row g-3 mb-4">
@@ -338,7 +372,7 @@ else:
     </div>
     <div class="card-body p-0">
         <?php if ($report_type === 'students'): ?>
-            <?php $rows = $pdo->query("SELECT student_number, full_name, email, phone, gender, enrollment_date, status FROM students ORDER BY full_name")->fetchAll(); ?>
+            <?php [$rs, $rp] = school_scope('school_id'); $rowsStmt = $pdo->prepare("SELECT student_number, full_name, email, phone, gender, enrollment_date, status FROM students WHERE {$rs} ORDER BY full_name"); $rowsStmt->execute($rp); $rows = $rowsStmt->fetchAll(); ?>
             <div class="table-responsive">
                 <table class="table table-hover align-middle mb-0">
                     <thead class="table-light"><tr><th>#</th><th>Student #</th><th>Name</th><th>Email</th><th>Phone</th><th>Status</th><th>Enrolled</th></tr></thead>
@@ -350,7 +384,7 @@ else:
                 </table>
             </div>
         <?php elseif ($report_type === 'courses'): ?>
-            <?php $rows = $pdo->query("SELECT c.*, (SELECT COUNT(*) FROM enrollments e WHERE e.course_id=c.id AND e.status='Enrolled') as enrolled FROM courses c ORDER BY c.course_name")->fetchAll(); ?>
+            <?php [$rs, $rp] = school_scope('c.school_id'); $rowsStmt = $pdo->prepare("SELECT c.*, (SELECT COUNT(*) FROM enrollments e WHERE e.course_id=c.id AND e.status='Enrolled') as enrolled FROM courses c WHERE {$rs} ORDER BY c.course_name"); $rowsStmt->execute($rp); $rows = $rowsStmt->fetchAll(); ?>
             <div class="table-responsive">
                 <table class="table table-hover align-middle mb-0">
                     <thead class="table-light"><tr><th>Code</th><th>Name</th><th>Credits</th><th>Instructor</th><th>Status</th><th>Enrolled</th></tr></thead>
@@ -362,7 +396,7 @@ else:
                 </table>
             </div>
         <?php elseif ($report_type === 'tasks'): ?>
-            <?php $rows = $pdo->query("SELECT t.*, s.full_name as student, c.course_name FROM tasks t LEFT JOIN students s ON t.student_id=s.id LEFT JOIN courses c ON t.course_id=c.id ORDER BY t.created_at DESC")->fetchAll(); ?>
+            <?php [$rs, $rp] = school_scope('t.school_id'); $rowsStmt = $pdo->prepare("SELECT t.*, s.full_name as student, c.course_name FROM tasks t LEFT JOIN students s ON t.student_id=s.id LEFT JOIN courses c ON t.course_id=c.id WHERE {$rs} ORDER BY t.created_at DESC"); $rowsStmt->execute($rp); $rows = $rowsStmt->fetchAll(); ?>
             <div class="table-responsive">
                 <table class="table table-hover align-middle mb-0">
                     <thead class="table-light"><tr><th>Title</th><th>Student</th><th>Course</th><th>Priority</th><th>Status</th><th>Due</th></tr></thead>
@@ -374,7 +408,7 @@ else:
                 </table>
             </div>
         <?php elseif ($report_type === 'enrollments'): ?>
-            <?php $rows = $pdo->query("SELECT s.student_number, s.full_name, c.course_code, c.course_name, e.enrollment_date, e.status, e.grade FROM enrollments e JOIN students s ON e.student_id=s.id JOIN courses c ON e.course_id=c.id ORDER BY e.enrollment_date DESC")->fetchAll(); ?>
+            <?php [$rs, $rp] = school_scope('e.school_id'); $rowsStmt = $pdo->prepare("SELECT s.student_number, s.full_name, c.course_code, c.course_name, e.enrollment_date, e.status, e.grade FROM enrollments e JOIN students s ON e.student_id=s.id JOIN courses c ON e.course_id=c.id WHERE {$rs} ORDER BY e.enrollment_date DESC"); $rowsStmt->execute($rp); $rows = $rowsStmt->fetchAll(); ?>
             <div class="table-responsive">
                 <table class="table table-hover align-middle mb-0">
                     <thead class="table-light"><tr><th>Student #</th><th>Student</th><th>Course</th><th>Enrolled</th><th>Status</th><th>Grade</th></tr></thead>

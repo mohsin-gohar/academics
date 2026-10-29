@@ -1,9 +1,10 @@
 <?php
 /**
  * AJAX Endpoint - Update Task Status
- * EduSphere Student Management System
+ * Academics Student Management System
  */
 require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/tenant.php';
 startSecureSession();
 require_once __DIR__ . '/../config/db.php';
 
@@ -58,6 +59,12 @@ try {
     if (!$task) {
         http_response_code(404);
         echo json_encode(['success' => false, 'message' => 'Task not found.']);
+        exit;
+    }
+
+    if (!can_access_school($task['school_id'] !== null ? (int)$task['school_id'] : null)) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'message' => 'This task belongs to another school.']);
         exit;
     }
 

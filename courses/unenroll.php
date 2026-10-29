@@ -1,5 +1,6 @@
 <?php
 require_once '../includes/functions.php';
+require_once '../includes/tenant.php';
 require_once '../config/db.php';
 requireStaff();
 
@@ -11,6 +12,15 @@ if ($id <= 0 || !validateCsrfToken($token)) {
     header('Location: ' . ($course_id ? 'show.php?id=' . $course_id : 'index.php') . '&error=' . urlencode('Invalid security token.')); 
     exit; 
 }
+
+$guard = $pdo->prepare("SELECT school_id FROM enrollments WHERE id = ?");
+$guard->execute([$id]);
+$enrollmentSchool = $guard->fetchColumn();
+if ($enrollmentSchool === false) {
+    header('Location: ' . ($course_id ? 'show.php?id=' . $course_id : 'index.php') . '&error=' . urlencode('Enrollment not found.'));
+    exit;
+}
+require_record_school(['school_id' => (int)$enrollmentSchool]);
 
 try {
     $pdo->prepare("DELETE FROM enrollments WHERE id = ?")->execute([$id]);

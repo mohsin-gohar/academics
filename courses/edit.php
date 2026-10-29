@@ -1,5 +1,6 @@
 <?php
 require_once '../includes/functions.php';
+require_once '../includes/tenant.php';
 require_once '../config/db.php';
 requireStaff();
 
@@ -10,11 +11,21 @@ $stmt = $pdo->prepare("SELECT * FROM courses WHERE id = ?");
 $stmt->execute([$id]);
 $course = $stmt->fetch();
 if (!$course) { header('Location: index.php?error=' . urlencode('Course not found.')); exit; }
+require_record_school($course);
 
 $errors = [];
 $form_data = $course;
 
-$instructors = $pdo->query("SELECT id, full_name, role FROM users WHERE role IN ('teacher', 'admin') AND is_active = 1 ORDER BY full_name")->fetchAll();
+$instructorSql = "SELECT id, full_name, role FROM users WHERE role IN ('teacher', 'admin') AND is_active = 1";
+$instructorParams = [];
+if (!isSuperAdmin()) {
+    $instructorSql .= " AND school_id = ?";
+    $instructorParams[] = currentSchoolId();
+}
+$instructorSql .= " ORDER BY full_name";
+$stmt = $pdo->prepare($instructorSql);
+$stmt->execute($instructorParams);
+$instructors = $stmt->fetchAll();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!validateCsrfToken($_POST['csrf_token'] ?? '')) {

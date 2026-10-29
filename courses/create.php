@@ -6,7 +6,16 @@ requireStaff();
 $errors = [];
 $form_data = [];
 
-$instructors = $pdo->query("SELECT id, full_name, role FROM users WHERE role IN ('teacher', 'admin') AND is_active = 1 ORDER BY full_name")->fetchAll();
+$instructorSql = "SELECT id, full_name, role FROM users WHERE role IN ('teacher', 'admin') AND is_active = 1";
+$instructorParams = [];
+if (!isSuperAdmin()) {
+    $instructorSql .= " AND school_id = ?";
+    $instructorParams[] = currentSchoolId();
+}
+$instructorSql .= " ORDER BY full_name";
+$instructorStmt = $pdo->prepare($instructorSql);
+$instructorStmt->execute($instructorParams);
+$instructors = $instructorStmt->fetchAll();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!validateCsrfToken($_POST['csrf_token'] ?? '')) {
@@ -36,8 +45,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (empty($errors)) {
         try {
-            $stmt = $pdo->prepare("INSERT INTO courses (course_code, course_name, description, credits, instructor_id, schedule, capacity, status, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt = $pdo->prepare("INSERT INTO courses (school_id, course_code, course_name, description, credits, instructor_id, schedule, capacity, status, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
             $stmt->execute([
+                currentSchoolId(),
                 $form_data['course_code'], $form_data['course_name'], $form_data['description'] ?: null,
                 $form_data['credits'], $form_data['instructor_id'], $form_data['schedule'] ?: null,
                 $form_data['capacity'], $form_data['status'], $_SESSION['user_id']

@@ -10,6 +10,11 @@ if (isLoggedIn()) {
 
 $error = $_GET['error'] ?? '';
 $success = $_GET['success'] ?? '';
+$schools = $pdo->query("SELECT id, school_name, school_code FROM schools
+    WHERE is_active = 1
+      AND (status IS NULL OR status <> 'suspended')
+      AND (status <> 'trial' OR trial_ends_at IS NULL OR trial_ends_at >= NOW())
+    ORDER BY school_name")->fetchAll();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -17,17 +22,22 @@ $success = $_GET['success'] ?? '';
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Register | <?php echo APP_NAME; ?></title>
+    <link rel="icon" type="image/svg+xml" href="../assets/img/academics-mark.svg">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="../assets/css/style.css">
+    <link rel="stylesheet" href="../assets/css/edustudy-theme.css">
+    <script>
+    (function(){try{var t=localStorage.getItem('es_theme');if(t==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}})();
+    </script>
 </head>
 <body>
     <div class="auth-wrapper">
         <div class="auth-card">
             <div class="auth-header">
-                <div class="brand-icon">
-                    <i class="fas fa-user-plus"></i>
+                <div class="brand-icon brand-icon-logo">
+                    <img src="../assets/img/academics-mark.svg" alt="<?php echo e(APP_NAME); ?> logo" width="44" height="44">
                 </div>
                 <h3 class="mb-1"><?php echo APP_NAME; ?></h3>
                 <p class="mb-0 opacity-75">Create your account</p>
@@ -52,6 +62,21 @@ $success = $_GET['success'] ?? '';
                             <span class="input-group-text bg-light"><i class="fas fa-user text-muted"></i></span>
                             <input type="text" name="full_name" class="form-control" placeholder="Enter your full name" required>
                         </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">School</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light"><i class="fas fa-school text-muted"></i></span>
+                            <select name="school_id" class="form-select" required>
+                                <option value="">Select your school</option>
+                                <?php foreach ($schools as $school): ?>
+                                    <option value="<?php echo (int)$school['id']; ?>"><?php echo e($school['school_name']); ?> (<?php echo e($school['school_code']); ?>)</option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <?php if (!$schools): ?>
+                            <small class="text-danger">Registration is currently closed. Please contact your school administrator.</small>
+                        <?php endif; ?>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Email Address</label>
@@ -82,16 +107,17 @@ $success = $_GET['success'] ?? '';
                         </div>
                     </div>
                     <div class="d-grid">
-                        <button type="submit" class="btn btn-primary btn-lg">
+                        <button type="submit" class="btn btn-primary btn-lg" <?php echo !$schools ? 'disabled' : ''; ?>>
                             <i class="fas fa-user-plus me-2"></i> Create Account
                         </button>
                     </div>
                 </form>
 
                 <hr class="my-4">
-                <p class="text-center small mb-0">
-                    Already have an account? <a href="login.php" class="text-primary text-decoration-none fw-medium">Sign in</a>
-                </p>
+                <div class="d-flex flex-column gap-2 text-center small">
+                    <span>Already have an account? <a href="login.php" class="text-primary text-decoration-none fw-medium">Sign in</a></span>
+                    <span>New school? <a href="../register.php" class="text-primary text-decoration-none fw-medium">Register your school</a></span>
+                </div>
             </div>
         </div>
     </div>

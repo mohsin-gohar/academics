@@ -38,6 +38,11 @@ $course = trim($_GET['course'] ?? '');
 $where = ['1=1'];
 $params = [];
 
+if (!isSuperAdmin()) {
+    $where[] = 's.school_id = ?';
+    $params[] = currentSchoolId();
+}
+
 if (!empty($search)) {
     $where[] = '(s.full_name LIKE ? OR s.student_number LIKE ? OR s.email LIKE ?)';
     $sp = '%' . $search . '%';

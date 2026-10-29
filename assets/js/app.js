@@ -1,8 +1,33 @@
-﻿// EduSphere Common JavaScript
+// Academics Common JavaScript
 
 document.addEventListener('DOMContentLoaded', function() {
     // CSRF token from meta tag
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+    // ---------- Theme ----------
+    const themeToggle = document.getElementById('themeToggle');
+    const applyTheme = (t) => {
+        document.documentElement.setAttribute('data-theme', t);
+        try { localStorage.setItem('es_theme', t); } catch (e) {}
+        if (themeToggle) {
+            themeToggle.innerHTML = t === 'dark' ? '<i class="fas fa-sun"></i>' : '<i class="fas fa-moon"></i>';
+            themeToggle.setAttribute('aria-label', t === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
+        }
+    };
+    (function initTheme() {
+        let current = document.documentElement.getAttribute('data-theme');
+        if (!current) {
+            try { current = localStorage.getItem('es_theme'); } catch (e) {}
+        }
+        current = current === 'dark' ? 'dark' : 'light';
+        applyTheme(current);
+    })();
+    if (themeToggle) {
+        themeToggle.addEventListener('click', function () {
+            const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+            applyTheme(next);
+        });
+    }
 
     // Sidebar toggle for mobile
     const sidebarToggle = document.getElementById('sidebarToggle');

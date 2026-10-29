@@ -1,5 +1,6 @@
 <?php
 require_once '../includes/functions.php';
+require_once '../includes/tenant.php';
 require_once '../config/db.php';
 requireAuth();
 
@@ -17,6 +18,10 @@ $stmt = $pdo->prepare("SELECT * FROM tasks WHERE id = ?");
 $stmt->execute([$id]);
 $task = $stmt->fetch();
 if (!$task) { header('Location: index.php?error=' . urlencode('Task not found.')); exit; }
+if (!can_access_school($task['school_id'] !== null ? (int)$task['school_id'] : null)) {
+    header('Location: ../errors/403.php');
+    exit;
+}
 
 // Authorization check
 if (isStudent()) {

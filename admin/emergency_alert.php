@@ -1,24 +1,34 @@
 <?php
 /**
  * Emergency School Closure & Notices Management
- * EduSphere Student Management System
+ * Academics Student Management System
  */
 $page_title = 'Emergency Closure & Alert Manager';
 require_once '../includes/header.php';
 requireStaff();
 
 $user_id = $_SESSION['user_id'];
+$alertSchoolId = isSuperAdmin() ? null : currentSchoolId();
 $errors = [];
 $success = '';
 
-// Fetch latest or primary emergency alert
-$stmt = $pdo->query("SELECT * FROM emergency_alerts ORDER BY id DESC LIMIT 1");
-$alert = $stmt->fetch();
+// Fetch this school's alert (platform-wide for the super admin).
+$fetchAlert = function () use ($pdo, $alertSchoolId) {
+    if ($alertSchoolId !== null) {
+        $stmt = $pdo->prepare("SELECT * FROM emergency_alerts WHERE school_id = ? ORDER BY id DESC LIMIT 1");
+        $stmt->execute([$alertSchoolId]);
+    } else {
+        $stmt = $pdo->query("SELECT * FROM emergency_alerts WHERE school_id IS NULL ORDER BY id DESC LIMIT 1");
+    }
+    return $stmt->fetch();
+};
+$alert = $fetchAlert();
 
 // If no alert exists yet, insert a default placeholder
 if (!$alert) {
-    $pdo->query("INSERT INTO emergency_alerts (title, message, alert_type, effective_date, end_date, is_active, updated_by) VALUES ('School Closure Notice', 'School will remain closed until further notice.', 'Emergency Closure', CURDATE(), DATE_ADD(CURDATE(), INTERVAL 1 DAY), 0, $user_id)");
-    $alert = $pdo->query("SELECT * FROM emergency_alerts ORDER BY id DESC LIMIT 1")->fetch();
+    $ins = $pdo->prepare("INSERT INTO emergency_alerts (school_id, title, message, alert_type, effective_date, end_date, is_active, updated_by) VALUES (?, 'School Closure Notice', 'School will remain closed until further notice.', 'Emergency Closure', CURDATE(), DATE_ADD(CURDATE(), INTERVAL 1 DAY), 0, ?)");
+    $ins->execute([$alertSchoolId, $user_id]);
+    $alert = $fetchAlert();
 }
 
 // Handle Form Submission

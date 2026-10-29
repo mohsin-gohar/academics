@@ -1,4 +1,4 @@
 /**
- * EduSphere Script Entry
+ * Academics Script Entry
  */
-console.log('EduSphere scripts initialized.');
+console.log('Academics scripts initialized.');

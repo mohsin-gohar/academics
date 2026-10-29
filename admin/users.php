@@ -11,6 +11,10 @@ $role = trim($_GET['role'] ?? '');
 
 $where = ['1=1'];
 $params = [];
+if (!isSuperAdmin()) {
+    $where[] = 'school_id = ?';
+    $params[] = currentSchoolId();
+}
 if (!empty($search)) {
     $where[] = '(full_name LIKE ? OR email LIKE ?)';
     $sp = '%' . $search . '%';
@@ -46,7 +50,10 @@ $users = $stmt->fetchAll();
                 <select name="role" class="form-select">
                     <option value="">All Roles</option>
                     <option value="admin" <?php echo $role === 'admin' ? 'selected' : ''; ?>>Admin</option>
+                    <?php if (isSuperAdmin()): ?><option value="super_admin" <?php echo $role === 'super_admin' ? 'selected' : ''; ?>>Super Admin</option><?php endif; ?>
+                    <option value="school_admin" <?php echo $role === 'school_admin' ? 'selected' : ''; ?>>School Admin</option>
                     <option value="teacher" <?php echo $role === 'teacher' ? 'selected' : ''; ?>>Teacher</option>
+                    <option value="parent" <?php echo $role === 'parent' ? 'selected' : ''; ?>>Parent</option>
                     <option value="student" <?php echo $role === 'student' ? 'selected' : ''; ?>>Student</option>
                 </select>
             </div>
@@ -72,7 +79,11 @@ $users = $stmt->fetchAll();
                     <tr>
                         <td class="fw-medium"><?php echo e($u['full_name']); ?></td>
                         <td><?php echo e($u['email']); ?></td>
-                        <td><span class="badge bg-<?php echo $u['role'] === 'admin' ? 'danger' : ($u['role'] === 'teacher' ? 'primary' : 'secondary'); ?>"><?php echo ucfirst($u['role']); ?></span></td>
+                        <?php
+                        $roleColors = ['admin' => 'danger', 'super_admin' => 'danger', 'school_admin' => 'warning', 'teacher' => 'primary', 'parent' => 'info', 'student' => 'secondary'];
+                        $roleColor = $roleColors[$u['role']] ?? 'secondary';
+                        ?>
+                        <td><span class="badge bg-<?php echo $roleColor; ?>"><?php echo e(ucwords(str_replace('_', ' ', $u['role']))); ?></span></td>
                         <td><span class="badge bg-<?php echo $u['is_active'] ? 'success' : 'secondary'; ?>"><?php echo $u['is_active'] ? 'Active' : 'Inactive'; ?></span></td>
                         <td><?php echo $u['last_login'] ? formatDateTime($u['last_login']) : 'Never'; ?></td>
                         <td><?php echo formatDate($u['created_at']); ?></td>

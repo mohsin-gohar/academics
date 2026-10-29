@@ -11,6 +11,10 @@ $status = trim($_GET['status'] ?? '');
 
 $where = ['1=1'];
 $params = [];
+if (!isSuperAdmin()) {
+    $where[] = 'c.school_id = ?';
+    $params[] = currentSchoolId();
+}
 if (!empty($search)) {
     $where[] = '(course_code LIKE ? OR course_name LIKE ?)';
     $sp = '%' . $search . '%';
@@ -22,7 +26,7 @@ if (!empty($status)) {
 }
 $whereClause = implode(' AND ', $where);
 
-$stmt = $pdo->prepare("SELECT COUNT(*) as total FROM courses WHERE $whereClause");
+$stmt = $pdo->prepare("SELECT COUNT(*) as total FROM courses c WHERE $whereClause");
 $stmt->execute($params);
 $total = $stmt->fetch()['total'];
 $pagination = getPagination($total, $perPage, $page);

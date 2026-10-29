@@ -17,11 +17,16 @@ $student_filter = (int)($_GET['student'] ?? 0);
 
 // Build where clause based on role
 if (isAdmin()) {
-    $baseWhere = '1=1';
-    $baseParams = [];
+    if (isSuperAdmin()) {
+        $baseWhere = '1=1';
+        $baseParams = [];
+    } else {
+        $baseWhere = 't.school_id = ?';
+        $baseParams = [currentSchoolId()];
+    }
 } elseif (isStaff()) {
-    $baseWhere = 't.user_id = ?';
-    $baseParams = [$user_id];
+    $baseWhere = 't.school_id = ? AND t.user_id = ?';
+    $baseParams = [currentSchoolId(), $user_id];
 } else {
     $stStmt = $pdo->prepare("SELECT id FROM students WHERE user_id = ?");
     $stStmt->execute([$user_id]);
@@ -89,7 +94,13 @@ $statCounts = $statStmt->fetch();
 // Students for filter (staff only)
 $students = [];
 if (isStaff()) {
-    $students = $pdo->query("SELECT id, full_name, student_number FROM students WHERE status = 'Active' ORDER BY full_name")->fetchAll();
+    if (isSuperAdmin()) {
+        $students = $pdo->query("SELECT id, full_name, student_number FROM students WHERE status = 'Active' ORDER BY full_name")->fetchAll();
+    } else {
+        $studentStmt = $pdo->prepare("SELECT id, full_name, student_number FROM students WHERE status = 'Active' AND school_id = ? ORDER BY full_name");
+        $studentStmt->execute([currentSchoolId()]);
+        $students = $studentStmt->fetchAll();
+    }
 }
 ?>
 

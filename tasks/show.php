@@ -16,6 +16,7 @@ $stmt = $pdo->prepare("SELECT t.*, s.full_name as student_name, s.student_number
 $stmt->execute([$id]);
 $task = $stmt->fetch();
 if (!$task) { header('Location: index.php?error=' . urlencode('Task not found.')); exit; }
+require_record_school($task);
 
 // Permission check: staff can see own, admin all, student only assigned
 if (isStudent()) {

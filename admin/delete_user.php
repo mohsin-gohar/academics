@@ -1,5 +1,6 @@
 <?php
 require_once '../includes/functions.php';
+require_once '../includes/tenant.php';
 require_once '../config/db.php';
 requireAdmin();
 
@@ -10,6 +11,12 @@ if ($id <= 0 || $id == $_SESSION['user_id'] || !validateCsrfToken($token)) {
     header('Location: users.php?error=' . urlencode('Invalid request or security token.')); 
     exit; 
 }
+
+$guard = $pdo->prepare("SELECT school_id FROM users WHERE id = ?");
+$guard->execute([$id]);
+$target = $guard->fetch();
+if (!$target) { header('Location: users.php?error=' . urlencode('User not found.')); exit; }
+require_record_school($target);
 
 try {
     $pdo->beginTransaction();

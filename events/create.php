@@ -1,7 +1,7 @@
 <?php
 /**
  * Create School Event or Gazetted Holiday
- * EduSphere Student Management System
+ * Academics Student Management System
  */
 $page_title = 'Add School Event / Holiday';
 require_once '../includes/header.php';
@@ -47,8 +47,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (empty($errors)) {
         try {
-            $stmt = $pdo->prepare("INSERT INTO school_events (title, event_type, description, event_date, end_date, is_holiday, status, created_by) VALUES (?, ?, ?, ?, ?, ?, 'Upcoming', ?)");
+            $stmt = $pdo->prepare("INSERT INTO school_events (school_id, title, event_type, description, event_date, end_date, is_holiday, status, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, 'Upcoming', ?)");
             $stmt->execute([
+                currentSchoolId(),
                 $form_data['title'],
                 $form_data['event_type'],
                 $form_data['description'],

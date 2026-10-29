@@ -1,7 +1,7 @@
 <?php
 /**
  * Public School Calendar & Events Portal
- * EduSphere Student Management System
+ * Academics School Management Platform
  */
 $page_title = 'Public Academic Calendar & Events';
 require_once 'includes/header.php';
@@ -37,11 +37,9 @@ $examCount = $pdo->query("SELECT COUNT(*) FROM school_events WHERE event_type = 
 <nav class="navbar navbar-expand-lg glass-nav sticky-top py-3">
     <div class="container">
         <a class="navbar-brand d-flex align-items-center gap-2" href="index.php">
-            <div class="rounded-3 bg-primary text-white d-flex align-items-center justify-content-center shadow" style="width: 40px; height: 40px; font-size: 1.25rem;">
-                <i class="fas fa-graduation-cap"></i>
-            </div>
+            <img src="assets/img/academics-mark.svg" alt="" width="40" height="40" class="rounded-3 shadow-sm">
             <div>
-                <span class="fw-bold fs-5 text-dark d-block lh-1">EduSphere Academy</span>
+                <span class="fw-bold fs-5 text-dark d-block lh-1"><?php echo e(APP_NAME); ?></span>
                 <span class="text-muted small fw-semibold" style="font-size: 0.65rem;">Academic Schedule</span>
             </div>
         </a>

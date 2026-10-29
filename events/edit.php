@@ -1,7 +1,7 @@
 <?php
 /**
  * Edit School Event or Gazetted Holiday
- * EduSphere Student Management System
+ * Academics Student Management System
  */
 $page_title = 'Edit School Event / Holiday';
 require_once '../includes/header.php';
@@ -15,6 +15,7 @@ $stmt = $pdo->prepare("SELECT * FROM school_events WHERE id = ?");
 $stmt->execute([$id]);
 $event = $stmt->fetch();
 if (!$event) { header('Location: index.php?error=' . urlencode('Event not found.')); exit; }
+require_record_school($event);
 
 $errors = [];
 $form_data = $event;

@@ -1,6 +1,6 @@
 <?php
 /**
- * EduSphere Automated Test Runner
+ * Academics Automated Test Runner
  * Executes unit, integration, database, and security tests.
  */
 
@@ -17,10 +17,11 @@ require_once __DIR__ . '/TasksTest.php';
 require_once __DIR__ . '/StudentsCoursesTest.php';
 require_once __DIR__ . '/SecurityTest.php';
 require_once __DIR__ . '/EventsAlertsTest.php';
+require_once __DIR__ . '/SaasTest.php';
 
 echo "\n";
 echo "====================================================================\n";
-echo "       EDUSPHERE STUDENT MANAGEMENT SYSTEM — TEST SUITE            \n";
+echo "       ACADEMICS SCHOOL MANAGEMENT PLATFORM — TEST SUITE          \n";
 echo "====================================================================\n";
 echo " Environment: PHP " . PHP_VERSION . " | MySQL PDO | UTF-8\n";
 echo " Timezone:    " . date_default_timezone_get() . "\n";
@@ -33,6 +34,7 @@ $suites = [
     'Students, Courses & Enrollments'   => new StudentsCoursesTest($pdo),
     'Security, SQLi, XSS & Injection'   => new SecurityTest($pdo),
     'School Events, Holidays & Alerts'  => new EventsAlertsTest($pdo),
+    'SaaS Plans, Trials & Subscriptions' => new SaasTest($pdo),
 ];
 
 $totalTests = 0;

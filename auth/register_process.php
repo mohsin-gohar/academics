@@ -1,6 +1,8 @@
 ﻿<?php
-session_start();
 require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/tenant.php';
+require_once __DIR__ . '/../includes/saas.php';
+startSecureSession();
 require_once __DIR__ . '/../config/db.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -17,10 +19,23 @@ if (!validateCsrfToken($csrf_token)) {
 
 $full_name = trim($_POST['full_name'] ?? '');
 $email = trim($_POST['email'] ?? '');
+$school_id = (int)($_POST['school_id'] ?? 0);
 $password = $_POST['password'] ?? '';
 $confirm_password = $_POST['confirm_password'] ?? '';
 
 $errors = [];
+
+$schoolStmt = $pdo->prepare("SELECT * FROM schools WHERE id = ? LIMIT 1");
+$schoolStmt->execute([$school_id]);
+$selectedSchool = $schoolStmt->fetch() ?: null;
+if (!$selectedSchool || !saas_school_is_accessible($selectedSchool)) {
+    $errors[] = 'Please select an active school.';
+} else {
+    $contextSchool = saas_bootstrap_school_context($pdo);
+    if ($contextSchool && (int)$contextSchool['id'] !== $school_id) {
+        $errors[] = 'This registration page belongs to a different school. Please use your school’s own portal.';
+    }
+}
 
 if (empty($full_name)) {
     $errors[] = 'Full name is required.';
@@ -62,14 +77,14 @@ if ($stmt->fetch()) {
 $hashed_password = password_hash($password, PASSWORD_DEFAULT);
 
 try {
-    $stmt = $pdo->prepare("INSERT INTO users (full_name, email, password, role, created_at) VALUES (?, ?, ?, 'student', NOW())");
-    $stmt->execute([$full_name, $email, $hashed_password]);
+    $stmt = $pdo->prepare("INSERT INTO users (full_name, email, password, role, school_id, created_at) VALUES (?, ?, ?, 'student', ?, NOW())");
+    $stmt->execute([$full_name, $email, $hashed_password, $school_id]);
     $userId = $pdo->lastInsertId();
 
     // Create student profile
     $student_number = generateStudentNumber($pdo);
-    $stmt = $pdo->prepare("INSERT INTO students (user_id, student_number, full_name, email, enrollment_date, status) VALUES (?, ?, ?, ?, CURDATE(), 'Active')");
-    $stmt->execute([$userId, $student_number, $full_name, $email]);
+    $stmt = $pdo->prepare("INSERT INTO students (user_id, school_id, student_number, full_name, email, enrollment_date, status) VALUES (?, ?, ?, ?, ?, CURDATE(), 'Active')");
+    $stmt->execute([$userId, $school_id, $student_number, $full_name, $email]);
 
     logActivity($pdo, $userId, 'register', 'user', $userId, 'New user registered');
 

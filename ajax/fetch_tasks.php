@@ -1,9 +1,10 @@
 <?php
 /**
  * AJAX Endpoint - Fetch Tasks with Search, Filters & Pagination
- * EduSphere Student Management System
+ * Academics Student Management System
  */
 require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/tenant.php';
 startSecureSession();
 require_once __DIR__ . '/../config/db.php';
 
@@ -27,24 +28,28 @@ $page = max(1, (int)($_GET['page'] ?? 1));
 $perPage = max(5, min(50, (int)($_GET['per_page'] ?? 10)));
 $offset = ($page - 1) * $perPage;
 
-// Determine base scope according to role
-if (isAdmin()) {
+// Determine base scope according to role and school tenant
+$stId = null;
+if (isSuperAdmin()) {
     $baseWhere = '1=1';
     $baseParams = [];
+} elseif (isAdmin()) {
+    $baseWhere = 't.school_id = ?';
+    $baseParams = [currentSchoolId()];
 } elseif (isTeacher()) {
-    $baseWhere = 't.user_id = ?';
-    $baseParams = [$user_id];
+    $baseWhere = 't.school_id = ? AND t.user_id = ?';
+    $baseParams = [currentSchoolId(), $user_id];
 } else {
-    // Student sees their assigned tasks
+    // Student sees their assigned tasks within their own school
     $stStmt = $pdo->prepare("SELECT id FROM students WHERE user_id = ?");
     $stStmt->execute([$user_id]);
     $stId = $stStmt->fetchColumn();
     if ($stId) {
-        $baseWhere = 't.student_id = ?';
-        $baseParams = [(int)$stId];
+        $baseWhere = 't.school_id = ? AND t.student_id = ?';
+        $baseParams = [currentSchoolId(), (int)$stId];
     } else {
-        $baseWhere = 't.user_id = ?';
-        $baseParams = [$user_id];
+        $baseWhere = 't.school_id = ? AND t.user_id = ?';
+        $baseParams = [currentSchoolId(), $user_id];
     }
 }
 

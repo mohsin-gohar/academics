@@ -1,4 +1,4 @@
--- EduSphere - Database Schema DDL
+-- Academics - Database Schema DDL
 -- MySQL 8+ / MariaDB 10.4+ / InnoDB / utf8mb4
 
 CREATE DATABASE IF NOT EXISTS edusphere CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;

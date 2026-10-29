@@ -1,7 +1,7 @@
 <?php
 /**
  * School Events, Functions & Gazetted Holidays
- * EduSphere Student Management System
+ * Academics Student Management System
  */
 $page_title = 'School Events & Holidays';
 require_once '../includes/header.php';
@@ -12,6 +12,11 @@ $isStaff = isStaff();
 
 $where = ["status != 'Cancelled'"];
 $params = [];
+
+if (!isSuperAdmin()) {
+    $where[] = 'e.school_id = ?';
+    $params[] = currentSchoolId();
+}
 
 if (!empty($typeFilter)) {
     if ($typeFilter === 'Holiday') {
@@ -30,11 +35,12 @@ $stmt->execute($params);
 $events = $stmt->fetchAll();
 
 // Counts for filter pills
-$totalCount = $pdo->query("SELECT COUNT(*) FROM school_events WHERE status != 'Cancelled'")->fetchColumn();
-$holidayCount = $pdo->query("SELECT COUNT(*) FROM school_events WHERE is_holiday = 1 AND status != 'Cancelled'")->fetchColumn();
-$functionCount = $pdo->query("SELECT COUNT(*) FROM school_events WHERE event_type = 'Function' AND status != 'Cancelled'")->fetchColumn();
-$examCount = $pdo->query("SELECT COUNT(*) FROM school_events WHERE event_type = 'Exam' AND status != 'Cancelled'")->fetchColumn();
-$meetingCount = $pdo->query("SELECT COUNT(*) FROM school_events WHERE event_type = 'Meeting' AND status != 'Cancelled'")->fetchColumn();
+$countScope = isSuperAdmin() ? '' : ' AND school_id = ' . (int)currentSchoolId();
+$totalCount = $pdo->query("SELECT COUNT(*) FROM school_events WHERE status != 'Cancelled'$countScope")->fetchColumn();
+$holidayCount = $pdo->query("SELECT COUNT(*) FROM school_events WHERE is_holiday = 1 AND status != 'Cancelled'$countScope")->fetchColumn();
+$functionCount = $pdo->query("SELECT COUNT(*) FROM school_events WHERE event_type = 'Function' AND status != 'Cancelled'$countScope")->fetchColumn();
+$examCount = $pdo->query("SELECT COUNT(*) FROM school_events WHERE event_type = 'Exam' AND status != 'Cancelled'$countScope")->fetchColumn();
+$meetingCount = $pdo->query("SELECT COUNT(*) FROM school_events WHERE event_type = 'Meeting' AND status != 'Cancelled'$countScope")->fetchColumn();
 ?>
 
 <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">

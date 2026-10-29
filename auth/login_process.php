@@ -1,5 +1,7 @@
 ﻿<?php
 require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/tenant.php';
+require_once __DIR__ . '/../includes/saas.php';
 startSecureSession();
 require_once __DIR__ . '/../config/db.php';
 
@@ -29,7 +31,15 @@ if (!checkLoginRateLimit($pdo, $email)) {
     exit;
 }
 
-$stmt = $pdo->prepare("SELECT id, full_name, email, password, role, is_active FROM users WHERE email = ?");
+// Resolve the school portal the visitor is signing in to. The host subdomain is
+// authoritative; the posted id is only used for path-based local/staging logins.
+$contextSchool = saas_bootstrap_school_context($pdo);
+$postedContext = (int)($_POST['school_context'] ?? 0);
+if (!$contextSchool && $postedContext > 0) {
+    $contextSchool = school_by_id($pdo, $postedContext);
+}
+
+$stmt = $pdo->prepare("SELECT id, full_name, email, password, role, is_active, school_id FROM users WHERE email = ?");
 $stmt->execute([$email]);
 $user = $stmt->fetch();
 
@@ -45,6 +55,29 @@ if (!$user['is_active']) {
     exit;
 }
 
+// School users may only sign in while their school is active and in good standing.
+$schoolId = $user['school_id'] !== null ? (int)$user['school_id'] : null;
+if ($schoolId !== null) {
+    $schoolRow = school_by_id($pdo, $schoolId);
+    if (!$schoolRow) {
+        header('Location: login.php?error=' . urlencode('Your school could not be found. Please contact the platform administrator.'));
+        exit;
+    }
+    $schoolState = saas_school_access_state($schoolRow);
+    if (!$schoolState['allowed']) {
+        header('Location: login.php?error=' . urlencode(saas_access_message($schoolState['reason'])));
+        exit;
+    }
+}
+
+// A school subdomain is a tenant boundary: accounts from another school cannot
+// sign in there. Platform administrators may still sign in to any portal.
+$isPlatformAdmin = ($user['role'] === 'super_admin') || ($user['role'] === 'admin' && $schoolId === null);
+if ($contextSchool && !$isPlatformAdmin && $schoolId !== (int)$contextSchool['id']) {
+    header('Location: login.php?error=' . urlencode('This account belongs to a different school portal. Please use your own school link.'));
+    exit;
+}
+
 // Clear login attempts on success
 clearLoginAttempts($pdo, $email);
 
@@ -56,6 +89,11 @@ $_SESSION['user_name'] = $user['full_name'];
 $_SESSION['user_email'] = $user['email'];
 $_SESSION['user_role'] = $user['role'];
 $_SESSION['logged_in'] = true;
+if ($schoolId !== null) {
+    $_SESSION['school_id'] = $schoolId;
+} else {
+    unset($_SESSION['school_id']);
+}
 
 // Update last login
 $stmt = $pdo->prepare("UPDATE users SET last_login = NOW() WHERE id = ?");
@@ -64,6 +102,13 @@ $stmt->execute([$user['id']]);
 // Log activity
 logActivity($pdo, $user['id'], 'login', 'user', $user['id'], 'User logged in');
 
-header('Location: ../dashboard.php?success=' . urlencode('Welcome back, ' . $user['full_name'] . '!'));
+// Keep the Redis-compatible user cache warm for auto-login links.
+try {
+    tenant_user_cache_upsert($pdo, $user);
+} catch (Throwable $e) {
+    error_log('user cache upsert failed: ' . $e->getMessage());
+}
+
+header('Location: ../' . tenant_home_for_role($user['role']) . '?success=' . urlencode('Welcome back, ' . $user['full_name'] . '!'));
 exit;
 

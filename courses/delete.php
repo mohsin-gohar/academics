@@ -1,5 +1,6 @@
 <?php
 require_once '../includes/functions.php';
+require_once '../includes/tenant.php';
 require_once '../config/db.php';
 requireStaff();
 
@@ -10,6 +11,12 @@ if ($id <= 0 || !validateCsrfToken($token)) {
     header('Location: index.php?error=' . urlencode('Invalid or missing security token.')); 
     exit; 
 }
+
+$guard = $pdo->prepare("SELECT school_id FROM courses WHERE id = ?");
+$guard->execute([$id]);
+$courseSchool = $guard->fetchColumn();
+if ($courseSchool === false) { header('Location: index.php?error=' . urlencode('Course not found.')); exit; }
+require_record_school(['school_id' => (int)$courseSchool]);
 
 try {
     $pdo->beginTransaction();

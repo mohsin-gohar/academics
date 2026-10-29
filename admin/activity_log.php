@@ -10,13 +10,19 @@ $action = trim($_GET['action'] ?? '');
 
 $where = ['1=1'];
 $params = [];
+if (!isSuperAdmin()) {
+    // School admins see their own school's activity only (legacy rows matched by user).
+    $where[] = '(al.school_id = ? OR u.school_id = ?)';
+    $params[] = currentSchoolId();
+    $params[] = currentSchoolId();
+}
 if (!empty($action)) {
     $where[] = 'al.action = ?';
     $params[] = $action;
 }
 $whereClause = implode(' AND ', $where);
 
-$stmt = $pdo->prepare("SELECT COUNT(*) as total FROM activity_logs al WHERE $whereClause");
+$stmt = $pdo->prepare("SELECT COUNT(*) as total FROM activity_logs al LEFT JOIN users u ON al.user_id = u.id WHERE $whereClause");
 $stmt->execute($params);
 $total = $stmt->fetch()['total'];
 $pagination = getPagination($total, $perPage, $page);
@@ -27,7 +33,15 @@ $params[] = $offset;
 $stmt->execute($params);
 $logs = $stmt->fetchAll();
 
-$actions = $pdo->query("SELECT DISTINCT action FROM activity_logs ORDER BY action")->fetchAll(PDO::FETCH_COLUMN);
+$actionParams = [];
+$actionWhere = '1=1';
+if (!isSuperAdmin()) {
+    $actionWhere = '(al.school_id = ? OR u.school_id = ?)';
+    $actionParams = [currentSchoolId(), currentSchoolId()];
+}
+$stmt = $pdo->prepare("SELECT DISTINCT al.action FROM activity_logs al LEFT JOIN users u ON al.user_id = u.id WHERE $actionWhere ORDER BY al.action");
+$stmt->execute($actionParams);
+$actions = $stmt->fetchAll(PDO::FETCH_COLUMN);
 ?>
 
 <div class="card mb-4">

@@ -10,6 +10,7 @@ $stmt = $pdo->prepare("SELECT * FROM students WHERE id = ?");
 $stmt->execute([$id]);
 $student = $stmt->fetch();
 if (!$student) { header('Location: index.php?error=' . urlencode('Student not found.')); exit; }
+require_record_school($student);
 
 $errors = [];
 $form_data = $student;

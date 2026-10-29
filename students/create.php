@@ -45,14 +45,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             // Create user account
             $default_password = password_hash('Student@123', PASSWORD_DEFAULT);
-            $stmt = $pdo->prepare("INSERT INTO users (full_name, email, password, role) VALUES (?, ?, ?, 'student')");
-            $stmt->execute([$form_data['full_name'], $form_data['email'], $default_password]);
+            $stmt = $pdo->prepare("INSERT INTO users (full_name, email, password, role, school_id) VALUES (?, ?, ?, 'student', ?)");
+            $stmt->execute([$form_data['full_name'], $form_data['email'], $default_password, currentSchoolId()]);
             $user_id = $pdo->lastInsertId();
 
             // Create student profile
             $student_number = generateStudentNumber($pdo);
-            $stmt = $pdo->prepare("INSERT INTO students (user_id, student_number, full_name, email, phone, date_of_birth, gender, address, enrollment_date, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt = $pdo->prepare("INSERT INTO students (school_id, user_id, student_number, full_name, email, phone, date_of_birth, gender, address, enrollment_date, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
             $stmt->execute([
+                currentSchoolId(),
                 $user_id, $student_number, $form_data['full_name'], $form_data['email'],
                 $form_data['phone'] ?: null, $form_data['date_of_birth'] ?: null,
                 $form_data['gender'] ?: null, $form_data['address'] ?: null,

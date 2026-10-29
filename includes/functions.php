@@ -1,7 +1,7 @@
 <?php
 /**
  * Helper Functions
- * EduSphere Student Management System
+ * Academics Student Management System
  */
 
 // Start session with secure settings
@@ -51,7 +51,7 @@ function hasRole($role) {
 
 // Check if user is admin
 function isAdmin() {
-    return hasRole('admin');
+    return hasRole('admin') || hasRole('super_admin') || hasRole('school_admin');
 }
 
 // Check if user is teacher
@@ -66,7 +66,96 @@ function isStudent() {
 
 // Check if user is staff (admin or teacher)
 function isStaff() {
-    return hasRole('admin') || hasRole('teacher');
+    return isAdmin() || hasRole('teacher');
+}
+
+// Check if user is super admin
+function isSuperAdmin() {
+    if (hasRole('super_admin')) {
+        return true;
+    }
+    // Legacy platform administrator: role "admin" with no school scope.
+    return hasRole('admin') && getUserSchoolId() === null;
+}
+
+// Check if user is school admin
+function isSchoolAdmin() {
+    return hasRole('school_admin');
+}
+
+// Check if user is super admin or school admin (school-level management)
+function isSchoolManagement() {
+    return isSuperAdmin() || isSchoolAdmin() || isAdmin();
+}
+
+// Require super admin
+function requireSuperAdmin() {
+    requireAuth();
+    if (!isSuperAdmin()) {
+        http_response_code(403);
+        header('Location: ' . getBasePath() . 'errors/403.php');
+        exit;
+    }
+}
+
+// Require school admin
+function requireSchoolAdmin() {
+    requireAuth();
+    if (!isSchoolAdmin() && !isSuperAdmin()) {
+        http_response_code(403);
+        header('Location: ' . getBasePath() . 'errors/403.php');
+        exit;
+    }
+}
+
+// Require school management (super_admin, school_admin, or admin)
+function requireSchoolManagement() {
+    requireAuth();
+    if (!isSchoolManagement()) {
+        http_response_code(403);
+        header('Location: ' . getBasePath() . 'errors/403.php');
+        exit;
+    }
+}
+
+// Get current user's school_id
+function getUserSchoolId() {
+    startSecureSession();
+    return $_SESSION['school_id'] ?? null;
+}
+
+// Set user's school_id in session
+function setUserSchoolId($schoolId) {
+    startSecureSession();
+    $_SESSION['school_id'] = (int)$schoolId;
+}
+
+// Get unread notification count
+function getUnreadNotificationCount($pdo) {
+    if (!isLoggedIn()) return 0;
+    try {
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = 0");
+        $stmt->execute([$_SESSION['user_id']]);
+        return (int)$stmt->fetchColumn();
+    } catch (PDOException $e) {
+        return 0;
+    }
+}
+
+// Get active announcements for user's school and role
+function getActiveAnnouncements($pdo, $limit = 5) {
+    if (!isLoggedIn()) return [];
+    try {
+        $role = getUserRole();
+        $schoolId = getUserSchoolId();
+        $stmt = $pdo->prepare(
+            "SELECT a.*, u.full_name as author_name FROM announcements a LEFT JOIN users u ON a.created_by = u.id WHERE a.school_id = ? AND a.is_active = 1 AND a.start_date <= NOW() AND (a.end_date IS NULL OR a.end_date >= NOW()) AND (a.target_roles = 'all' OR a.target_roles = ?) ORDER BY a.priority DESC, a.created_at DESC LIMIT ?"
+        );
+        $stmt->execute([$schoolId, $role, (int)$limit]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) {
+        return [];
+    }
 }
 
 // Compute relative path from current script to project root
@@ -108,7 +197,12 @@ function requireStaff() {
 
 // Require admin
 function requireAdmin() {
-    requireRole('admin');
+    requireAuth();
+    if (!isAdmin()) {
+        http_response_code(403);
+        header('Location: ' . getBasePath() . 'errors/403.php');
+        exit;
+    }
 }
 
 // Sanitize output (XSS prevention)
@@ -146,8 +240,10 @@ function setFlashMessage($type, $message) {
 // Log activity
 function logActivity($pdo, $userId, $action, $entityType = null, $entityId = null, $description = null) {
     try {
-        $stmt = $pdo->prepare("INSERT INTO activity_logs (user_id, action, entity_type, entity_id, description, ip_address, user_agent) VALUES (?, ?, ?, ?, ?, ?, ?)");
+        $schoolId = isset($_SESSION['school_id']) ? (int)$_SESSION['school_id'] : null;
+        $stmt = $pdo->prepare("INSERT INTO activity_logs (school_id, user_id, action, entity_type, entity_id, description, ip_address, user_agent) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
         $stmt->execute([
+            $schoolId,
             $userId,
             $action,
             $entityType,
