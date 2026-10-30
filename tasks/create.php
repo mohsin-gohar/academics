@@ -2,6 +2,10 @@
 $page_title = 'Create Task';
 require_once '../includes/header.php';
 requireAuth();
+if (!isStaff() && !isStudent()) {
+    header('Location: ../errors/403.php');
+    exit;
+}
 
 $user_id = $_SESSION['user_id'];
 $errors = [];

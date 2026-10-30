@@ -28,6 +28,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ((int)$old['student_id'] <= 0) $errors[] = 'Student is required.';
         if ($old['title'] === '') $errors[] = 'Title is required.';
         if (!is_numeric($old['amount']) || (float)$old['amount'] <= 0) $errors[] = 'Amount must be positive.';
+        // server-side ownership checks
+        if (empty($errors)) {
+            $chk = $pdo->prepare("SELECT COUNT(*) FROM students WHERE id = ? AND school_id = ?");
+            $chk->execute([(int)$old['student_id'], $schoolId]);
+            if ((int)$chk->fetchColumn() === 0) $errors[] = 'Selected student does not belong to this school.';
+            if ($old['fee_structure_id'] !== '') {
+                $chk2 = $pdo->prepare("SELECT COUNT(*) FROM fee_structures WHERE id = ? AND school_id = ?");
+                $chk2->execute([(int)$old['fee_structure_id'], $schoolId]);
+                if ((int)$chk2->fetchColumn() === 0) $errors[] = 'Selected fee structure does not belong to this school.';
+            }
+        }
         if (empty($errors)) {
             $fsId = $old['fee_structure_id'] !== '' ? (int)$old['fee_structure_id'] : null;
             $id = createInvoice($pdo, $schoolId, (int)$old['student_id'], $fsId, $old['title'], (float)$old['amount'], $old['due_date'] !== '' ? $old['due_date'] : null, (int)($_SESSION['user_id'] ?? 0));

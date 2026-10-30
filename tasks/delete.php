@@ -1,35 +1,42 @@
 <?php
 require_once '../includes/functions.php';
+require_once '../includes/tenant.php';
 require_once '../config/db.php';
 requireAuth();
+requireStaff();
 
 $user_id = $_SESSION['user_id'];
-$token = $_POST['csrf_token'] ?? $_GET['csrf_token'] ?? '';
-$id = isset($_REQUEST['id']) ? (int)$_REQUEST['id'] : 0;
+$token = $_POST['csrf_token'] ?? '';
+$id = isset($_POST['id']) ? (int)$_POST['id'] : (isset($_GET['id']) ? (int)$_GET['id'] : 0);
 
-if ($id <= 0 || !validateCsrfToken($token)) { 
-    header('Location: index.php?error=' . urlencode('Invalid or missing security token.')); 
-    exit; 
+if ($id <= 0 || $token === '' || !validateCsrfToken($token)) {
+    header('Location: index.php?error=' . urlencode('Invalid or missing security token.'));
+    exit;
 }
 
-$stmt = $pdo->prepare("SELECT * FROM tasks WHERE id = ?");
-$stmt->execute([$id]);
+$stmt = $pdo->prepare("SELECT * FROM tasks WHERE id = ?" . (isSuperAdmin() ? "" : " AND school_id = ?"));
+$params = isSuperAdmin() ? [$id] : [$id, (int)currentSchoolId()];
+$stmt->execute($params);
 $task = $stmt->fetch();
 if (!$task) { header('Location: index.php?error=' . urlencode('Task not found.')); exit; }
 
-// Permission: admin can delete any, staff can delete own, student can delete self-created tasks
-if (isStudent()) {
-    if ((int)$task['user_id'] !== (int)$user_id) {
-        header('Location: index.php?error=' . urlencode('You can only delete tasks created by yourself.'));
-        exit;
-    }
-} elseif (!isAdmin() && (int)$task['user_id'] !== (int)$user_id) {
+if (!isSuperAdmin() && (int)$task['school_id'] !== (int)currentSchoolId()) {
+    header('Location: index.php?error=' . urlencode('You do not have permission to delete this task.'));
+    exit;
+}
+
+// Permission: admin can delete any, staff can delete own
+if (!isAdmin() && (int)$task['created_by_user_id'] !== (int)$user_id && (int)$task['user_id'] !== (int)$user_id) {
     header('Location: index.php?error=' . urlencode('You do not have permission to delete this task.'));
     exit;
 }
 
 try {
-    $pdo->prepare("DELETE FROM tasks WHERE id = ?")->execute([$id]);
+    $del = isSuperAdmin()
+        ? $pdo->prepare("DELETE FROM tasks WHERE id = ?")
+        : $pdo->prepare("DELETE FROM tasks WHERE id = ? AND school_id = ?");
+    $delParams = isSuperAdmin() ? [$id] : [$id, (int)currentSchoolId()];
+    $del->execute($delParams);
     logActivity($pdo, $user_id, 'delete', 'task', $id, 'Deleted task: ' . $task['title']);
     header('Location: index.php?success=' . urlencode('Task deleted successfully.'));
     exit;

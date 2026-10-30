@@ -13,13 +13,13 @@ if (!$course) { header('Location: index.php?error=' . urlencode('Course not foun
 require_record_school($course);
 
 // Enrolled students
-$stmt = $pdo->prepare("SELECT e.*, s.full_name, s.student_number FROM enrollments e JOIN students s ON e.student_id = s.id WHERE e.course_id = ? ORDER BY e.enrollment_date DESC");
-$stmt->execute([$id]);
+$stmt = $pdo->prepare("SELECT e.*, s.full_name, s.student_number FROM enrollments e JOIN students s ON e.student_id = s.id WHERE e.course_id = ? AND e.school_id = ? ORDER BY e.enrollment_date DESC");
+$stmt->execute([$id, (int)$course['school_id']]);
 $enrollments = $stmt->fetchAll();
 
 // Tasks for this course
-$stmt = $pdo->prepare("SELECT t.*, s.full_name as student_name FROM tasks t LEFT JOIN students s ON t.student_id = s.id WHERE t.course_id = ? ORDER BY t.created_at DESC");
-$stmt->execute([$id]);
+$stmt = $pdo->prepare("SELECT t.*, s.full_name as student_name FROM tasks t LEFT JOIN students s ON t.student_id = s.id WHERE t.course_id = ? AND t.school_id = ? ORDER BY t.created_at DESC");
+$stmt->execute([$id, (int)$course['school_id']]);
 $tasks = $stmt->fetchAll();
 
 // Available students to enroll (same school only)

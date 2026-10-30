@@ -14,9 +14,11 @@ $schoolId = (int)(currentSchoolId() ?? 0);
 $studentId = (int)($_SESSION['student_id'] ?? 0);
 if ($schoolId <= 0 || $studentId <= 0) {
     // resolve from user
-    $stmt = $pdo->prepare("SELECT id FROM students WHERE user_id = ? LIMIT 1");
+    $stmt = $pdo->prepare("SELECT id, school_id FROM students WHERE user_id = ? LIMIT 1");
     $stmt->execute([(int)($_SESSION['user_id'] ?? 0)]);
-    $studentId = (int)$stmt->fetchColumn();
+    $row = $stmt->fetch();
+    $studentId = (int)($row['id'] ?? 0);
+    $schoolId = (int)($row['school_id'] ?? 0);
     $_SESSION['student_id'] = $studentId;
 }
 if ($schoolId <= 0 || $studentId <= 0) {

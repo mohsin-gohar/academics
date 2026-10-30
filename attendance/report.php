@@ -4,6 +4,7 @@
  */
 $page_title = 'Attendance Report';
 require_once __DIR__ . '/../includes/header.php';
+requireStaff();
 
 $schoolId = (int)(currentSchoolId() ?? 0);
 if ($schoolId <= 0 && !isSuperAdmin()) {

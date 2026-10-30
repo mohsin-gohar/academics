@@ -74,7 +74,13 @@ $stmt->execute($params);
 $students = $stmt->fetchAll();
 
 // Courses for filter
-$courses = $pdo->query("SELECT id, course_code, course_name FROM courses WHERE status = 'Active' ORDER BY course_name")->fetchAll();
+if (isSuperAdmin()) {
+    $courses = $pdo->query("SELECT id, course_code, course_name FROM courses WHERE status = 'Active' ORDER BY course_name")->fetchAll();
+} else {
+    $cStmt = $pdo->prepare("SELECT id, course_code, course_name FROM courses WHERE status = 'Active' AND school_id = ? ORDER BY course_name");
+    $cStmt->execute([currentSchoolId()]);
+    $courses = $cStmt->fetchAll();
+}
 ?>
 
 <div class="card mb-4">

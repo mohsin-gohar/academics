@@ -36,8 +36,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     elseif (!isValidEmail($form_data['email'])) $errors[] = 'Invalid email address.';
 
     if (empty($errors)) {
-        $stmt = $pdo->prepare("SELECT id FROM students WHERE email = ? AND id != ?");
-        $stmt->execute([$form_data['email'], $id]);
+        $stmt = $pdo->prepare("SELECT id FROM students WHERE email = ? AND id != ? AND school_id = ?");
+        $stmt->execute([$form_data['email'], $id, (int)($student['school_id'] ?? 0)]);
         if ($stmt->fetch()) $errors[] = 'Email already in use by another student.';
     }
 

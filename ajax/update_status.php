@@ -86,11 +86,11 @@ try {
 
     // Update status and completion timestamp
     if ($new_status === 'Completed') {
-        $upd = $pdo->prepare("UPDATE tasks SET status = ?, completed_at = NOW(), updated_at = NOW() WHERE id = ?");
+        $upd = $pdo->prepare("UPDATE tasks SET status = ?, completed_at = NOW(), updated_at = NOW() WHERE id = ? AND school_id = ?");
     } else {
-        $upd = $pdo->prepare("UPDATE tasks SET status = ?, completed_at = NULL, updated_at = NOW() WHERE id = ?");
+        $upd = $pdo->prepare("UPDATE tasks SET status = ?, completed_at = NULL, updated_at = NOW() WHERE id = ? AND school_id = ?");
     }
-    $upd->execute([$new_status, $task_id]);
+    $upd->execute([$new_status, $task_id, (int)($task['school_id'] ?? 0)]);
 
     logActivity($pdo, $user_id, 'ajax_update_status', 'task', $task_id, 'Quick status changed to: ' . $new_status);
 

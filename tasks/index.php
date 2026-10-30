@@ -28,15 +28,17 @@ if (isAdmin()) {
     $baseWhere = 't.school_id = ? AND t.user_id = ?';
     $baseParams = [currentSchoolId(), $user_id];
 } else {
-    $stStmt = $pdo->prepare("SELECT id FROM students WHERE user_id = ?");
+    $stStmt = $pdo->prepare("SELECT id, school_id FROM students WHERE user_id = ?");
     $stStmt->execute([$user_id]);
-    $stId = $stStmt->fetchColumn();
+    $stRow = $stStmt->fetch();
+    $stId = $stRow ? (int)$stRow['id'] : 0;
+    $stSchool = $stRow ? (int)$stRow['school_id'] : 0;
     if ($stId) {
-        $baseWhere = 't.student_id = ?';
-        $baseParams = [(int)$stId];
+        $baseWhere = 't.school_id = ? AND t.student_id = ?';
+        $baseParams = [$stSchool > 0 ? $stSchool : currentSchoolId(), (int)$stId];
     } else {
-        $baseWhere = 't.user_id = ?';
-        $baseParams = [$user_id];
+        $baseWhere = 't.school_id = ? AND t.user_id = ?';
+        $baseParams = [currentSchoolId(), $user_id];
     }
 }
 

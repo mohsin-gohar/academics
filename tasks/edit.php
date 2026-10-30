@@ -2,6 +2,10 @@
 $page_title = 'Edit Task';
 require_once '../includes/header.php';
 requireAuth();
+if (!isStaff() && !isStudent()) {
+    header('Location: ../errors/403.php');
+    exit;
+}
 
 $user_id = $_SESSION['user_id'];
 $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
@@ -84,7 +88,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($errors)) {
         try {
             $completedSql = ($form_data['status'] === 'Completed') ? ', completed_at = COALESCE(completed_at, NOW())' : ', completed_at = NULL';
-            $stmt = $pdo->prepare("UPDATE tasks SET student_id=?, course_id=?, title=?, description=?, priority=?, status=?, due_date=? $completedSql, updated_at=NOW() WHERE id=?");
+            $stmt = $pdo->prepare("UPDATE tasks SET student_id=?, course_id=?, title=?, description=?, priority=?, status=?, due_date=? $completedSql, updated_at=NOW() WHERE id=? AND school_id=?");
             $stmt->execute([
                 $form_data['student_id'] ?: null,
                 $form_data['course_id'] ?: null,
@@ -93,7 +97,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $form_data['priority'],
                 $form_data['status'],
                 $form_data['due_date'] ?: null,
-                $id
+                $id,
+                (int)$task['school_id']
             ]);
             logActivity($pdo, $user_id, 'update', 'task', $id, 'Updated task: ' . $form_data['title']);
             header('Location: show.php?id=' . $id . '&success=' . urlencode('Task updated successfully!'));

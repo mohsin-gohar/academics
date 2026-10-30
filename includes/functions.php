@@ -312,13 +312,14 @@ function recordMark(PDO $pdo, int $schoolId, int $assessmentId, int $studentId, 
 function getCourseGradebook(PDO $pdo, int $schoolId, int $courseId): array
 {
     $assessments = getAssessmentsByCourse($pdo, $schoolId, $courseId);
-    $stmt = $pdo->prepare("SELECT id, full_name, student_number FROM students st JOIN enrollments e ON e.student_id = st.id WHERE e.course_id = ? AND e.status = 'Enrolled' AND st.school_id = ? ORDER BY st.full_name ASC");
-    $stmt->execute([$courseId, $schoolId]);
+    $stmt = $pdo->prepare("SELECT id, full_name, student_number FROM students st JOIN enrollments e ON e.student_id = st.id WHERE e.course_id = ? AND e.status = 'Enrolled' AND st.school_id = ? AND e.school_id = ? ORDER BY st.full_name ASC");
+    $stmt->execute([$courseId, $schoolId, $schoolId]);
     $students = $stmt->fetchAll();
     $marks = [];
     if ($assessments) {
         $ids = implode(',', array_map('intval', array_column($assessments, 'id')));
-        $mStmt = $pdo->query("SELECT * FROM student_marks WHERE assessment_id IN ($ids)");
+        $mStmt = $pdo->prepare("SELECT * FROM student_marks WHERE assessment_id IN ($ids) AND school_id = ?");
+        $mStmt->execute([$schoolId]);
         foreach ($mStmt->fetchAll() as $m) {
             $marks[(int)$m['student_id']][(int)$m['assessment_id']] = $m;
         }
@@ -425,6 +426,7 @@ function getFeeSummary(PDO $pdo, int $schoolId): array
 
 function getStudentFeeSummary(PDO $pdo, int $schoolId, int $studentId): array
 {
+    $pdo->prepare("UPDATE invoices SET status='overdue' WHERE school_id = ? AND student_id = ? AND status='unpaid' AND due_date IS NOT NULL AND due_date < CURDATE()")->execute([$schoolId, $studentId]);
     $stmt = $pdo->prepare("SELECT status, COUNT(*) c, COALESCE(SUM(amount),0) amt FROM invoices WHERE school_id = ? AND student_id = ? GROUP BY status");
     $stmt->execute([$schoolId, $studentId]);
     $out = ['unpaid' => 0, 'paid' => 0, 'overdue' => 0, 'cancelled' => 0, 'total' => 0, 'paid_amt' => 0, 'due_amt' => 0];

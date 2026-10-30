@@ -4,7 +4,7 @@
  */
 $page_title = 'Gradebook View';
 require_once __DIR__ . '/../includes/header.php';
-requireSchoolManagement();
+requireStaff();
 
 $schoolId = (int)(currentSchoolId() ?? 0);
 if ($schoolId <= 0) { header('Location: ../dashboard.php'); exit; }

@@ -38,8 +38,8 @@ if ($selected) {
     $stmt->execute([$selectedId, $schoolId]);
     $tasks = $stmt->fetchAll();
 
-    $stmt = $pdo->prepare("SELECT e.*, c.course_name, c.course_code FROM enrollments e JOIN courses c ON c.id = e.course_id WHERE e.student_id = ? ORDER BY e.created_at DESC");
-    $stmt->execute([$selectedId]);
+    $stmt = $pdo->prepare("SELECT e.*, c.course_name, c.course_code FROM enrollments e JOIN courses c ON c.id = e.course_id WHERE e.student_id = ? AND e.school_id = ? ORDER BY e.created_at DESC");
+    $stmt->execute([$selectedId, $schoolId]);
     $enrollments = $stmt->fetchAll();
 
     foreach ($tasks as $t) {

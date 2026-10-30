@@ -3,6 +3,10 @@ require_once '../includes/functions.php';
 require_once '../includes/tenant.php';
 require_once '../config/db.php';
 requireAuth();
+if (!isStaff() && !isStudent()) {
+    header('Location: ../errors/403.php');
+    exit;
+}
 
 $user_id = $_SESSION['user_id'];
 if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !validateCsrfToken($_POST['csrf_token'] ?? '')) { 
@@ -42,9 +46,9 @@ if (!in_array($status, $allowed)) $status = 'Pending';
 
 try {
     if ($status === 'Completed') {
-        $pdo->prepare("UPDATE tasks SET status = ?, completed_at = NOW(), updated_at = NOW() WHERE id = ?")->execute([$status, $id]);
+        $pdo->prepare("UPDATE tasks SET status = ?, completed_at = NOW(), updated_at = NOW() WHERE id = ? AND school_id = ?")->execute([$status, $id, (int)$task['school_id']]);
     } else {
-        $pdo->prepare("UPDATE tasks SET status = ?, completed_at = NULL, updated_at = NOW() WHERE id = ?")->execute([$status, $id]);
+        $pdo->prepare("UPDATE tasks SET status = ?, completed_at = NULL, updated_at = NOW() WHERE id = ? AND school_id = ?")->execute([$status, $id, (int)$task['school_id']]);
     }
     logActivity($pdo, $user_id, 'update_status', 'task', $id, 'Status changed to ' . $status);
     header('Location: show.php?id=' . $id . '&success=' . urlencode('Status updated successfully!'));

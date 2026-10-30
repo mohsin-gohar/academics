@@ -34,10 +34,10 @@ $announcements = getActiveAnnouncements($pdo, 5);
 $recentTasksStmt = $pdo->prepare("
     SELECT t.*, st.full_name AS student_name
     FROM tasks t JOIN students st ON st.id = t.student_id
-    WHERE t.student_id IN (SELECT student_id FROM parent_student WHERE parent_id = ?)
+    WHERE t.school_id = ? AND t.student_id IN (SELECT student_id FROM parent_student WHERE parent_id = ? AND school_id = ?)
     ORDER BY t.created_at DESC LIMIT 6
 ");
-$recentTasksStmt->execute([$parentId]);
+$recentTasksStmt->execute([$schoolId, $parentId, $schoolId]);
 $recentTasks = $recentTasksStmt->fetchAll();
 ?>
 
