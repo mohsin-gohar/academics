@@ -90,6 +90,11 @@ $csrf_token = generateCsrfToken();
     <link href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="<?php echo $base; ?>assets/css/style.css">
     <link rel="stylesheet" href="<?php echo $base; ?>assets/css/edustudy-theme.css">
+    <?php if (function_exists('isLoggedIn') && isLoggedIn()): ?>
+    <?php require_once __DIR__ . '/push.php'; $__vapid = push_ensure_vapid($pdo); ?>
+    <meta name="academics-vapid-key" content="<?php echo e($__vapid['public']); ?>">
+    <script>window.ACADEMICS_BASE = <?php echo json_encode($base); ?>; window.ACADEMICS_VAPID_PUBLIC_KEY = <?php echo json_encode($__vapid['public']); ?>;</script>
+    <?php unset($__vapid); endif; ?>
     <script>
     // Apply the saved theme before first paint to avoid a light flash.
     (function () {

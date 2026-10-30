@@ -5,6 +5,7 @@
  */
 $page_title = 'Emergency Closure & Alert Manager';
 require_once '../includes/header.php';
+require_once '../includes/push.php';
 requireStaff();
 
 $user_id = $_SESSION['user_id'];
@@ -44,6 +45,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $upStmt->execute([$newStatus, $user_id, $alert['id']]);
             
             logActivity($pdo, $user_id, 'toggle_alert', 'emergency_alert', $alert['id'], ($newStatus ? 'Activated' : 'Deactivated') . ' emergency closure notice');
+            if ($newStatus === 1) {
+                try { push_send_to_school($pdo, $alertSchoolId, $alert['title'], $alert['message'], '/school-admin/dashboard.php'); } catch (Throwable $e) { error_log('push toggle: ' . $e->getMessage()); }
+            }
             setFlashMessage('success', 'Emergency closure alert ' . ($newStatus ? 'ACTIVATED and is now LIVE across the website & portal.' : 'DEACTIVATED. Normal school operations restored.'));
             header('Location: emergency_alert.php');
             exit;
@@ -71,6 +75,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $upStmt->execute([$title, $message, $alert_type, $effective_date, $end_date, $is_active, $user_id, $alert['id']]);
 
                     logActivity($pdo, $user_id, 'update_alert', 'emergency_alert', $alert['id'], "Updated emergency alert: $title");
+                    if ($is_active === 1) {
+                        try { push_send_to_school($pdo, $alertSchoolId, $title, $message, '/school-admin/dashboard.php'); } catch (Throwable $e) { error_log('push update: ' . $e->getMessage()); }
+                    }
                     setFlashMessage('success', 'Emergency notice updated successfully.');
                     header('Location: emergency_alert.php');
                     exit;

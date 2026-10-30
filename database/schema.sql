@@ -308,3 +308,20 @@ CREATE TABLE IF NOT EXISTS payments (
     FOREIGN KEY (school_id) REFERENCES schools(id) ON DELETE CASCADE,
     FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- PUSH SUBSCRIPTIONS TABLE
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    school_id INT NULL,
+    endpoint TEXT NOT NULL,
+    p256dh VARCHAR(255) NOT NULL,
+    auth VARCHAR(255) NOT NULL,
+    user_agent VARCHAR(255) NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uniq_endpoint (endpoint(191)),
+    KEY idx_user (user_id),
+    KEY idx_school (school_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+

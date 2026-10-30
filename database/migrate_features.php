@@ -148,4 +148,21 @@ CREATE TABLE IF NOT EXISTS payments (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
 ");
 echo "[ok] fees tables\n";
+$pdo->exec("
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    school_id INT NULL,
+    endpoint TEXT NOT NULL,
+    p256dh VARCHAR(255) NOT NULL,
+    auth VARCHAR(255) NOT NULL,
+    user_agent VARCHAR(255) NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uniq_endpoint (endpoint(191)),
+    KEY idx_user (user_id),
+    KEY idx_school (school_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+");
+echo "[ok] push_subscriptions table\n";
 echo "[migrate_features] done\n";
