@@ -78,37 +78,11 @@ $recentUsers = $stmt->fetchAll();
     </div>
 </div>
 
-<?php if (!empty($activeAlert)): ?>
-<div class="school-alert-banner mb-4 p-3 d-flex align-items-center justify-content-between flex-wrap gap-3" data-alert-id="<?php echo (int)$activeAlert['id']; ?>">
-    <div class="d-flex align-items-center gap-3">
-        <div class="school-alert-icon text-white"><i class="fas fa-bullhorn"></i></div>
-        <div>
-            <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
-                <span class="badge bg-white text-danger text-uppercase"><?php echo e($activeAlert['alert_type']); ?></span>
-                <strong class="fs-6"><?php echo e($activeAlert['title']); ?></strong>
-            </div>
-            <div class="small opacity-90"><?php echo e($activeAlert['message']); ?></div>
-        </div>
-    </div>
-    <div class="d-flex align-items-center gap-2 flex-wrap">
-        <span class="badge bg-white text-danger px-3 py-2 fw-semibold">
-            Effective: <?php echo formatDate($activeAlert['effective_date']); ?>
-            <?php if (!empty($activeAlert['end_date'])): ?> — Reopening: <?php echo formatDate($activeAlert['end_date']); ?><?php endif; ?>
-        </span>
-        <a href="../admin/emergency_alert.php" class="btn btn-light btn-sm rounded-pill text-danger fw-semibold">Manage</a>
-        <button type="button" class="school-alert-close" aria-label="Dismiss"><i class="fas fa-times"></i></button>
-    </div>
-</div>
-<script>
-(function(){
-  var b = document.querySelector('.school-alert-banner[data-alert-id="<?php echo (int)$activeAlert['id']; ?>"]');
-  if (!b) return;
-  try { if (sessionStorage.getItem('dismissedAlert_<?php echo (int)$activeAlert['id']; ?>') === '1') b.classList.add('is-dismissed'); } catch(e){}
-  var btn = b.querySelector('.school-alert-close');
-  if (btn) btn.addEventListener('click', function(){ b.classList.add('is-dismissed'); try { sessionStorage.setItem('dismissedAlert_<?php echo (int)$activeAlert['id']; ?>','1'); } catch(e){} });
-})();
-</script>
-<?php endif; ?>
+<?php
+$alertManageUrl = '../admin/emergency_alert.php';
+require __DIR__ . '/../includes/school_alert_modal.php';
+?>
+
 
 <div class="row g-3 mb-4">
     <div class="col-12 col-md-6 col-xl-3">
