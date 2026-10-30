@@ -91,6 +91,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <hr class="my-4">
                 <div class="text-center small">
                     <a href="login.php" class="text-primary text-decoration-none fw-medium">Back to sign in</a>
+                    <span class="ms-2"><a href="../index.php" class="text-muted text-decoration-none fw-medium"><i class="fas fa-arrow-left me-1"></i>Home</a></span>
                 </div>
             </div>
         </div>

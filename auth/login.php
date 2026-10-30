@@ -136,6 +136,7 @@ $contextInitial = $contextSchool ? strtoupper(substr(preg_replace('/[^A-Za-z]/',
                     <span><a href="forgot_password.php" class="text-primary text-decoration-none fw-medium">Forgot password?</a></span>
                     <span>Joining an existing school? <a href="register.php" class="text-primary text-decoration-none fw-medium">Create a user account</a></span>
                     <span>New to <?php echo e(APP_NAME); ?>? <a href="../register.php" class="text-primary text-decoration-none fw-medium">Register your school</a></span>
+                    <span><a href="../index.php" class="text-muted text-decoration-none fw-medium"><i class="fas fa-arrow-left me-1"></i>Back to Home</a></span>
                 </div>
             </div>
         </div>

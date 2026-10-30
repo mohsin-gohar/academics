@@ -117,6 +117,7 @@ $schools = $pdo->query("SELECT id, school_name, school_code FROM schools
                 <div class="d-flex flex-column gap-2 text-center small">
                     <span>Already have an account? <a href="login.php" class="text-primary text-decoration-none fw-medium">Sign in</a></span>
                     <span>New school? <a href="../register.php" class="text-primary text-decoration-none fw-medium">Register your school</a></span>
+                    <span><a href="../index.php" class="text-muted text-decoration-none fw-medium"><i class="fas fa-arrow-left me-1"></i>Back to Home</a></span>
                 </div>
             </div>
         </div>
