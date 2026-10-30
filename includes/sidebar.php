@@ -33,6 +33,18 @@
             </a>
         </div>
         <div class="nav-item">
+            <a href="<?php echo $base; ?>parent/grades.php" class="nav-link <?php echo strpos($_SERVER['PHP_SELF'], 'parent/grades.php') !== false ? 'active' : ''; ?>">
+                <i class="fas fa-clipboard-list"></i>
+                <span>Grades</span>
+            </a>
+        </div>
+        <div class="nav-item">
+            <a href="<?php echo $base; ?>parent/fees.php" class="nav-link <?php echo strpos($_SERVER['PHP_SELF'], 'parent/fees.php') !== false ? 'active' : ''; ?>">
+                <i class="fas fa-file-invoice-dollar"></i>
+                <span>Fees</span>
+            </a>
+        </div>
+        <div class="nav-item">
             <a href="<?php echo $base; ?>parent/progress.php" class="nav-link <?php echo strpos($_SERVER['PHP_SELF'], 'parent/progress.php') !== false ? 'active' : ''; ?>">
                 <i class="fas fa-chart-line"></i>
                 <span>Progress</span>
@@ -51,6 +63,18 @@
             <a href="<?php echo $base; ?>attendance/mark.php" class="nav-link <?php echo strpos($_SERVER['PHP_SELF'], 'attendance/') !== false ? 'active' : ''; ?>">
                 <i class="fas fa-calendar-check"></i>
                 <span>Attendance</span>
+            </a>
+        </div>
+        <div class="nav-item">
+            <a href="<?php echo $base; ?>grades/index.php" class="nav-link <?php echo strpos($_SERVER['PHP_SELF'], 'grades/') !== false ? 'active' : ''; ?>">
+                <i class="fas fa-clipboard-list"></i>
+                <span>Grades</span>
+            </a>
+        </div>
+        <div class="nav-item">
+            <a href="<?php echo $base; ?>fees/invoices.php" class="nav-link <?php echo strpos($_SERVER['PHP_SELF'], 'fees/') !== false ? 'active' : ''; ?>">
+                <i class="fas fa-file-invoice-dollar"></i>
+                <span>Fees</span>
             </a>
         </div>
         <div class="nav-item">
@@ -88,6 +112,18 @@
             <a href="<?php echo $base; ?>attendance/my.php" class="nav-link <?php echo strpos($_SERVER['PHP_SELF'], 'attendance/my.php') !== false ? 'active' : ''; ?>">
                 <i class="fas fa-calendar-check"></i>
                 <span>My Attendance</span>
+            </a>
+        </div>
+        <div class="nav-item">
+            <a href="<?php echo $base; ?>grades/my.php" class="nav-link <?php echo strpos($_SERVER['PHP_SELF'], 'grades/my.php') !== false ? 'active' : ''; ?>">
+                <i class="fas fa-clipboard-list"></i>
+                <span>My Grades</span>
+            </a>
+        </div>
+        <div class="nav-item">
+            <a href="<?php echo $base; ?>fees/my.php" class="nav-link <?php echo strpos($_SERVER['PHP_SELF'], 'fees/my.php') !== false ? 'active' : ''; ?>">
+                <i class="fas fa-file-invoice-dollar"></i>
+                <span>My Fees</span>
             </a>
         </div>
         <?php endif; ?>

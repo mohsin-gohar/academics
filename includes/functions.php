@@ -277,6 +277,165 @@ function consumePasswordResetToken(PDO $pdo, string $raw, string $newPassword): 
     $pdo->prepare("UPDATE password_resets SET used = 1 WHERE token_hash = ?")->execute([hash('sha256', $raw)]);
     return true;
 }
+
+/* =========================================================================
+   Gradebook helpers
+   ========================================================================= */
+function getAssessmentTypes(): array
+{
+    return ['exam' => 'Exam', 'quiz' => 'Quiz', 'assignment' => 'Assignment', 'project' => 'Project', 'other' => 'Other'];
+}
+
+function createAssessment(PDO $pdo, int $schoolId, int $courseId, string $title, string $type, float $maxMarks, float $weight, ?string $dueDate, ?string $description, ?int $createdBy): int
+{
+    $stmt = $pdo->prepare("INSERT INTO assessments (school_id, course_id, title, assessment_type, max_marks, weight, due_date, description, created_by)
+        VALUES (?,?,?,?,?,?,?,?,?)");
+    $stmt->execute([$schoolId, $courseId, $title, $type, $maxMarks, $weight, $dueDate, $description, $createdBy]);
+    return (int)$pdo->lastInsertId();
+}
+
+function getAssessmentsByCourse(PDO $pdo, int $schoolId, int $courseId): array
+{
+    $stmt = $pdo->prepare("SELECT a.*, u.full_name AS creator_name FROM assessments a LEFT JOIN users u ON u.id = a.created_by WHERE a.school_id = ? AND a.course_id = ? ORDER BY a.due_date IS NULL, a.due_date ASC, a.id ASC");
+    $stmt->execute([$schoolId, $courseId]);
+    return $stmt->fetchAll();
+}
+
+function recordMark(PDO $pdo, int $schoolId, int $assessmentId, int $studentId, ?float $marks, ?string $remarks, ?int $gradedBy): bool
+{
+    $stmt = $pdo->prepare("INSERT INTO student_marks (school_id, assessment_id, student_id, marks_obtained, remarks, graded_by, graded_at)
+        VALUES (?,?,?,?,?,?,NOW())
+        ON DUPLICATE KEY UPDATE marks_obtained=VALUES(marks_obtained), remarks=VALUES(remarks), graded_by=VALUES(graded_by), graded_at=NOW(), updated_at=NOW()");
+    return $stmt->execute([$schoolId, $assessmentId, $studentId, $marks, $remarks, $gradedBy]);
+}
+
+function getCourseGradebook(PDO $pdo, int $schoolId, int $courseId): array
+{
+    $assessments = getAssessmentsByCourse($pdo, $schoolId, $courseId);
+    $stmt = $pdo->prepare("SELECT id, full_name, student_number FROM students st JOIN enrollments e ON e.student_id = st.id WHERE e.course_id = ? AND e.status = 'Enrolled' AND st.school_id = ? ORDER BY st.full_name ASC");
+    $stmt->execute([$courseId, $schoolId]);
+    $students = $stmt->fetchAll();
+    $marks = [];
+    if ($assessments) {
+        $ids = implode(',', array_map('intval', array_column($assessments, 'id')));
+        $mStmt = $pdo->query("SELECT * FROM student_marks WHERE assessment_id IN ($ids)");
+        foreach ($mStmt->fetchAll() as $m) {
+            $marks[(int)$m['student_id']][(int)$m['assessment_id']] = $m;
+        }
+    }
+    return ['assessments' => $assessments, 'students' => $students, 'marks' => $marks];
+}
+
+function getStudentGradeSummary(PDO $pdo, int $schoolId, int $studentId): array
+{
+    $stmt = $pdo->prepare("SELECT a.title, a.assessment_type, a.max_marks, a.weight, a.due_date, c.course_name, c.course_code, sm.marks_obtained, sm.remarks
+        FROM student_marks sm
+        JOIN assessments a ON a.id = sm.assessment_id
+        JOIN courses c ON c.id = a.course_id
+        WHERE sm.student_id = ? AND sm.school_id = ?
+        ORDER BY c.course_name, a.due_date");
+    $stmt->execute([$studentId, $schoolId]);
+    $rows = $stmt->fetchAll();
+    $totalWeighted = 0; $totalWeight = 0;
+    foreach ($rows as $r) {
+        if ($r['marks_obtained'] === null || (float)$r['max_marks'] <= 0) continue;
+        $pct = ((float)$r['marks_obtained'] / (float)$r['max_marks']) * 100;
+        $w = (float)$r['weight'];
+        $totalWeighted += $pct * $w;
+        $totalWeight += $w;
+    }
+    $avg = $totalWeight > 0 ? round($totalWeighted / $totalWeight, 1) : 0;
+    return ['rows' => $rows, 'average' => $avg];
+}
+
+/* =========================================================================
+   Fees helpers
+   ========================================================================= */
+function getFeeFrequencies(): array
+{
+    return ['one-time' => 'One-time', 'monthly' => 'Monthly', 'termly' => 'Termly', 'yearly' => 'Yearly'];
+}
+
+function getInvoiceStatuses(): array
+{
+    return ['unpaid' => 'Unpaid', 'paid' => 'Paid', 'overdue' => 'Overdue', 'cancelled' => 'Cancelled'];
+}
+
+function generateInvoiceNumber(PDO $pdo, int $schoolId): string
+{
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM invoices WHERE school_id = ?");
+    $stmt->execute([$schoolId]);
+    $n = (int)$stmt->fetchColumn() + 1;
+    return 'INV-' . str_pad((string)$schoolId, 3, '0', STR_PAD_LEFT) . '-' . str_pad((string)$n, 5, '0', STR_PAD_LEFT);
+}
+
+function createInvoice(PDO $pdo, int $schoolId, int $studentId, ?int $feeStructureId, string $title, float $amount, ?string $dueDate, ?int $createdBy): int
+{
+    $num = generateInvoiceNumber($pdo, $schoolId);
+    $stmt = $pdo->prepare("INSERT INTO invoices (school_id, student_id, fee_structure_id, invoice_number, title, amount, due_date, created_by) VALUES (?,?,?,?,?,?,?,?)");
+    $stmt->execute([$schoolId, $studentId, $feeStructureId, $num, $title, $amount, $dueDate, $createdBy]);
+    return (int)$pdo->lastInsertId();
+}
+
+function recordPayment(PDO $pdo, int $schoolId, int $invoiceId, float $amount, string $date, ?string $method, ?string $reference, ?int $receivedBy, ?string $notes): bool
+{
+    $stmt = $pdo->prepare("INSERT INTO payments (school_id, invoice_id, amount, payment_date, method, reference, received_by, notes) VALUES (?,?,?,?,?,?,?,?)");
+    $ok = $stmt->execute([$schoolId, $invoiceId, $amount, $date, $method, $reference, $receivedBy, $notes]);
+    if ($ok) {
+        // mark invoice paid if fully covered
+        $stmt = $pdo->prepare("SELECT amount FROM invoices WHERE id = ? AND school_id = ?");
+        $stmt->execute([$invoiceId, $schoolId]);
+        $invAmount = (float)$stmt->fetchColumn();
+        $stmt = $pdo->prepare("SELECT COALESCE(SUM(amount),0) FROM payments WHERE invoice_id = ? AND school_id = ?");
+        $stmt->execute([$invoiceId, $schoolId]);
+        $paid = (float)$stmt->fetchColumn();
+        if ($paid >= $invAmount - 0.005) {
+            $pdo->prepare("UPDATE invoices SET status='paid', paid_at=NOW(), payment_method=?, transaction_ref=? WHERE id=? AND school_id=?")
+                ->execute([$method, $reference, $invoiceId, $schoolId]);
+        }
+    }
+    return $ok;
+}
+
+function getInvoices(PDO $pdo, int $schoolId, ?int $studentId = null, ?string $status = null): array
+{
+    $where = "i.school_id = ?";
+    $params = [$schoolId];
+    if ($studentId) { $where .= " AND i.student_id = ?"; $params[] = $studentId; }
+    if ($status) { $where .= " AND i.status = ?"; $params[] = $status; }
+    $sql = "SELECT i.*, st.full_name, st.student_number FROM invoices i JOIN students st ON st.id = i.student_id WHERE $where ORDER BY i.issued_at DESC";
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    return $stmt->fetchAll();
+}
+
+function getFeeSummary(PDO $pdo, int $schoolId): array
+{
+    $stmt = $pdo->prepare("SELECT status, COUNT(*) c, COALESCE(SUM(amount),0) amt FROM invoices WHERE school_id = ? GROUP BY status");
+    $stmt->execute([$schoolId]);
+    $out = ['unpaid' => 0, 'paid' => 0, 'overdue' => 0, 'cancelled' => 0, 'unpaid_amt' => 0, 'paid_amt' => 0, 'overdue_amt' => 0];
+    foreach ($stmt->fetchAll() as $r) {
+        $out[$r['status']] = (int)$r['c'];
+        $out[$r['status'] . '_amt'] = (float)$r['amt'];
+    }
+    // mark overdue
+    $pdo->prepare("UPDATE invoices SET status='overdue' WHERE school_id = ? AND status='unpaid' AND due_date IS NOT NULL AND due_date < CURDATE()")->execute([$schoolId]);
+    return $out;
+}
+
+function getStudentFeeSummary(PDO $pdo, int $schoolId, int $studentId): array
+{
+    $stmt = $pdo->prepare("SELECT status, COUNT(*) c, COALESCE(SUM(amount),0) amt FROM invoices WHERE school_id = ? AND student_id = ? GROUP BY status");
+    $stmt->execute([$schoolId, $studentId]);
+    $out = ['unpaid' => 0, 'paid' => 0, 'overdue' => 0, 'cancelled' => 0, 'total' => 0, 'paid_amt' => 0, 'due_amt' => 0];
+    foreach ($stmt->fetchAll() as $r) {
+        $out[$r['status']] = (int)$r['c'];
+        if ($r['status'] === 'paid') $out['paid_amt'] += (float)$r['amt'];
+        else $out['due_amt'] += (float)$r['amt'];
+        $out['total'] += (int)$r['c'];
+    }
+    return $out;
+}
 function getBasePath() {
     $scriptDir = dirname($_SERVER['SCRIPT_FILENAME']);
     $projectRoot = dirname(__DIR__);

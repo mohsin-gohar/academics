@@ -72,6 +72,12 @@ The application retains the **Student Task Manager** as its mandatory, first-cla
 - **Dashboard KPI**: School admin dashboard shows today's present/absent/late counts.
 - **Password Reset**: Forgot-password flow with single-use, 1-hour expiring tokens (link shown on-screen in dev mode since SMTP is not configured).
 
+### J. Gradebook & Fees
+- **Gradebook**: Create assessments (exam/quiz/assignment/project) per course with max marks and weight; bulk mark entry; course gradebook matrix with weighted averages.
+- **Student & Parent Portals**: Students and parents view graded assessments and overall average.
+- **Fees & Invoices**: Define reusable fee structures; issue invoices; record payments (partial/full) with method and reference; auto-mark paid when fully covered.
+- **Fee Reports**: Per-status summary (unpaid/overdue/paid) and CSV export.
+
 ### H. SaaS Multi-Tenant Platform
 - **School Self-Registration**: Public `/register.php` creates a school, its first `school_admin`, default public-page settings, and a 30-day trial in one transaction.
 - **Subscription Plans**: Basic ($50/mo), Pro ($150/mo), and Enterprise ($500/mo) are available to the platform team for billing, with legacy `subscription_plan` values kept in sync. Public pricing intentionally shows one **1 Month Free** card; commercial pricing is agreed personally with each school after the trial.

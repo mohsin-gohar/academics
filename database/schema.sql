@@ -207,3 +207,104 @@ CREATE TABLE IF NOT EXISTS password_resets (
     KEY idx_pr_token (token_hash),
     KEY idx_pr_email (email)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Gradebook: assessments
+CREATE TABLE IF NOT EXISTS assessments (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    school_id INT NOT NULL,
+    course_id INT NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    assessment_type ENUM('exam','quiz','assignment','project','other') NOT NULL DEFAULT 'exam',
+    max_marks DECIMAL(8,2) NOT NULL DEFAULT 100.00,
+    weight DECIMAL(5,2) NOT NULL DEFAULT 1.00,
+    due_date DATE NULL,
+    description TEXT NULL,
+    created_by INT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    KEY idx_ass_school (school_id),
+    KEY idx_ass_course (course_id),
+    FOREIGN KEY (school_id) REFERENCES schools(id) ON DELETE CASCADE,
+    FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Gradebook: student marks
+CREATE TABLE IF NOT EXISTS student_marks (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    school_id INT NOT NULL,
+    assessment_id INT NOT NULL,
+    student_id INT NOT NULL,
+    marks_obtained DECIMAL(8,2) NULL,
+    remarks VARCHAR(255) NULL,
+    graded_by INT NULL,
+    graded_at TIMESTAMP NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_marks (assessment_id, student_id),
+    KEY idx_marks_school (school_id),
+    KEY idx_marks_student (student_id),
+    FOREIGN KEY (school_id) REFERENCES schools(id) ON DELETE CASCADE,
+    FOREIGN KEY (assessment_id) REFERENCES assessments(id) ON DELETE CASCADE,
+    FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Fees: fee structures
+CREATE TABLE IF NOT EXISTS fee_structures (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    school_id INT NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    frequency ENUM('one-time','monthly','termly','yearly') NOT NULL DEFAULT 'one-time',
+    description TEXT NULL,
+    is_active TINYINT(1) NOT NULL DEFAULT 1,
+    created_by INT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    KEY idx_fs_school (school_id),
+    FOREIGN KEY (school_id) REFERENCES schools(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Fees: invoices
+CREATE TABLE IF NOT EXISTS invoices (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    school_id INT NOT NULL,
+    student_id INT NOT NULL,
+    fee_structure_id INT NULL,
+    invoice_number VARCHAR(50) NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    due_date DATE NULL,
+    status ENUM('unpaid','paid','overdue','cancelled') NOT NULL DEFAULT 'unpaid',
+    issued_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    paid_at TIMESTAMP NULL,
+    payment_method VARCHAR(50) NULL,
+    transaction_ref VARCHAR(100) NULL,
+    notes TEXT NULL,
+    created_by INT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_invoice_number (invoice_number),
+    KEY idx_inv_school (school_id),
+    KEY idx_inv_student (student_id),
+    KEY idx_inv_status (status),
+    FOREIGN KEY (school_id) REFERENCES schools(id) ON DELETE CASCADE,
+    FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Fees: payments
+CREATE TABLE IF NOT EXISTS payments (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    school_id INT NOT NULL,
+    invoice_id INT NOT NULL,
+    amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    payment_date DATE NOT NULL,
+    method VARCHAR(50) NULL,
+    reference VARCHAR(100) NULL,
+    received_by INT NULL,
+    notes TEXT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_pay_school (school_id),
+    KEY idx_pay_invoice (invoice_id),
+    FOREIGN KEY (school_id) REFERENCES schools(id) ON DELETE CASCADE,
+    FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

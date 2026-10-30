@@ -69,6 +69,8 @@ $recentUsers = $stmt->fetchAll();
     </div>
     <div class="d-flex gap-2">
         <a href="../attendance/mark.php" class="btn btn-outline-primary btn-sm"><i class="fas fa-calendar-check me-1"></i>Mark Attendance</a>
+        <a href="../grades/index.php" class="btn btn-outline-primary btn-sm"><i class="fas fa-clipboard-list me-1"></i>Grades</a>
+        <a href="../fees/invoices.php" class="btn btn-outline-primary btn-sm"><i class="fas fa-file-invoice me-1"></i>Fees</a>
         <a href="../admin/users.php?role=teacher" class="btn btn-outline-primary btn-sm"><i class="fas fa-chalkboard-teacher me-1"></i>Teachers</a>
         <a href="../students/create.php" class="btn btn-primary btn-sm"><i class="fas fa-plus me-1"></i>Add Student</a>
     </div>
