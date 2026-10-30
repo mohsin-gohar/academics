@@ -40,6 +40,8 @@ $stmt->execute([$schoolId]);
 $taskRow = $stmt->fetch();
 $completion = ((int)($taskRow['total'] ?? 0)) > 0 ? round(((int)$taskRow['done'] / (int)$taskRow['total']) * 100) : 0;
 
+$todayAtt = getTodayAttendanceStats($pdo, $schoolId);
+
 // ---------------------------------------------------------------- Lists
 $stmt = $pdo->prepare("SELECT st.*, u.is_active FROM students st LEFT JOIN users u ON u.id = st.user_id WHERE st.school_id = ? ORDER BY st.created_at DESC LIMIT 6");
 $stmt->execute([$schoolId]);
@@ -66,6 +68,7 @@ $recentUsers = $stmt->fetchAll();
         <p class="text-muted mb-0 small"><i class="fas fa-id-badge me-1"></i><?php echo e($school['school_code']); ?> · <?php echo e($school['subscription_plan']); ?> plan · Session <?php echo (int)($school['session_timeout_minutes'] ?? 30); ?> min</p>
     </div>
     <div class="d-flex gap-2">
+        <a href="../attendance/mark.php" class="btn btn-outline-primary btn-sm"><i class="fas fa-calendar-check me-1"></i>Mark Attendance</a>
         <a href="../admin/users.php?role=teacher" class="btn btn-outline-primary btn-sm"><i class="fas fa-chalkboard-teacher me-1"></i>Teachers</a>
         <a href="../students/create.php" class="btn btn-primary btn-sm"><i class="fas fa-plus me-1"></i>Add Student</a>
     </div>
@@ -102,6 +105,14 @@ $recentUsers = $stmt->fetchAll();
             <div class="kpi-lbl">Completion</div>
             <div class="kpi-val"><?php echo $completion; ?>%</div>
             <div class="kpi-sub">of all school tasks</div>
+        </div>
+    </div>
+    <div class="col-12 col-md-6 col-xl-3">
+        <div class="kpi-card kpi-accent-cyan">
+            <div class="kpi-icon icon-cyan"><i class="fas fa-calendar-check"></i></div>
+            <div class="kpi-lbl">Today's Attendance</div>
+            <div class="kpi-val"><?php echo (int)$todayAtt['present']; ?>/<?php echo (int)$todayAtt['total']; ?></div>
+            <div class="kpi-sub"><?php echo (int)$todayAtt['absent']; ?> absent · <?php echo (int)$todayAtt['late']; ?> late</div>
         </div>
     </div>
 </div>

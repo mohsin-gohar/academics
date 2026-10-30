@@ -159,6 +159,124 @@ function getActiveAnnouncements($pdo, $limit = 5) {
 }
 
 // Compute relative path from current script to project root
+
+/* =========================================================================
+   Attendance helpers
+   ========================================================================= */
+function getAttendanceStatuses(): array
+{
+    return ['present' => 'Present', 'absent' => 'Absent', 'late' => 'Late', 'excused' => 'Excused'];
+}
+
+function markAttendance(PDO $pdo, int $schoolId, int $studentId, string $date, string $status, ?string $remarks, ?int $markedBy): bool
+{
+    if (!array_key_exists($status, getAttendanceStatuses())) {
+        return false;
+    }
+    $stmt = $pdo->prepare("INSERT INTO attendance (school_id, student_id, attendance_date, status, remarks, marked_by)
+        VALUES (?,?,?,?,?,?)
+        ON DUPLICATE KEY UPDATE status=VALUES(status), remarks=VALUES(remarks), marked_by=VALUES(marked_by), updated_at=NOW()");
+    return $stmt->execute([$schoolId, $studentId, $date, $status, $remarks, $markedBy]);
+}
+
+function getAttendanceForDate(PDO $pdo, int $schoolId, string $date): array
+{
+    $stmt = $pdo->prepare("SELECT * FROM attendance WHERE school_id = ? AND attendance_date = ?");
+    $stmt->execute([$schoolId, $date]);
+    $out = [];
+    foreach ($stmt->fetchAll() as $r) {
+        $out[(int)$r['student_id']] = $r;
+    }
+    return $out;
+}
+
+function getStudentAttendanceSummary(PDO $pdo, int $schoolId, int $studentId, ?string $from = null, ?string $to = null): array
+{
+    $where = "school_id = ? AND student_id = ?";
+    $params = [$schoolId, $studentId];
+    if ($from) { $where .= " AND attendance_date >= ?"; $params[] = $from; }
+    if ($to)   { $where .= " AND attendance_date <= ?"; $params[] = $to; }
+    $stmt = $pdo->prepare("SELECT status, COUNT(*) c FROM attendance WHERE $where GROUP BY status");
+    $stmt->execute($params);
+    $counts = ['present' => 0, 'absent' => 0, 'late' => 0, 'excused' => 0];
+    $total = 0;
+    foreach ($stmt->fetchAll() as $r) {
+        $counts[$r['status']] = (int)$r['c'];
+        $total += (int)$r['c'];
+    }
+    $presentLike = $counts['present'] + $counts['late'] + $counts['excused'];
+    $pct = $total > 0 ? round(($presentLike / $total) * 100, 1) : 0;
+    return ['total' => $total, 'counts' => $counts, 'percentage' => $pct];
+}
+
+function getTodayAttendanceStats(PDO $pdo, int $schoolId, ?string $date = null): array
+{
+    $date = $date ?: date('Y-m-d');
+    $stmt = $pdo->prepare("SELECT status, COUNT(*) c FROM attendance WHERE school_id = ? AND attendance_date = ? GROUP BY status");
+    $stmt->execute([$schoolId, $date]);
+    $out = ['present' => 0, 'absent' => 0, 'late' => 0, 'excused' => 0, 'total' => 0];
+    foreach ($stmt->fetchAll() as $r) {
+        $out[$r['status']] = (int)$r['c'];
+        $out['total'] += (int)$r['c'];
+    }
+    return $out;
+}
+
+function getAttendanceRecords(PDO $pdo, int $schoolId, string $from, string $to, ?int $studentId = null): array
+{
+    $where = "a.school_id = ? AND a.attendance_date BETWEEN ? AND ?";
+    $params = [$schoolId, $from, $to];
+    if ($studentId) { $where .= " AND a.student_id = ?"; $params[] = $studentId; }
+    $sql = "SELECT a.*, st.full_name, st.student_number
+            FROM attendance a
+            JOIN students st ON st.id = a.student_id
+            WHERE $where
+            ORDER BY a.attendance_date DESC, st.full_name ASC";
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    return $stmt->fetchAll();
+}
+
+/* =========================================================================
+   Password reset helpers
+   ========================================================================= */
+function createPasswordResetToken(PDO $pdo, string $email): ?string
+{
+    $stmt = $pdo->prepare("SELECT id FROM users WHERE email = ? AND is_active = 1");
+    $stmt->execute([$email]);
+    if (!$stmt->fetchColumn()) {
+        return null;
+    }
+    $pdo->prepare("DELETE FROM password_resets WHERE email = ? OR expires_at < NOW()")->execute([$email]);
+    $raw = bin2hex(random_bytes(32));
+    $hash = hash('sha256', $raw);
+    $expires = date('Y-m-d H:i:s', strtotime('+1 hour'));
+    $stmt = $pdo->prepare("INSERT INTO password_resets (email, token_hash, expires_at) VALUES (?,?,?)");
+    $stmt->execute([$email, $hash, $expires]);
+    return $raw;
+}
+
+function validatePasswordResetToken(PDO $pdo, string $raw): ?string
+{
+    $hash = hash('sha256', $raw);
+    $stmt = $pdo->prepare("SELECT email FROM password_resets WHERE token_hash = ? AND used = 0 AND expires_at > NOW()");
+    $stmt->execute([$hash]);
+    $row = $stmt->fetch();
+    return $row ? (string)$row['email'] : null;
+}
+
+function consumePasswordResetToken(PDO $pdo, string $raw, string $newPassword): bool
+{
+    $email = validatePasswordResetToken($pdo, $raw);
+    if ($email === null) {
+        return false;
+    }
+    $hash = password_hash($newPassword, PASSWORD_DEFAULT);
+    $stmt = $pdo->prepare("UPDATE users SET password = ? WHERE email = ?");
+    $stmt->execute([$hash, $email]);
+    $pdo->prepare("UPDATE password_resets SET used = 1 WHERE token_hash = ?")->execute([hash('sha256', $raw)]);
+    return true;
+}
 function getBasePath() {
     $scriptDir = dirname($_SERVER['SCRIPT_FILENAME']);
     $projectRoot = dirname(__DIR__);

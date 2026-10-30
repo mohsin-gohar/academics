@@ -341,3 +341,8 @@ foreach ($pdo->query("SELECT role, COUNT(*) c FROM users WHERE school_id IS NULL
  * 10. SaaS layer (subdomains, plans, subscriptions, contact messages)
  * ------------------------------------------------------------------ */
 require __DIR__ . '/migrate_saas.php';
+
+/* ------------------------------------------------------------------
+ * 11. Feature layer (attendance, password reset)
+ * ------------------------------------------------------------------ */
+require __DIR__ . '/migrate_features.php';

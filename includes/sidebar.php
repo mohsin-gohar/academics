@@ -27,6 +27,12 @@
             </a>
         </div>
         <div class="nav-item">
+            <a href="<?php echo $base; ?>parent/attendance.php" class="nav-link <?php echo strpos($_SERVER['PHP_SELF'], 'parent/attendance.php') !== false ? 'active' : ''; ?>">
+                <i class="fas fa-calendar-check"></i>
+                <span>Attendance</span>
+            </a>
+        </div>
+        <div class="nav-item">
             <a href="<?php echo $base; ?>parent/progress.php" class="nav-link <?php echo strpos($_SERVER['PHP_SELF'], 'parent/progress.php') !== false ? 'active' : ''; ?>">
                 <i class="fas fa-chart-line"></i>
                 <span>Progress</span>
@@ -41,6 +47,12 @@
         <?php endif; ?>
 
         <?php if (isStaff()): ?>
+        <div class="nav-item">
+            <a href="<?php echo $base; ?>attendance/mark.php" class="nav-link <?php echo strpos($_SERVER['PHP_SELF'], 'attendance/') !== false ? 'active' : ''; ?>">
+                <i class="fas fa-calendar-check"></i>
+                <span>Attendance</span>
+            </a>
+        </div>
         <div class="nav-item">
             <a href="<?php echo $base; ?>students/index.php" class="nav-link <?php echo strpos($_SERVER['PHP_SELF'], 'students/') !== false ? 'active' : ''; ?>">
                 <i class="fas fa-user-graduate"></i>
@@ -70,6 +82,12 @@
             <a href="<?php echo $base; ?>students/show.php?id=<?php echo $myStuId; ?>" class="nav-link <?php echo strpos($_SERVER['PHP_SELF'], 'students/show.php') !== false ? 'active' : ''; ?>">
                 <i class="fas fa-id-card"></i>
                 <span>My Profile</span>
+            </a>
+        </div>
+        <div class="nav-item">
+            <a href="<?php echo $base; ?>attendance/my.php" class="nav-link <?php echo strpos($_SERVER['PHP_SELF'], 'attendance/my.php') !== false ? 'active' : ''; ?>">
+                <i class="fas fa-calendar-check"></i>
+                <span>My Attendance</span>
             </a>
         </div>
         <?php endif; ?>

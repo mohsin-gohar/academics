@@ -1,0 +1,100 @@
+<?php
+require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/tenant.php';
+require_once __DIR__ . '/../includes/saas.php';
+startSecureSession();
+require_once __DIR__ . '/../config/db.php';
+
+if (isLoggedIn()) {
+    header('Location: ../dashboard.php');
+    exit;
+}
+
+$error = '';
+$success = '';
+$resetLink = '';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!validateCsrfToken($_POST['csrf_token'] ?? '')) {
+        $error = 'Invalid or expired form token. Please try again.';
+    } else {
+        $email = strtolower(trim((string)($_POST['email'] ?? '')));
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $error = 'Please enter a valid email address.';
+        } else {
+            $token = createPasswordResetToken($pdo, $email);
+            // Generic message to avoid leaking which emails exist.
+            $success = 'If an account exists for that email, a password reset link has been generated.';
+            if ($token) {
+                $resetLink = 'reset_password.php?token=' . urlencode($token);
+                logActivity($pdo, null, 'password_reset_requested', 'user', null, 'Reset requested for ' . $email);
+            }
+        }
+    }
+}
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Forgot Password | <?php echo APP_NAME; ?></title>
+    <link rel="icon" type="image/svg+xml" href="../assets/img/academics-mark.svg">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../assets/css/style.css">
+    <link rel="stylesheet" href="../assets/css/edustudy-theme.css">
+    <script>(function(){try{var t=localStorage.getItem('es_theme');if(t==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}})();</script>
+</head>
+<body>
+    <div class="auth-wrapper">
+        <div class="auth-card">
+            <div class="auth-header">
+                <div class="brand-icon brand-icon-logo">
+                    <img src="../assets/img/academics-mark.svg" alt="<?php echo e(APP_NAME); ?> logo" width="44" height="44">
+                </div>
+                <h3 class="mb-1"><?php echo APP_NAME; ?></h3>
+                <p class="mb-0 opacity-75">Reset your password</p>
+            </div>
+            <div class="auth-body">
+                <?php if ($error): ?>
+                    <div class="alert alert-danger"><i class="fas fa-exclamation-circle me-2"></i><?php echo e($error); ?></div>
+                <?php endif; ?>
+                <?php if ($success): ?>
+                    <div class="alert alert-success"><i class="fas fa-check-circle me-2"></i><?php echo e($success); ?></div>
+                <?php endif; ?>
+                <?php if ($resetLink): ?>
+                    <div class="alert alert-info small">
+                        <div class="fw-semibold mb-1"><i class="fas fa-link me-1"></i>Reset link (shown here because email delivery is not configured):</div>
+                        <a href="<?php echo e($resetLink); ?>" class="text-break"><?php echo e($resetLink); ?></a>
+                        <div class="text-muted mt-1">This link expires in 1 hour and can be used once.</div>
+                    </div>
+                <?php endif; ?>
+
+                <form method="POST" novalidate>
+                    <input type="hidden" name="csrf_token" value="<?php echo generateCsrfToken(); ?>">
+                    <div class="mb-3">
+                        <label class="form-label">Email Address</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light"><i class="fas fa-envelope text-muted"></i></span>
+                            <input type="email" name="email" class="form-control" placeholder="you@example.com" required autofocus>
+                        </div>
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="fas fa-paper-plane me-2"></i> Send Reset Link
+                        </button>
+                    </div>
+                </form>
+
+                <hr class="my-4">
+                <div class="text-center small">
+                    <a href="login.php" class="text-primary text-decoration-none fw-medium">Back to sign in</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

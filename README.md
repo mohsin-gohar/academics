@@ -64,6 +64,14 @@ The application retains the **Student Task Manager** as its mandatory, first-cla
 - **Application Settings**: Manage application name, records-per-page defaults, and timezone directly in the database.
 - **Custom Error Pages**: Styled, professional error handlers for `403 Forbidden`, `404 Not Found`, and `500 Server Error`.
 
+### I. Attendance & Password Reset
+- **Daily Attendance**: Staff mark Present/Absent/Late/Excused for all active students per day; bulk "All Present" shortcut; per-student remarks.
+- **Attendance Views**: Daily view with status chips and quick navigation (prev/today/next); per-student and period reports with CSV export.
+- **Parent Portal**: Parents see per-child attendance summary and recent records.
+- **Student Portal**: Students see their own attendance percentage and history.
+- **Dashboard KPI**: School admin dashboard shows today's present/absent/late counts.
+- **Password Reset**: Forgot-password flow with single-use, 1-hour expiring tokens (link shown on-screen in dev mode since SMTP is not configured).
+
 ### H. SaaS Multi-Tenant Platform
 - **School Self-Registration**: Public `/register.php` creates a school, its first `school_admin`, default public-page settings, and a 30-day trial in one transaction.
 - **Subscription Plans**: Basic ($50/mo), Pro ($150/mo), and Enterprise ($500/mo) are available to the platform team for billing, with legacy `subscription_plan` values kept in sync. Public pricing intentionally shows one **1 Month Free** card; commercial pricing is agreed personally with each school after the trial.
