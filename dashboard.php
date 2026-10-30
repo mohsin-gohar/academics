@@ -367,31 +367,37 @@ $heroDescription = $isParentUser
 </div>
 
 <?php if ($activeAlert): ?>
-<div class="alert alert-danger shadow-sm border-0 mb-4 p-3 d-flex align-items-center justify-content-between flex-wrap gap-3 rounded-4">
+<div class="school-alert-banner mb-4 p-3 d-flex align-items-center justify-content-between flex-wrap gap-3" data-alert-id="<?php echo (int)$activeAlert['id']; ?>">
     <div class="d-flex align-items-center gap-3">
-        <div class="rounded-circle bg-danger text-white d-flex align-items-center justify-content-center" style="width: 44px; height: 44px; min-width: 44px;">
-            <i class="fas fa-bullhorn fa-shake"></i>
-        </div>
+        <div class="school-alert-icon text-white"><i class="fas fa-bullhorn"></i></div>
         <div>
             <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
-                <span class="badge bg-danger text-white text-uppercase"><?php echo e($activeAlert['alert_type']); ?></span>
-                <strong class="text-danger fs-6"><?php echo e($activeAlert['title']); ?></strong>
+                <span class="badge bg-white text-danger text-uppercase"><?php echo e($activeAlert['alert_type']); ?></span>
+                <strong class="fs-6"><?php echo e($activeAlert['title']); ?></strong>
             </div>
-            <div class="small text-dark opacity-90"><?php echo e($activeAlert['message']); ?></div>
+            <div class="small opacity-90"><?php echo e($activeAlert['message']); ?></div>
         </div>
     </div>
     <div class="d-flex align-items-center gap-2 flex-wrap">
-        <span class="badge bg-white text-danger border border-danger px-3 py-2 fw-semibold">
+        <span class="badge bg-white text-danger px-3 py-2 fw-semibold">
             Effective: <?php echo formatDate($activeAlert['effective_date']); ?>
-            <?php if (!empty($activeAlert['end_date'])): ?>
-                — Reopening: <?php echo formatDate($activeAlert['end_date']); ?>
-            <?php endif; ?>
+            <?php if (!empty($activeAlert['end_date'])): ?> — Reopening: <?php echo formatDate($activeAlert['end_date']); ?><?php endif; ?>
         </span>
         <?php if ($isStaffUser): ?>
-            <a href="admin/emergency_alert.php" class="btn btn-danger btn-sm rounded-pill">Manage Notice</a>
+            <a href="admin/emergency_alert.php" class="btn btn-light btn-sm rounded-pill text-danger fw-semibold">Manage</a>
         <?php endif; ?>
+        <button type="button" class="school-alert-close" aria-label="Dismiss"><i class="fas fa-times"></i></button>
     </div>
 </div>
+<script>
+(function(){
+  var b = document.querySelector('.school-alert-banner[data-alert-id="<?php echo (int)$activeAlert['id']; ?>"]');
+  if (!b) return;
+  try { if (sessionStorage.getItem('dismissedAlert_<?php echo (int)$activeAlert['id']; ?>') === '1') b.classList.add('is-dismissed'); } catch(e){}
+  var btn = b.querySelector('.school-alert-close');
+  if (btn) btn.addEventListener('click', function(){ b.classList.add('is-dismissed'); try { sessionStorage.setItem('dismissedAlert_<?php echo (int)$activeAlert['id']; ?>','1'); } catch(e){} });
+})();
+</script>
 <?php endif; ?>
 
 <!-- KPI cards -->

@@ -1881,6 +1881,72 @@ h1, h2, h3 { font-family: 'Jost', sans-serif; }
 }
 
 /* ---------------------------------------------------------------------------
+   18b. School emergency alert banner (animated, school-scoped)
+   --------------------------------------------------------------------------- */
+.school-alert-banner {
+  position: relative;
+  overflow: hidden;
+  color: #FFFFFF;
+  background:
+    radial-gradient(760px 180px at 8% -20%, rgba(255, 255, 255, 0.22), transparent 62%),
+    linear-gradient(118deg, #9F1239 0%, #E11D48 52%, #F43F5E 100%);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow: 0 18px 46px -22px rgba(159, 18, 57, 0.85);
+  animation: schoolAlertSlide 0.6s cubic-bezier(.2, .85, .25, 1) both;
+}
+.school-alert-banner::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 28%, rgba(255, 255, 255, 0.14) 50%, transparent 72%);
+  pointer-events: none;
+  animation: schoolAlertSheen 2.6s ease-in-out infinite;
+}
+@keyframes schoolAlertSlide {
+  from { opacity: 0; transform: translateY(-22px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes schoolAlertSheen {
+  0%, 100% { transform: translateX(-100%); }
+  50% { transform: translateX(100%); }
+}
+.school-alert-banner .school-alert-icon {
+  width: 44px; height: 44px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: rgba(255, 255, 255, 0.20);
+  flex-shrink: 0;
+  animation: schoolAlertPulse 1.7s ease-in-out infinite;
+}
+@keyframes schoolAlertPulse {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.5); }
+  50% { transform: scale(1.10); box-shadow: 0 0 0 10px rgba(255, 255, 255, 0); }
+}
+.school-alert-banner .badge { font-size: 0.68rem; letter-spacing: 0.06em; }
+.school-alert-banner .school-alert-close {
+  background: rgba(255, 255, 255, 0.18);
+  border: 0; color: #FFFFFF;
+  width: 30px; height: 30px; border-radius: 50%;
+  display: grid; place-items: center;
+  cursor: pointer; transition: background 0.15s ease, transform 0.15s ease;
+  flex-shrink: 0;
+}
+.school-alert-banner .school-alert-close:hover {
+  background: rgba(255, 255, 255, 0.34);
+  transform: scale(1.08);
+}
+.school-alert-banner.is-dismissed { display: none !important; }
+
+[data-theme="dark"] .school-alert-banner {
+  background: linear-gradient(118deg, #7F1D1D 0%, #9F1239 52%, #BE123C 100%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .school-alert-banner, .school-alert-banner::after, .school-alert-banner .school-alert-icon {
+    animation: none !important;
+  }
+}
+
+/* ---------------------------------------------------------------------------
    19. SaaS pricing & public contact
    --------------------------------------------------------------------------- */
 .es-pricing-section {
