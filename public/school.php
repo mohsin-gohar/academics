@@ -58,6 +58,7 @@ $stmt->execute([$school['id']]);
 $news = $stmt->fetchAll();
 
 $initials = strtoupper(substr(preg_replace('/[^A-Za-z]/', '', $school['school_name']), 0, 2));
+$activeAlert = getActiveEmergencyAlert($pdo, (int)$school['id']);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -131,6 +132,17 @@ $initials = strtoupper(substr(preg_replace('/[^A-Za-z]/', '', $school['school_na
         </div>
     </nav>
 
+    <?php if (!empty($activeAlert)): ?>
+    <div class="container" style="max-width:1140px;margin:14px auto 0;padding:0 20px;">
+        <div class="alert alert-danger d-flex align-items-center gap-2 mb-0" role="alert" style="border-radius:12px;">
+            <span class="badge bg-danger text-uppercase"><?php echo e($activeAlert['alert_type']); ?></span>
+            <div class="flex-grow-1">
+                <strong><?php echo e($activeAlert['title']); ?>:</strong> <?php echo e($activeAlert['message']); ?>
+                <span class="text-muted small ms-2">(Effective: <?php echo formatDate($activeAlert['effective_date']); ?><?php if (!empty($activeAlert['end_date'])): ?> — Reopening: <?php echo formatDate($activeAlert['end_date']); ?><?php endif; ?>)</span>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
     <header class="hero">
         <div class="wrap">
             <div>

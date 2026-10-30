@@ -632,9 +632,25 @@ function generateStudentNumber($pdo) {
 }
 
 // Get active emergency closure alert (if any)
-function getActiveEmergencyAlert($pdo) {
+// $schoolId null => platform-wide alerts only (school_id IS NULL)
+function getActiveEmergencyAlert($pdo, $schoolId = null) {
     try {
-        $stmt = $pdo->query("SELECT * FROM emergency_alerts WHERE is_active = 1 AND effective_date <= CURDATE() AND (end_date IS NULL OR end_date >= CURDATE()) ORDER BY id DESC LIMIT 1");
+        if ($schoolId === null) {
+            $stmt = $pdo->prepare("SELECT * FROM emergency_alerts
+                WHERE is_active = 1 AND school_id IS NULL
+                  AND effective_date <= CURDATE()
+                  AND (end_date IS NULL OR end_date >= CURDATE())
+                ORDER BY id DESC LIMIT 1");
+            $stmt->execute();
+        } else {
+            $stmt = $pdo->prepare("SELECT * FROM emergency_alerts
+                WHERE is_active = 1
+                  AND (school_id = ? OR school_id IS NULL)
+                  AND effective_date <= CURDATE()
+                  AND (end_date IS NULL OR end_date >= CURDATE())
+                ORDER BY (school_id = ?) DESC, id DESC LIMIT 1");
+            $stmt->execute([(int)$schoolId, (int)$schoolId]);
+        }
         return $stmt->fetch(PDO::FETCH_ASSOC);
     } catch (PDOException $e) {
         return null;

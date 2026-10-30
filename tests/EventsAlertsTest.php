@@ -13,7 +13,7 @@ class EventsAlertsTest {
         $results = [];
 
         // Test 1: Emergency alerts table exists and active alert can be fetched
-        $alert = getActiveEmergencyAlert($this->pdo);
+        $alert = getActiveEmergencyAlert($this->pdo, 1);
         $results[] = [
             'name' => 'getActiveEmergencyAlert retrieves active emergency closure notice',
             'pass' => $alert !== null && !empty($alert['title'])

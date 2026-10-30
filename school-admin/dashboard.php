@@ -18,6 +18,8 @@ if (!$school) {
     exit;
 }
 
+$activeAlert = getActiveEmergencyAlert($pdo, $schoolId);
+
 // ---------------------------------------------------------------- KPIs
 $stmt = $pdo->prepare("SELECT COUNT(*) FROM students WHERE school_id = ? AND status = 'Active'");
 $stmt->execute([$schoolId]);
@@ -75,6 +77,17 @@ $recentUsers = $stmt->fetchAll();
         <a href="../students/create.php" class="btn btn-primary btn-sm"><i class="fas fa-plus me-1"></i>Add Student</a>
     </div>
 </div>
+
+<?php if (!empty($activeAlert)): ?>
+<div class="alert alert-danger d-flex align-items-center gap-2 mb-4" role="alert" style="border-radius:12px;">
+    <span class="badge bg-danger text-uppercase"><?php echo e($activeAlert['alert_type']); ?></span>
+    <div class="flex-grow-1">
+        <strong><?php echo e($activeAlert['title']); ?>:</strong> <?php echo e($activeAlert['message']); ?>
+        <span class="text-muted small ms-2">(Effective: <?php echo formatDate($activeAlert['effective_date']); ?><?php if (!empty($activeAlert['end_date'])): ?> — Reopening: <?php echo formatDate($activeAlert['end_date']); ?><?php endif; ?>)</span>
+    </div>
+    <a href="../admin/emergency_alert.php" class="btn btn-sm btn-outline-danger">Manage</a>
+</div>
+<?php endif; ?>
 
 <div class="row g-3 mb-4">
     <div class="col-12 col-md-6 col-xl-3">

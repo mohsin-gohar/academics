@@ -84,6 +84,7 @@ The application retains the **Student Task Manager** as its mandatory, first-cla
 - **Trials & Access States**: New tenants start on `trial`; active paid subscriptions activate the school and clear `trial_ends_at`. Suspended schools and expired trials are blocked at login and on public pages.
 - **Subdomain Routing**: Each school receives a unique subdomain (`greenvalley.your-domain.com`). Local/staging installs can use `?school=greenvalley` when wildcard DNS is unavailable.
 - **Platform Super-Admin**: `/super-admin/dashboard.php` shows platform KPIs, MRR, trials and expiring subscriptions; `/admin/schools.php`, `/admin/subscriptions.php`, and `/admin/messages.php` manage tenants, billing and contact messages.
+- **School-Scoped Alerts**: Each school's emergency notice renders only on that school's own dashboards and public page; it never leaks to other schools or the platform landing page.
 - **Public Marketing Pages**: Landing page with pricing, school directory, per-school public page and events calendar, school signup, and a CSRF-protected contact form with honeypot and throttling.
 
 ---
