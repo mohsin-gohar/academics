@@ -27,6 +27,16 @@ if (!defined('APP_SUPPORT_EMAIL')) {
 }
 date_default_timezone_set(APP_TIMEZONE);
 
+// Only local development gets convenience self-healing behaviour. Production
+// must never auto-start services, expose DB diagnostics, or seed demo users.
+if (!defined('APP_ENV')) {
+    $appEnv = getenv('APP_ENV');
+    define('APP_ENV', $appEnv !== false && trim((string)$appEnv) !== '' ? strtolower(trim((string)$appEnv)) : 'local');
+}
+$requestHost = strtolower((string)parse_url('http://' . ($_SERVER['HTTP_HOST'] ?? 'localhost'), PHP_URL_HOST));
+$isLocalDev = (APP_ENV === 'local' || APP_ENV === 'development')
+    && (PHP_SAPI === 'cli' || in_array($requestHost, ['localhost', '127.0.0.1', '::1'], true));
+
 // Load external hosting configuration if available
 if (file_exists(__DIR__ . '/db_config.php')) {
     require_once __DIR__ . '/db_config.php';
@@ -63,12 +73,9 @@ if (defined('IS_PRODUCTION') && IS_PRODUCTION) {
         </head>
         <body>
             <div class="card-box text-center">
-                <h3 class="fw-bold mb-3">⚠️ InfinityFree Database Connection Error</h3>
-                <p class="text-secondary small mb-3">Academics cannot connect to the MySQL database on your hosting. Please check your credentials in <code>config/db_config.php</code>.</p>
-                <div class="p-3 bg-dark text-danger small text-start rounded mb-3 font-monospace">
-                    <?= htmlspecialchars($e->getMessage()) ?>
-                </div>
-                <p class="text-muted small">Make sure you have created the database in vPanel and imported <code>edusphere_infinityfree_database.sql</code> via phpMyAdmin.</p>
+                <h3 class="fw-bold mb-3">Database Connection Error</h3>
+                <p class="text-secondary small mb-3">Academics cannot connect to its database right now. Please try again in a moment.</p>
+                <p class="text-muted small mb-0">If you are the site administrator, check the database credentials in <code>config/db_config.php</code> and confirm that the database has been imported from <code>database.sql</code>.</p>
             </div>
         </body>
         </html>
@@ -129,12 +136,14 @@ foreach ($targets as $target) {
         $workingPass = $target['pass'];
         break;
     } catch (PDOException $e) {
-        $connectionErrors[] = "{$target['host']}:{$target['port']} (pw:'{$target['pass']}'): " . $e->getMessage();
+        // Never log credentials; only the endpoint and driver message.
+        $connectionErrors[] = "{$target['host']}:{$target['port']}: " . $e->getMessage();
     }
 }
 
-// Self-healing: If MySQL is not running at all, attempt to start XAMPP mysqld on Windows
-if (!$serverPdo && PHP_OS_FAMILY === 'Windows') {
+// Self-healing (local CLI only): if MySQL is not running, try to start XAMPP mysqld.
+// Never do this from a web request: starting processes from HTTP is unsafe.
+if (!$serverPdo && $isLocalDev && PHP_SAPI === 'cli' && PHP_OS_FAMILY === 'Windows') {
     $mysqldPath = 'F:\\Xampp\\mysql\\bin\\mysqld.exe';
     $myIniPath = 'F:\\Xampp\\mysql\\bin\\my.ini';
     if (file_exists($mysqldPath)) {
@@ -169,28 +178,19 @@ if (!$serverPdo) {
     <html lang="en">
     <head>
         <meta charset="UTF-8">
-        <title>Database Service Unavailable — Academics</title>
+        <title>Service Unavailable - Academics</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
         <style>
-            body { font-family: 'Inter', sans-serif; background: #0F172A; color: #F8FAFC; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
-            .db-card { background: #1E293B; border-radius: 20px; border: 1px solid #334155; padding: 40px; max-width: 650px; width: 90%; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); }
-            .btn-accent { background: #65A30D; color: white; font-weight: 600; padding: 12px 28px; border-radius: 12px; border: none; text-decoration: none; display: inline-block; }
-            .btn-accent:hover { background: #4D7C0F; color: white; }
+            body { font-family: system-ui, sans-serif; background: #0F172A; color: #F8FAFC; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+            .db-card { background: #1E293B; border-radius: 20px; border: 1px solid #334155; padding: 40px; max-width: 560px; width: 90%; }
         </style>
     </head>
     <body>
         <div class="db-card text-center">
-            <div style="font-size: 3.5rem; margin-bottom: 1rem;">🔌</div>
-            <h2 class="fw-bold mb-2">MySQL Server is Not Running</h2>
-            <p class="text-secondary mb-4">Academics cannot connect to MySQL on Port 3306 or Port 3307. Please ensure your XAMPP MySQL module is started.</p>
-            <div class="p-3 rounded-3 text-start mb-4" style="background: #090D16; font-family: monospace; font-size: 0.82rem; color: #EF4444; overflow-x: auto;">
-                <strong>Attempted Diagnostics:</strong><br>
-                <?php foreach ($connectionErrors as $err): ?>
-                    • <?= htmlspecialchars($err) ?><br>
-                <?php endforeach; ?>
-            </div>
-            <a href="javascript:location.reload();" class="btn-accent">🔄 Reconnect to Database</a>
+            <h2 class="fw-bold mb-2">Database service unavailable</h2>
+            <p class="text-secondary mb-4">Academics cannot connect to its database right now. Please try again in a moment.</p>
+            <a href="javascript:location.reload();" class="btn btn-primary">Retry</a>
         </div>
     </body>
     </html>
@@ -245,7 +245,8 @@ try {
     die("Database connection failed. Please check your configuration.");
 }
 
-// Self-heal demo accounts: ensure they exist with documented passwords
+// Self-heal demo accounts for local development only.
+if ($isLocalDev) {
 try {
     $demoAccounts = [
         ['System Administrator', 'admin@edusphere.com', '$2y$10$mmx/UMwzNmkfhEKRGUYctuNSrl/xrRLp4f8o3R5M1ksN1c2J45tQu', 'admin'],
@@ -262,4 +263,5 @@ try {
     }
 } catch (PDOException $e) {
     error_log("Demo accounts self-heal notice: " . $e->getMessage());
+}
 }

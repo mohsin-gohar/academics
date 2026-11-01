@@ -41,7 +41,11 @@ if (isStudent()) {
                 <?php if (isAdmin() || (isStaff() && $task['user_id'] == $user_id)): ?>
                 <div class="d-flex gap-2">
                     <a href="edit.php?id=<?php echo $task['id']; ?>" class="btn btn-sm btn-outline-primary"><i class="fas fa-edit me-1"></i>Edit</a>
-                    <a href="delete.php?id=<?php echo $task['id']; ?>&csrf_token=<?php echo generateCsrfToken(); ?>" class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete this task?')"><i class="fas fa-trash me-1"></i>Delete</a>
+                    <form method="post" action="delete.php" class="d-inline" onsubmit="return confirm('Delete this task?');">
+                        <?php echo csrfField(); ?>
+                        <input type="hidden" name="id" value="<?php echo (int)$task['id']; ?>">
+                        <button type="submit" class="btn btn-sm btn-outline-danger"><i class="fas fa-trash me-1"></i>Delete</button>
+                    </form>
                 </div>
                 <?php endif; ?>
             </div>

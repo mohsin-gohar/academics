@@ -190,7 +190,7 @@ $activeAlert = getActiveEmergencyAlert($pdo, (int)$school['id']);
                     <div class="event-date"><b><?php echo date('d', strtotime($ev['event_date'])); ?></b><span><?php echo date('M', strtotime($ev['event_date'])); ?></span></div>
                     <div>
                         <div class="fw-bold small"><?php echo e($ev['title']); ?></div>
-                        <div class="text-muted small mb-1"><?php echo e($ev['event_type']); ?><?php echo $ev['is_holiday'] ? ' · Holiday' : ''; ?></div>
+                        <div class="text-muted small mb-1"><?php echo e($ev['event_type']); ?><?php echo ($ev['is_holiday'] && $ev['event_type'] !== 'Holiday') ? ' · Holiday' : ''; ?></div>
                         <div class="text-muted small"><?php echo e(mb_substr($ev['description'] ?? '', 0, 90)); ?><?php echo mb_strlen($ev['description'] ?? '') > 90 ? '…' : ''; ?></div>
                     </div>
                 </div>

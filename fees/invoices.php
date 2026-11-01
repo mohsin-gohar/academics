@@ -90,6 +90,12 @@ $summary = getFeeSummary($pdo, $schoolId);
 
 <div class="card border-0 shadow-sm">
     <div class="card-body p-0">
+        <?php if (empty($invoices)): ?>
+            <div class="text-center text-muted py-5 px-3">
+                <i class="fas fa-file-invoice fa-2x mb-2 d-block opacity-50"></i>
+                No invoices found.
+            </div>
+        <?php else: ?>
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">
                 <thead class="table-light">
@@ -104,34 +110,31 @@ $summary = getFeeSummary($pdo, $schoolId);
                     </tr>
                 </thead>
                 <tbody>
-                    <?php if (empty($invoices)): ?>
-                        <tr><td colspan="7" class="text-center text-muted py-4">No invoices found.</td></tr>
-                    <?php else: ?>
-                        <?php foreach ($invoices as $inv): ?>
-                            <tr>
-                                <td class="fw-semibold small"><?php echo e($inv['invoice_number']); ?></td>
-                                <td><?php echo e($inv['full_name']); ?></td>
-                                <td class="small"><?php echo e($inv['title']); ?></td>
-                                <td class="text-end"><?php echo number_format((float)$inv['amount'], 2); ?></td>
-                                <td class="text-muted small"><?php echo $inv['due_date'] ? e(formatDate($inv['due_date'])) : '—'; ?></td>
-                                <td>
-                                    <?php
-                                    $badge = ['unpaid' => 'warning', 'paid' => 'success', 'overdue' => 'danger', 'cancelled' => 'secondary'];
-                                    $cls = $badge[$inv['status']] ?? 'secondary';
-                                    ?>
-                                    <span class="badge bg-<?php echo $cls; ?> bg-opacity-75"><?php echo e(ucfirst($inv['status'])); ?></span>
-                                </td>
-                                <td class="text-center">
-                                    <?php if ($inv['status'] !== 'paid' && $inv['status'] !== 'cancelled'): ?>
-                                        <a href="pay.php?id=<?php echo (int)$inv['id']; ?>" class="btn btn-sm btn-outline-success" title="Record payment"><i class="fas fa-money-bill"></i></a>
-                                    <?php endif; ?>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
+                    <?php foreach ($invoices as $inv): ?>
+                        <tr>
+                            <td class="fw-semibold small"><?php echo e($inv['invoice_number']); ?></td>
+                            <td><?php echo e($inv['full_name']); ?></td>
+                            <td class="small"><?php echo e($inv['title']); ?></td>
+                            <td class="text-end"><?php echo number_format((float)$inv['amount'], 2); ?></td>
+                            <td class="text-muted small"><?php echo $inv['due_date'] ? e(formatDate($inv['due_date'])) : '—'; ?></td>
+                            <td>
+                                <?php
+                                $badge = ['unpaid' => 'warning', 'paid' => 'success', 'overdue' => 'danger', 'cancelled' => 'secondary'];
+                                $cls = $badge[$inv['status']] ?? 'secondary';
+                                ?>
+                                <span class="badge bg-<?php echo $cls; ?> bg-opacity-75"><?php echo e(ucfirst($inv['status'])); ?></span>
+                            </td>
+                            <td class="text-center">
+                                <?php if ($inv['status'] !== 'paid' && $inv['status'] !== 'cancelled'): ?>
+                                    <a href="pay.php?id=<?php echo (int)$inv['id']; ?>" class="btn btn-sm btn-outline-success" title="Record payment"><i class="fas fa-money-bill"></i></a>
+                                <?php endif; ?>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
                 </tbody>
             </table>
         </div>
+        <?php endif; ?>
     </div>
 </div>
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

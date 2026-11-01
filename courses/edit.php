@@ -1,7 +1,6 @@
 <?php
-require_once '../includes/functions.php';
-require_once '../includes/tenant.php';
-require_once '../config/db.php';
+$page_title = 'Edit Course';
+require_once '../includes/header.php';
 requireStaff();
 
 $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;

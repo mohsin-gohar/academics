@@ -27,14 +27,27 @@ try {
         exit;
     }
 
-    if ($action === 'mark_all') {
-        $pdo->prepare("UPDATE notifications SET is_read = 1 WHERE user_id = ?")->execute([$userId]);
-        echo json_encode(['success' => true]);
-        exit;
-    }
+    if ($action === 'mark_all' || $action === 'mark_one') {
+        // State-changing actions must be POST + CSRF protected.
+        if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+            http_response_code(405);
+            header('Allow: POST');
+            echo json_encode(['success' => false, 'message' => 'Method not allowed']);
+            exit;
+        }
+        if (!validateCsrfToken($_POST['csrf_token'] ?? '')) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'message' => 'Invalid security token']);
+            exit;
+        }
 
-    if ($action === 'mark_one') {
-        $id = (int)($_POST['id'] ?? $_GET['id'] ?? 0);
+        if ($action === 'mark_all') {
+            $pdo->prepare("UPDATE notifications SET is_read = 1 WHERE user_id = ?")->execute([$userId]);
+            echo json_encode(['success' => true]);
+            exit;
+        }
+
+        $id = (int)($_POST['id'] ?? 0);
         $pdo->prepare("UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?")->execute([$id, $userId]);
         echo json_encode(['success' => true]);
         exit;

@@ -40,7 +40,7 @@ $manageUrl      = isset($alertManageUrl) && $alertManageUrl ? (string)$alertMana
         <div class="school-alert-content">
             <div class="school-alert-kicker">
                 <span class="school-alert-kicker-dot" aria-hidden="true"></span>
-                <?php echo e(strtoupper($alertType)); ?> &middot; Emergency Notice
+                <?php echo e(strtoupper($alertType)); ?><span class="school-alert-kicker-suffix"> &middot; Official Notice</span>
             </div>
 
             <h2 class="school-alert-title" id="schoolAlertTitle-<?php echo $alertId; ?>">
@@ -78,6 +78,15 @@ $manageUrl      = isset($alertManageUrl) && $alertManageUrl ? (string)$alertMana
     'use strict';
     var overlay = document.getElementById('schoolAlertOverlay-<?php echo $alertId; ?>');
     if (!overlay) { return; }
+
+    // The modal is often rendered inside a glass panel that uses
+    // backdrop-filter/transform. Those create a containing block, which would
+    // pin position:fixed to the panel instead of the viewport. Re-parent the
+    // overlay to <body> so it always covers the full screen.
+    if (overlay.parentNode !== document.body) {
+        document.body.appendChild(overlay);
+    }
+
     var alertId = '<?php echo $alertId; ?>';
     var storageKey = 'academicsAlertAck-' + alertId;
 

@@ -69,7 +69,7 @@ $recentUsers = $stmt->fetchAll();
         <h2 class="page-title mb-1"><?php echo e($school['school_name']); ?></h2>
         <p class="text-muted mb-0 small"><i class="fas fa-id-badge me-1"></i><?php echo e($school['school_code']); ?> · <?php echo e($school['subscription_plan']); ?> plan · Session <?php echo (int)($school['session_timeout_minutes'] ?? 30); ?> min</p>
     </div>
-    <div class="d-flex gap-2">
+    <div class="d-flex flex-wrap gap-2">
         <a href="../attendance/mark.php" class="btn btn-outline-primary btn-sm"><i class="fas fa-calendar-check me-1"></i>Mark Attendance</a>
         <a href="../grades/index.php" class="btn btn-outline-primary btn-sm"><i class="fas fa-clipboard-list me-1"></i>Grades</a>
         <a href="../fees/invoices.php" class="btn btn-outline-primary btn-sm"><i class="fas fa-file-invoice me-1"></i>Fees</a>
@@ -85,7 +85,7 @@ require __DIR__ . '/../includes/school_alert_modal.php';
 
 
 <div class="row g-3 mb-4">
-    <div class="col-12 col-md-6 col-xl-3">
+    <div class="col-12 col-md-6 col-xl">
         <div class="kpi-card kpi-accent-indigo">
             <div class="kpi-icon icon-indigo"><i class="fas fa-user-graduate"></i></div>
             <div class="kpi-lbl">Students</div>
@@ -93,7 +93,7 @@ require __DIR__ . '/../includes/school_alert_modal.php';
             <div class="kpi-sub">active in this school</div>
         </div>
     </div>
-    <div class="col-12 col-md-6 col-xl-3">
+    <div class="col-12 col-md-6 col-xl">
         <div class="kpi-card kpi-accent-cyan">
             <div class="kpi-icon icon-cyan"><i class="fas fa-chalkboard-teacher"></i></div>
             <div class="kpi-lbl">Teachers</div>
@@ -101,7 +101,7 @@ require __DIR__ . '/../includes/school_alert_modal.php';
             <div class="kpi-sub"><?php echo number_format($totalParents); ?> <?php echo $totalParents === 1 ? 'parent linked' : 'parents linked'; ?></div>
         </div>
     </div>
-    <div class="col-12 col-md-6 col-xl-3">
+    <div class="col-12 col-md-6 col-xl">
         <div class="kpi-card kpi-accent-amber">
             <div class="kpi-icon icon-amber"><i class="fas fa-clipboard-check"></i></div>
             <div class="kpi-lbl">Open Tasks</div>
@@ -109,7 +109,7 @@ require __DIR__ . '/../includes/school_alert_modal.php';
             <div class="kpi-sub">pending or in progress</div>
         </div>
     </div>
-    <div class="col-12 col-md-6 col-xl-3">
+    <div class="col-12 col-md-6 col-xl">
         <div class="kpi-card kpi-accent-emerald">
             <div class="kpi-icon icon-emerald"><i class="fas fa-check-double"></i></div>
             <div class="kpi-lbl">Completion</div>
@@ -117,7 +117,7 @@ require __DIR__ . '/../includes/school_alert_modal.php';
             <div class="kpi-sub">of all school tasks</div>
         </div>
     </div>
-    <div class="col-12 col-md-6 col-xl-3">
+    <div class="col-12 col-md-6 col-xl">
         <div class="kpi-card kpi-accent-cyan">
             <div class="kpi-icon icon-cyan"><i class="fas fa-calendar-check"></i></div>
             <div class="kpi-lbl">Today's Attendance</div>
@@ -191,7 +191,7 @@ require __DIR__ . '/../includes/school_alert_modal.php';
                     </div>
                     <div>
                         <div class="fw-semibold small"><?php echo e($ev['title']); ?></div>
-                        <div class="text-muted small"><?php echo e($ev['event_type']); ?><?php echo $ev['is_holiday'] ? ' · Holiday' : ''; ?></div>
+                        <div class="text-muted small"><?php echo e($ev['event_type']); ?><?php echo ($ev['is_holiday'] && $ev['event_type'] !== 'Holiday') ? ' · Holiday' : ''; ?></div>
                     </div>
                 </div>
                 <?php endforeach; ?>

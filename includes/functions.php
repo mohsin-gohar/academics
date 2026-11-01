@@ -7,10 +7,34 @@
 // Start session with secure settings
 function startSecureSession() {
     if (session_status() === PHP_SESSION_NONE) {
+        $isHttps = (!empty($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off')
+            || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https')
+            || ((int)($_SERVER['SERVER_PORT'] ?? 0) === 443);
+
         ini_set('session.cookie_httponly', 1);
         ini_set('session.cookie_samesite', 'Strict');
         ini_set('session.use_strict_mode', 1);
+        if ($isHttps) {
+            ini_set('session.cookie_secure', 1);
+        }
         session_start();
+
+        // Idle timeout (default 30 minutes) to protect unattended sessions.
+        $lifetime = (int)(getenv('SESSION_LIFETIME') ?: 1800);
+        if ($lifetime > 0) {
+            $now = time();
+            if (!empty($_SESSION['last_activity']) && ($now - (int)$_SESSION['last_activity']) > $lifetime) {
+                $_SESSION = [];
+                if (ini_get('session.use_cookies')) {
+                    $params = session_get_cookie_params();
+                    setcookie(session_name(), '', time() - 42000, $params['path'], $params['domain'], $params['secure'], $params['httponly']);
+                }
+                session_destroy();
+                session_start();
+                session_regenerate_id(true);
+            }
+            $_SESSION['last_activity'] = $now;
+        }
     }
 }
 
@@ -21,6 +45,21 @@ function generateCsrfToken() {
         $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
     }
     return $_SESSION['csrf_token'];
+}
+
+// Render a CSRF hidden input for forms.
+function csrfField() {
+    return '<input type="hidden" name="csrf_token" value="' . e(generateCsrfToken()) . '">';
+}
+
+// Reject state-changing requests that did not arrive as POST.
+function requirePost() {
+    if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+        http_response_code(405);
+        header('Allow: POST');
+        header('Content-Type: text/plain; charset=UTF-8');
+        exit('Method Not Allowed');
+    }
 }
 
 // Validate CSRF token
@@ -312,7 +351,7 @@ function recordMark(PDO $pdo, int $schoolId, int $assessmentId, int $studentId, 
 function getCourseGradebook(PDO $pdo, int $schoolId, int $courseId): array
 {
     $assessments = getAssessmentsByCourse($pdo, $schoolId, $courseId);
-    $stmt = $pdo->prepare("SELECT id, full_name, student_number FROM students st JOIN enrollments e ON e.student_id = st.id WHERE e.course_id = ? AND e.status = 'Enrolled' AND st.school_id = ? AND e.school_id = ? ORDER BY st.full_name ASC");
+    $stmt = $pdo->prepare("SELECT st.id, st.full_name, st.student_number FROM students st JOIN enrollments e ON e.student_id = st.id WHERE e.course_id = ? AND e.status = 'Enrolled' AND st.school_id = ? AND e.school_id = ? ORDER BY st.full_name ASC");
     $stmt->execute([$courseId, $schoolId, $schoolId]);
     $students = $stmt->fetchAll();
     $marks = [];

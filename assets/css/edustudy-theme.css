@@ -563,6 +563,9 @@ a:hover { color: var(--brand-indigo-light); }
   box-shadow: 0 20px 48px -30px rgba(64, 38, 225, 0.30);
   backdrop-filter: blur(18px) saturate(135%);
   -webkit-backdrop-filter: blur(18px) saturate(135%);
+  /* Bootstrap's .card resolves colour from --bs-body-color, which stays dark
+     under the dark theme. Use the themed token so card copy stays readable. */
+  color: var(--text-main);
 }
 
 .card { overflow: hidden; }
@@ -890,14 +893,14 @@ a:hover { color: var(--brand-indigo-light); }
   letter-spacing: 0.03em;
   border: 1px solid transparent;
 }
-.badge-success, .bg-success { background: #E9FBF3 !important; color: #047857 !important; border-color: #C8F3DF !important; }
-.badge-warning, .bg-warning { background: #FFF6E4 !important; color: #A16207 !important; border-color: #FBE3B3 !important; }
-.badge-danger, .bg-danger { background: #FFF0F3 !important; color: #BE123C !important; border-color: #FFD6DE !important; }
-.badge-info, .bg-info { background: #E6FAF7 !important; color: #0F766E !important; border-color: #BFF1EA !important; }
-.badge-primary, .bg-primary { background: #EEEBFF !important; color: #4026E1 !important; border-color: #DCD5FF !important; }
-.badge-dark, .bg-dark { background: #E9EDF2 !important; color: #334155 !important; border-color: #DCE3EB !important; }
-.badge-secondary, .bg-secondary { background: #F3F0FF !important; color: #6B5F9E !important; border-color: #E7E1FA !important; }
-.badge-light, .bg-light { background: #FFFFFF !important; color: var(--text-body) !important; border-color: var(--border-subtle) !important; }
+.badge-success, .badge.bg-success { background: #E9FBF3 !important; color: #047857 !important; border-color: #C8F3DF !important; }
+.badge-warning, .badge.bg-warning { background: #FFF6E4 !important; color: #A16207 !important; border-color: #FBE3B3 !important; }
+.badge-danger, .badge.bg-danger { background: #FFF0F3 !important; color: #BE123C !important; border-color: #FFD6DE !important; }
+.badge-info, .badge.bg-info { background: #E6FAF7 !important; color: #0F766E !important; border-color: #BFF1EA !important; }
+.badge-primary, .badge.bg-primary { background: #EEEBFF !important; color: #4026E1 !important; border-color: #DCD5FF !important; }
+.badge-dark, .badge.bg-dark { background: #E9EDF2 !important; color: #334155 !important; border-color: #DCE3EB !important; }
+.badge-secondary, .badge.bg-secondary { background: #F3F0FF !important; color: #6B5F9E !important; border-color: #E7E1FA !important; }
+.badge-light, .badge.bg-light { background: #FFFFFF !important; color: var(--text-body) !important; border-color: var(--border-subtle) !important; }
 
 .alert {
   border-radius: 16px;
@@ -1881,7 +1884,7 @@ h1, h2, h3 { font-family: 'Jost', sans-serif; }
 }
 
 /* ---------------------------------------------------------------------------
-   18b. School emergency alert — premium animated modal overlay
+   18b. School emergency alert ï¿½ premium animated modal overlay
    --------------------------------------------------------------------------- */
 .school-alert-overlay {
   position: fixed;
@@ -2021,6 +2024,8 @@ body.school-alert-open { overflow: hidden; }
 
 .school-alert-kicker {
   display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: center;
   align-items: center;
   gap: 8px;
   font-size: 0.72rem;
@@ -2162,7 +2167,9 @@ body.school-alert-open { overflow: hidden; }
 }
 
 @media (max-width: 520px) {
-  .school-alert-content { padding: 40px 22px 26px; }
+  .school-alert-content { padding: 44px 22px 26px; }
+  .school-alert-kicker { letter-spacing: 0.12em; padding: 0 22px; }
+  .school-alert-kicker-suffix { display: none; }
   .school-alert-title { font-size: 1.25rem; }
   .school-alert-ack { width: 100%; justify-content: center; }
 }

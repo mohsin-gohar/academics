@@ -3,8 +3,21 @@ $page_title = 'Course Details';
 require_once '../includes/header.php';
 requireAuth();
 
+if (isParent()) {
+    header('Location: ../parent/dashboard.php');
+    exit;
+}
+
 $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 if ($id <= 0) { header('Location: index.php'); exit; }
+
+// Students only see their own enrollment and tasks, never classmates' data.
+$viewerStudentId = 0;
+if (isStudent()) {
+    $own = $pdo->prepare("SELECT id FROM students WHERE user_id = ? LIMIT 1");
+    $own->execute([$_SESSION['user_id']]);
+    $viewerStudentId = (int)($own->fetchColumn() ?: 0);
+}
 
 $stmt = $pdo->prepare("SELECT c.*, u.full_name as instructor_name FROM courses c LEFT JOIN users u ON c.instructor_id = u.id WHERE c.id = ?");
 $stmt->execute([$id]);
@@ -12,27 +25,44 @@ $course = $stmt->fetch();
 if (!$course) { header('Location: index.php?error=' . urlencode('Course not found.')); exit; }
 require_record_school($course);
 
-// Enrolled students
-$stmt = $pdo->prepare("SELECT e.*, s.full_name, s.student_number FROM enrollments e JOIN students s ON e.student_id = s.id WHERE e.course_id = ? AND e.school_id = ? ORDER BY e.enrollment_date DESC");
-$stmt->execute([$id, (int)$course['school_id']]);
+// Enrolled students (students see only their own row).
+$enrollSql = "SELECT e.*, s.full_name, s.student_number FROM enrollments e JOIN students s ON e.student_id = s.id WHERE e.course_id = ? AND e.school_id = ?";
+$enrollParams = [$id, (int)$course['school_id']];
+if ($viewerStudentId) {
+    $enrollSql .= " AND e.student_id = ?";
+    $enrollParams[] = $viewerStudentId;
+}
+$enrollSql .= " ORDER BY e.enrollment_date DESC";
+$stmt = $pdo->prepare($enrollSql);
+$stmt->execute($enrollParams);
 $enrollments = $stmt->fetchAll();
 
-// Tasks for this course
-$stmt = $pdo->prepare("SELECT t.*, s.full_name as student_name FROM tasks t LEFT JOIN students s ON t.student_id = s.id WHERE t.course_id = ? AND t.school_id = ? ORDER BY t.created_at DESC");
-$stmt->execute([$id, (int)$course['school_id']]);
+// Tasks for this course (students see only their own).
+$taskSql = "SELECT t.*, s.full_name as student_name FROM tasks t LEFT JOIN students s ON t.student_id = s.id WHERE t.course_id = ? AND t.school_id = ?";
+$taskParams = [$id, (int)$course['school_id']];
+if ($viewerStudentId) {
+    $taskSql .= " AND t.student_id = ?";
+    $taskParams[] = $viewerStudentId;
+}
+$taskSql .= " ORDER BY t.created_at DESC";
+$stmt = $pdo->prepare($taskSql);
+$stmt->execute($taskParams);
 $tasks = $stmt->fetchAll();
 
-// Available students to enroll (same school only)
-$studentSql = "SELECT id, full_name, student_number FROM students WHERE status = 'Active'";
-$studentParams = [];
-if (!isSuperAdmin()) {
-    $studentSql .= " AND school_id = ?";
-    $studentParams[] = currentSchoolId();
+// Available students to enroll (staff only, same school only).
+$availableStudents = [];
+if (isStaff()) {
+    $studentSql = "SELECT id, full_name, student_number FROM students WHERE status = 'Active'";
+    $studentParams = [];
+    if (!isSuperAdmin()) {
+        $studentSql .= " AND school_id = ?";
+        $studentParams[] = currentSchoolId();
+    }
+    $studentSql .= " ORDER BY full_name";
+    $stmt = $pdo->prepare($studentSql);
+    $stmt->execute($studentParams);
+    $availableStudents = $stmt->fetchAll();
 }
-$studentSql .= " ORDER BY full_name";
-$stmt = $pdo->prepare($studentSql);
-$stmt->execute($studentParams);
-$availableStudents = $stmt->fetchAll();
 $enrolledIds = array_column($enrollments, 'student_id');
 ?>
 
@@ -58,7 +88,11 @@ $enrolledIds = array_column($enrollments, 'student_id');
                 <hr>
                 <div class="d-flex gap-2">
                     <a href="edit.php?id=<?php echo $course['id']; ?>" class="btn btn-primary btn-sm"><i class="fas fa-edit me-1"></i>Edit</a>
-                    <a href="delete.php?id=<?php echo $course['id']; ?>&csrf_token=<?php echo generateCsrfToken(); ?>" class="btn btn-outline-danger btn-sm" onclick="return confirm('Delete this course?')"><i class="fas fa-trash me-1"></i>Delete</a>
+                    <form method="post" action="delete.php" class="d-inline" onsubmit="return confirm('Delete this course?');">
+                        <?php echo csrfField(); ?>
+                        <input type="hidden" name="id" value="<?php echo (int)$course['id']; ?>">
+                        <button type="submit" class="btn btn-outline-danger btn-sm"><i class="fas fa-trash me-1"></i>Delete</button>
+                    </form>
                 </div>
                 <?php endif; ?>
             </div>
@@ -118,7 +152,12 @@ $enrolledIds = array_column($enrollments, 'student_id');
                                     <td><?php echo e($e['grade'] ?: '-'); ?></td>
                                     <?php if (isStaff()): ?>
                                     <td>
-                                        <a href="unenroll.php?id=<?php echo $e['id']; ?>&course=<?php echo $course['id']; ?>&csrf_token=<?php echo generateCsrfToken(); ?>" class="btn btn-sm btn-outline-danger" onclick="return confirm('Unenroll this student?')"><i class="fas fa-times"></i></a>
+                                        <form method="post" action="unenroll.php" class="d-inline" onsubmit="return confirm('Unenroll this student?');">
+                                            <?php echo csrfField(); ?>
+                                            <input type="hidden" name="id" value="<?php echo (int)$e['id']; ?>">
+                                            <input type="hidden" name="course" value="<?php echo (int)$course['id']; ?>">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Unenroll"><i class="fas fa-times"></i></button>
+                                        </form>
                                     </td>
                                     <?php endif; ?>
                                 </tr>

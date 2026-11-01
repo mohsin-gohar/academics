@@ -11,12 +11,23 @@
     </div>
 
     <nav class="sidebar-nav">
+        <?php
+        // Each role lands on its own dashboard. Super admins use the dedicated
+        // "Platform Overview" item below instead of a second dashboard link.
+        $selfPath = str_replace('\\', '/', $_SERVER['PHP_SELF'] ?? '');
+        $dashFile = isParent()
+            ? 'parent/dashboard.php'
+            : (isSchoolAdmin() ? 'school-admin/dashboard.php' : 'dashboard.php');
+        $dashActive = substr($selfPath, -strlen('/' . $dashFile)) === '/' . $dashFile;
+        ?>
+        <?php if (!isSuperAdmin()): ?>
         <div class="nav-item">
-            <a href="<?php echo $base; ?><?php echo isParent() ? 'parent/dashboard.php' : 'dashboard.php'; ?>" class="nav-link <?php echo basename($_SERVER['PHP_SELF']) === 'dashboard.php' ? 'active' : ''; ?>">
+            <a href="<?php echo $base . $dashFile; ?>" class="nav-link <?php echo $dashActive ? 'active' : ''; ?>">
                 <i class="fas fa-th-large"></i>
                 <span>Dashboard</span>
             </a>
         </div>
+        <?php endif; ?>
 
         <?php if (isParent()): ?>
         <div class="nav-section mt-2">Parent Portal</div>
@@ -58,6 +69,8 @@
         </div>
         <?php endif; ?>
 
+        <?php $showSchoolNav = !isSuperAdmin() || currentSchoolId() !== null; ?>
+        <?php if ($showSchoolNav): ?>
         <?php if (isStaff()): ?>
         <div class="nav-item">
             <a href="<?php echo $base; ?>attendance/mark.php" class="nav-link <?php echo strpos($_SERVER['PHP_SELF'], 'attendance/') !== false ? 'active' : ''; ?>">
@@ -71,24 +84,28 @@
                 <span>Grades</span>
             </a>
         </div>
+        <?php if (isAdmin()): ?>
         <div class="nav-item">
             <a href="<?php echo $base; ?>fees/invoices.php" class="nav-link <?php echo strpos($_SERVER['PHP_SELF'], 'fees/') !== false ? 'active' : ''; ?>">
                 <i class="fas fa-file-invoice-dollar"></i>
                 <span>Fees</span>
             </a>
         </div>
+        <?php endif; ?>
         <div class="nav-item">
             <a href="<?php echo $base; ?>students/index.php" class="nav-link <?php echo strpos($_SERVER['PHP_SELF'], 'students/') !== false ? 'active' : ''; ?>">
                 <i class="fas fa-user-graduate"></i>
                 <span>Students</span>
             </a>
         </div>
+        <?php if (isAdmin()): ?>
         <div class="nav-item">
             <a href="<?php echo $base; ?>admin/users.php?role=teacher" class="nav-link <?php echo strpos($_SERVER['PHP_SELF'], 'role=teacher') !== false ? 'active' : ''; ?>">
                 <i class="fas fa-chalkboard-teacher"></i>
                 <span>Teachers</span>
             </a>
         </div>
+        <?php endif; ?>
         <?php else: ?>
         <?php
         $myStuId = $_SESSION['student_id'] ?? null;
@@ -160,12 +177,13 @@
                 <span>Events Calendar</span>
             </a>
         </div>
+        <?php endif; ?>
 
-        <?php if (isStaff()): ?>
+        <?php if (isSuperAdmin() || (isSchoolManagement() && currentSchoolId() !== null)): ?>
         <div class="nav-item">
             <a href="<?php echo $base; ?>admin/emergency_alert.php" class="nav-link <?php echo strpos($_SERVER['PHP_SELF'], 'emergency_alert.php') !== false ? 'active' : ''; ?>">
                 <i class="fas fa-bullhorn text-warning"></i>
-                <span>Emergency Off</span>
+                <span><?php echo isSuperAdmin() ? 'Platform Alerts' : 'Emergency Off'; ?></span>
             </a>
         </div>
         <?php endif; ?>

@@ -152,9 +152,11 @@ $meetingCount = $pdo->query("SELECT COUNT(*) FROM school_events WHERE event_type
                             <a href="edit.php?id=<?php echo $ev['id']; ?>" class="btn btn-sm btn-outline-primary" title="Edit">
                                 <i class="fas fa-edit"></i>
                             </a>
-                            <a href="delete.php?id=<?php echo $ev['id']; ?>&csrf_token=<?php echo generateCsrfToken(); ?>" class="btn btn-sm btn-outline-danger" title="Delete" onclick="return confirm('Delete this school event?')">
-                                <i class="fas fa-trash"></i>
-                            </a>
+                            <form method="post" action="delete.php" class="d-inline" onsubmit="return confirm('Delete this school event?');">
+                                <?php echo csrfField(); ?>
+                                <input type="hidden" name="id" value="<?php echo (int)$ev['id']; ?>">
+                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete"><i class="fas fa-trash"></i></button>
+                            </form>
                         </div>
                     </div>
                     <?php endif; ?>

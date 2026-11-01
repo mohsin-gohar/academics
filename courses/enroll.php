@@ -28,6 +28,15 @@ if (!can_access_school($courseSchool !== false ? (int)$courseSchool : null)
     exit;
 }
 
+// Never link a student to a course from a different school.
+if ($courseSchool !== false && $studentSchool !== false
+    && (int)$courseSchool !== (int)$studentSchool) {
+    header('Location: show.php?id=' . $course_id . '&error=' . urlencode('That student belongs to another school.'));
+    exit;
+}
+
+$enrollSchoolId = $courseSchool !== false ? (int)$courseSchool : currentSchoolId();
+
 // Check duplicate
 $stmt = $pdo->prepare("SELECT id FROM enrollments WHERE student_id = ? AND course_id = ?");
 $stmt->execute([$student_id, $course_id]);
@@ -35,7 +44,7 @@ if ($stmt->fetch()) { header('Location: show.php?id=' . $course_id . '&error=' .
 
 try {
     $stmt = $pdo->prepare("INSERT INTO enrollments (school_id, student_id, course_id, enrollment_date, status) VALUES (?, ?, ?, ?, 'Enrolled')");
-    $stmt->execute([currentSchoolId(), $student_id, $course_id, $enrollment_date]);
+    $stmt->execute([$enrollSchoolId, $student_id, $course_id, $enrollment_date]);
     logActivity($pdo, $_SESSION['user_id'], 'enroll', 'course', $course_id, 'Enrolled student ID ' . $student_id);
     header('Location: show.php?id=' . $course_id . '&success=' . urlencode('Student enrolled successfully!'));
     exit;

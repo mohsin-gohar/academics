@@ -3,9 +3,10 @@ require_once '../includes/functions.php';
 require_once '../includes/tenant.php';
 require_once '../config/db.php';
 requireAdmin();
+requirePost();
 
-$token = $_POST['csrf_token'] ?? $_GET['csrf_token'] ?? '';
-$id = isset($_REQUEST['id']) ? (int)$_REQUEST['id'] : 0;
+$token = $_POST['csrf_token'] ?? '';
+$id = isset($_POST['id']) ? (int)$_POST['id'] : 0;
 
 if ($id <= 0 || $id == $_SESSION['user_id'] || !validateCsrfToken($token)) { 
     header('Location: users.php?error=' . urlencode('Invalid request or security token.')); 

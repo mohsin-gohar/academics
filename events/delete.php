@@ -8,10 +8,11 @@ require_once '../includes/tenant.php';
 startSecureSession();
 require_once '../config/db.php';
 requireStaff();
+requirePost();
 
 $user_id = $_SESSION['user_id'];
-$token = $_POST['csrf_token'] ?? $_GET['csrf_token'] ?? '';
-$id = isset($_REQUEST['id']) ? (int)$_REQUEST['id'] : 0;
+$token = $_POST['csrf_token'] ?? '';
+$id = isset($_POST['id']) ? (int)$_POST['id'] : 0;
 
 if ($id <= 0 || !validateCsrfToken($token)) {
     header('Location: index.php?error=' . urlencode('Invalid security token or event ID.'));

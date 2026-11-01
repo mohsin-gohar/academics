@@ -9,6 +9,7 @@ requireParent();
 $schoolId = currentSchoolId();
 $school = currentSchool($pdo);
 $parentId = (int)$_SESSION['user_id'];
+$activeAlert = getActiveEmergencyAlert($pdo, $schoolId ? (int)$schoolId : null);
 
 $childrenStmt = $pdo->prepare("
     SELECT st.*, ps.relationship,
@@ -166,4 +167,5 @@ $recentTasks = $recentTasksStmt->fetchAll();
     </div>
 </div>
 
+<?php require __DIR__ . '/../includes/school_alert_modal.php'; ?>
 <?php require_once '../includes/footer.php'; ?>

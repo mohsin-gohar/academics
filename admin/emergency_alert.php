@@ -6,7 +6,7 @@
 $page_title = 'Emergency Closure & Alert Manager';
 require_once '../includes/header.php';
 require_once '../includes/push.php';
-requireStaff();
+requireSchoolManagement();
 
 $user_id = $_SESSION['user_id'];
 $alertSchoolId = isSuperAdmin() ? null : currentSchoolId();
@@ -41,16 +41,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($action === 'toggle_status') {
             $newStatus = (int)($alert['is_active'] ? 0 : 1);
-            $upStmt = $pdo->prepare("UPDATE emergency_alerts SET is_active = ?, updated_by = ?, updated_at = NOW() WHERE id = ?");
-            $upStmt->execute([$newStatus, $user_id, $alert['id']]);
-            
-            logActivity($pdo, $user_id, 'toggle_alert', 'emergency_alert', $alert['id'], ($newStatus ? 'Activated' : 'Deactivated') . ' emergency closure notice');
-            if ($newStatus === 1) {
-                try { push_send_to_school($pdo, $alertSchoolId, $alert['title'], $alert['message'], '/school-admin/dashboard.php'); } catch (Throwable $e) { error_log('push toggle: ' . $e->getMessage()); }
+            $expired = !empty($alert['end_date']) && $alert['end_date'] < date('Y-m-d');
+
+            if ($newStatus === 1 && $expired) {
+                $errors[] = 'This notice has already expired. Set a reopening date of today or later before activating it.';
+            } else {
+                $upStmt = $pdo->prepare("UPDATE emergency_alerts SET is_active = ?, updated_by = ?, updated_at = NOW() WHERE id = ?");
+                $upStmt->execute([$newStatus, $user_id, $alert['id']]);
+
+                logActivity($pdo, $user_id, 'toggle_alert', 'emergency_alert', $alert['id'], ($newStatus ? 'Activated' : 'Deactivated') . ' emergency closure notice');
+                if ($newStatus === 1) {
+                    try { push_send_to_school($pdo, $alertSchoolId, $alert['title'], $alert['message'], '/school-admin/dashboard.php'); } catch (Throwable $e) { error_log('push toggle: ' . $e->getMessage()); }
+                }
+                setFlashMessage('success', 'Emergency closure alert ' . ($newStatus ? 'ACTIVATED and is now LIVE across the website & portal.' : 'DEACTIVATED. Normal school operations restored.'));
+                header('Location: emergency_alert.php');
+                exit;
             }
-            setFlashMessage('success', 'Emergency closure alert ' . ($newStatus ? 'ACTIVATED and is now LIVE across the website & portal.' : 'DEACTIVATED. Normal school operations restored.'));
-            header('Location: emergency_alert.php');
-            exit;
         } elseif ($action === 'update') {
             $title = trim($_POST['title'] ?? '');
             $alert_type = trim($_POST['alert_type'] ?? 'Emergency Closure');
@@ -67,6 +73,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             if (empty($effective_date)) {
                 $errors[] = 'Effective date is required.';
+            }
+            if ($end_date !== null && $end_date < $effective_date) {
+                $errors[] = 'The reopening date cannot be earlier than the effective date.';
+            }
+            if ($is_active === 1 && $end_date !== null && $end_date < date('Y-m-d')) {
+                $errors[] = 'The reopening date is in the past. Choose today or a future date before broadcasting.';
             }
 
             if (empty($errors)) {
@@ -94,7 +106,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $stmt = $pdo->prepare("SELECT a.*, u.full_name as author_name FROM emergency_alerts a LEFT JOIN users u ON a.updated_by = u.id WHERE a.id = ?");
 $stmt->execute([$alert['id']]);
 $alert = $stmt->fetch();
-$isActive = (bool)$alert['is_active'];
+$isExpired = !empty($alert['end_date']) && $alert['end_date'] < date('Y-m-d');
+$isStoredActive = (bool)$alert['is_active'];
+$isActive = $isStoredActive && !$isExpired;
 ?>
 
 <div class="row mb-4 align-items-center">
@@ -106,7 +120,7 @@ $isActive = (bool)$alert['is_active'];
         <form method="POST" class="d-inline">
             <input type="hidden" name="csrf_token" value="<?php echo generateCsrfToken(); ?>">
             <input type="hidden" name="action" value="toggle_status">
-            <?php if ($isActive): ?>
+            <?php if ($isStoredActive): ?>
                 <button type="submit" class="btn btn-outline-danger btn-lg shadow-sm" onclick="return confirm('Deactivate Emergency Closure notice and resume normal school status?')">
                     <i class="fas fa-power-off me-2"></i> Deactivate Closure (Turn OFF)
                 </button>
@@ -138,10 +152,12 @@ $isActive = (bool)$alert['is_active'];
                 </div>
                 <div>
                     <h5 class="mb-1 fw-bold <?php echo $isActive ? 'text-white' : 'text-dark'; ?>">
-                        Status: <?php echo $isActive ? 'EMERGENCY CLOSURE ACTIVE (Broadcasting Live)' : 'NORMAL SCHOOL OPERATIONS (Alert Inactive)'; ?>
+                        Status: <?php echo $isExpired ? 'NOTICE EXPIRED (Not Visible)' : ($isActive ? 'EMERGENCY CLOSURE ACTIVE (Broadcasting Live)' : 'NORMAL SCHOOL OPERATIONS (Alert Inactive)'); ?>
                     </h5>
                     <p class="mb-0 small <?php echo $isActive ? 'text-white-50' : 'text-muted'; ?>">
-                        <?php if ($isActive): ?>
+                        <?php if ($isExpired): ?>
+                            This notice ended on <?php echo formatDate($alert['end_date']); ?> and is no longer shown. Update the reopening date to broadcast it again.
+                        <?php elseif ($isActive): ?>
                             The emergency alert banner is currently displayed across the Public Website, Student Portal, and Dashboard.
                         <?php else: ?>
                             Campus is open. No active closure alerts are visible to parents or students.
@@ -150,9 +166,9 @@ $isActive = (bool)$alert['is_active'];
                 </div>
             </div>
             <div>
-                <span class="badge <?php echo $isActive ? 'bg-white text-danger' : 'bg-success'; ?> px-3 py-2 fs-6">
+                <span class="badge <?php echo $isActive ? 'bg-white text-danger' : ($isExpired ? 'bg-warning text-dark' : 'bg-success'); ?> px-3 py-2 fs-6">
                     <i class="fas fa-circle fa-xs me-1 <?php echo $isActive ? 'text-danger' : 'text-white'; ?>"></i>
-                    <?php echo $isActive ? 'LIVE ON SITE' : 'OFFLINE'; ?>
+                    <?php echo $isExpired ? 'EXPIRED' : ($isActive ? 'LIVE ON SITE' : 'OFFLINE'); ?>
                 </span>
             </div>
         </div>
@@ -260,7 +276,7 @@ $isActive = (bool)$alert['is_active'];
                 <div class="mt-4 p-3 bg-light rounded-3 border">
                     <h6 class="fw-bold small text-dark mb-2"><i class="fas fa-shield-alt text-success me-1"></i>Security & Permissions Note:</h6>
                     <ul class="small text-muted mb-0 ps-3">
-                        <li>Only authorized faculty and administration staff can modify or toggle emergency notices.</li>
+                        <li>Only school administrators and management can modify or toggle emergency notices.</li>
                         <li>Students and parents have read-only visibility on the public website and portal.</li>
                         <li>All status changes and modifications are logged in the system audit trail.</li>
                     </ul>

@@ -90,8 +90,16 @@ $users = $stmt->fetchAll();
                         <td class="text-end">
                             <a href="edit_user.php?id=<?php echo $u['id']; ?>" class="btn btn-sm btn-outline-primary"><i class="fas fa-edit"></i></a>
                             <?php if ($u['id'] != $_SESSION['user_id']): ?>
-                            <a href="toggle_user.php?id=<?php echo $u['id']; ?>&csrf_token=<?php echo generateCsrfToken(); ?>" class="btn btn-sm btn-outline-warning" title="Toggle Status"><i class="fas fa-power-off"></i></a>
-                            <a href="delete_user.php?id=<?php echo $u['id']; ?>&csrf_token=<?php echo generateCsrfToken(); ?>" class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete this user?')"><i class="fas fa-trash"></i></a>
+                            <form method="post" action="toggle_user.php" class="d-inline">
+                                <?php echo csrfField(); ?>
+                                <input type="hidden" name="id" value="<?php echo (int)$u['id']; ?>">
+                                <button type="submit" class="btn btn-sm btn-outline-warning" title="Toggle Status"><i class="fas fa-power-off"></i></button>
+                            </form>
+                            <form method="post" action="delete_user.php" class="d-inline" onsubmit="return confirm('Delete this user?');">
+                                <?php echo csrfField(); ?>
+                                <input type="hidden" name="id" value="<?php echo (int)$u['id']; ?>">
+                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete"><i class="fas fa-trash"></i></button>
+                            </form>
                             <?php endif; ?>
                         </td>
                     </tr>

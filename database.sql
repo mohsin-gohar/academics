@@ -41,10 +41,6 @@ INSERT INTO `activity_logs` (`id`, `school_id`, `user_id`, `action`, `entity_typ
 ('4', '1', '2', 'login', 'user', '2', 'User logged in', '::1', 'unknown', '2026-10-26 18:55:08'),
 ('5', '1', '3', 'login', 'user', '3', 'User logged in', '::1', 'unknown', '2026-10-26 18:55:09'),
 ('6', NULL, '1', 'login', 'user', '1', 'User logged in', '::1', 'unknown', '2026-10-26 18:55:56'),
-('7', NULL, '1', 'create', 'course', '4', 'Created course: Test Course', '::1', 'unknown', '2026-10-26 18:55:56'),
-('8', NULL, '1', 'create_event', 'school_events', '7', 'Added event: Test Event', '::1', 'unknown', '2026-10-26 18:55:57'),
-('9', NULL, '1', 'create', 'student', '2', 'Created student: Test Student', '::1', 'unknown', '2026-10-26 18:55:57'),
-('10', NULL, '1', 'create', 'task', '5', 'Created task: Test Task', '::1', 'unknown', '2026-10-26 18:55:57'),
 ('11', NULL, '1', 'login', 'user', '1', 'User logged in', '::1', 'unknown', '2026-10-26 20:22:13'),
 ('12', NULL, '1', 'login', 'user', '1', 'User logged in', '::1', 'unknown', '2026-10-26 21:05:38'),
 ('13', NULL, '1', 'login', 'user', '1', 'User logged in', '::1', 'unknown', '2026-10-26 21:05:38'),
@@ -80,7 +76,6 @@ INSERT INTO `activity_logs` (`id`, `school_id`, `user_id`, `action`, `entity_typ
 ('42', '1', '2', 'login', 'user', '2', 'User logged in', '::1', 'Mozilla/5.0 (Windows NT; Windows NT 10.0; en-US) WindowsPowerShell/5.1.22621.4249', '2026-10-28 07:28:39'),
 ('43', '1', '3', 'login', 'user', '3', 'User logged in', '::1', 'Mozilla/5.0 (Windows NT; Windows NT 10.0; en-US) WindowsPowerShell/5.1.22621.4249', '2026-10-28 07:28:40'),
 ('44', NULL, '1', 'login', 'user', '1', 'User logged in', '::1', 'Mozilla/5.0 (Windows NT; Windows NT 10.0; en-US) WindowsPowerShell/5.1.22621.4249', '2026-10-28 07:28:40'),
-('45', NULL, '1', 'create', 'task', '18', 'Created task: QA Test Task', '::1', 'Mozilla/5.0 (Windows NT; Windows NT 10.0; en-US) WindowsPowerShell/5.1.22621.4249', '2026-10-28 07:28:41'),
 ('46', NULL, '1', 'login', 'user', '1', 'User logged in', '::1', 'Mozilla/5.0 (Windows NT; Windows NT 10.0; en-US) WindowsPowerShell/5.1.22621.4249', '2026-10-28 07:31:53'),
 ('47', NULL, '1', 'login', 'user', '1', 'User logged in', '::1', 'Mozilla/5.0 (Windows NT; Windows NT 10.0; en-US) WindowsPowerShell/5.1.22621.4249', '2026-10-28 08:09:37'),
 ('48', NULL, '1', 'login', 'user', '1', 'User logged in', '::1', 'Mozilla/5.0 (Windows NT; Windows NT 10.0; en-US) WindowsPowerShell/5.1.22621.4249', '2026-10-28 08:09:38'),
@@ -295,8 +290,7 @@ CREATE TABLE `courses` (
 INSERT INTO `courses` (`id`, `school_id`, `course_code`, `course_name`, `description`, `credits`, `instructor_id`, `schedule`, `start_date`, `end_date`, `capacity`, `status`, `created_by`, `created_at`, `updated_at`) VALUES
 ('1', '1', 'CS101', 'Introduction to Computer Science', 'Fundamentals of computer science and programming in C and PHP', '3', '2', 'Mon/Wed 10:00 - 11:30 AM', '2026-10-26', '2027-04-26', '30', 'Active', '1', '2026-10-26 18:49:45', '2026-10-28 08:45:58'),
 ('2', '1', 'MATH201', 'Calculus II', 'Advanced calculus topics including integration, multivariable calculus, and infinite series', '4', '2', 'Tue/Thu 09:00 - 10:30 AM', '2026-10-26', '2027-04-26', '25', 'Active', '1', '2026-10-26 18:49:45', '2026-10-28 08:45:58'),
-('3', '1', 'ENG101', 'English Composition', 'Academic writing, reading comprehension, and business communications', '3', '2', 'Fri 02:00 - 04:00 PM', '2026-10-26', '2027-04-26', '35', 'Active', '1', '2026-10-26 18:49:45', '2026-10-28 08:45:58'),
-('4', '1', 'TEST101', 'Test Course', NULL, '3', NULL, 'Mon 10:00', NULL, NULL, '30', 'Active', '1', '2026-10-26 18:55:56', '2026-10-28 08:45:58');
+('3', '1', 'ENG101', 'English Composition', 'Academic writing, reading comprehension, and business communications', '3', '2', 'Fri 02:00 - 04:00 PM', '2026-10-26', '2027-04-26', '35', 'Active', '1', '2026-10-26 18:49:45', '2026-10-28 08:45:58');
 
 -- --------------------------------------------------------
 -- Table structure for table `emergency_alerts`
@@ -455,10 +449,9 @@ INSERT INTO `school_events` (`id`, `school_id`, `title`, `event_type`, `descript
 ('4', '1', 'Mid-Term Examination Commencement', 'Exam', 'Formal examination period for all grades. Date sheet published on notice board.', '2026-11-13', '2026-11-23', '0', 'Upcoming', '1', '2026-10-26 18:49:45'),
 ('5', '1', 'Kashmir Solidarity Day (Gazetted Holiday)', 'Holiday', 'School will remain closed in observance of National Kashmir Day.', '2026-11-04', NULL, '1', 'Upcoming', '1', '2026-10-26 18:49:45'),
 ('6', '1', 'Winter Break Holidays', 'Holiday', 'Annual winter vacation for all classes. Administrative offices will remain open.', '2026-11-30', '2026-12-10', '1', 'Upcoming', '1', '2026-10-26 18:49:45'),
-('7', '1', 'Test Event', 'Function', '', '2026-10-26', NULL, '1', 'Upcoming', '1', '2026-10-26 18:55:57'),
-('22', '1', 'Annual Science Exhibition', 'Function', 'Auto-seeded demo event.', '2026-11-09', NULL, '0', 'Upcoming', '5', '2026-10-28 08:46:00'),
-('23', '1', 'Founder\'s Day Holiday', 'Holiday', 'Auto-seeded demo event.', '2026-11-17', NULL, '1', 'Upcoming', '5', '2026-10-28 08:46:00'),
-('24', '2', 'Inter-School Debate', '', 'Auto-seeded demo event.', '2026-11-12', NULL, '0', 'Upcoming', '9', '2026-10-28 08:46:00');
+('22', '1', 'Annual Science Exhibition', 'Function', 'Students showcase science projects, experiments and innovations.', '2026-11-09', NULL, '0', 'Upcoming', '5', '2026-10-28 08:46:00'),
+('23', '1', 'Founder\'s Day Holiday', 'Holiday', 'Campus closed in honour of the school founder.', '2026-11-17', NULL, '1', 'Upcoming', '5', '2026-10-28 08:46:00'),
+('24', '2', 'Inter-School Debate', 'Function', 'Debate teams from neighbouring schools compete on current affairs.', '2026-11-12', NULL, '0', 'Upcoming', '9', '2026-10-28 08:46:00');
 
 -- --------------------------------------------------------
 -- Table structure for table `school_settings`
@@ -559,7 +552,6 @@ CREATE TABLE `students` (
 -- Dumping data for table `students`
 INSERT INTO `students` (`id`, `school_id`, `user_id`, `student_number`, `full_name`, `email`, `phone`, `date_of_birth`, `gender`, `address`, `enrollment_date`, `status`, `profile_image`, `created_at`, `updated_at`) VALUES
 ('1', '1', '3', 'STU-2024-001', 'Demo Student', 'student@edusphere.com', NULL, NULL, NULL, NULL, '2026-10-26', 'Active', NULL, '2026-10-26 18:49:45', '2026-10-28 08:45:58'),
-('2', '1', '4', 'STU-2026-0002', 'Test Student', 'test1793022957@example.com', NULL, NULL, NULL, NULL, '2026-10-26', 'Active', NULL, '2026-10-26 18:55:57', '2026-10-28 08:45:58'),
 ('31', '1', '7', 'SCH001-STU-1366', 'Ayesha Malik', 'student@sch001.com', NULL, NULL, NULL, NULL, '2026-10-28', 'Active', NULL, '2026-10-28 08:46:00', '2026-10-28 08:46:00'),
 ('32', '2', '11', 'SCH002-STU-5009', 'Hamza Sheikh', 'student@sch002.com', NULL, NULL, NULL, NULL, '2026-10-28', 'Active', NULL, '2026-10-28 08:46:00', '2026-10-28 08:46:00');
 
@@ -604,8 +596,6 @@ INSERT INTO `tasks` (`id`, `school_id`, `user_id`, `student_id`, `created_by_use
 ('2', '1', '1', '1', NULL, NULL, 'school', '2', 'Study for Midterm', 'Review calculus chapters 1 through 5 including integration techniques and limits.', 'Medium', 'In Progress', '2026-11-09', NULL, '2026-10-26 18:49:45', '2026-10-28 08:45:58'),
 ('3', '1', '2', '1', NULL, NULL, 'school', '1', 'Grade Assignment 1', 'Grade and provide feedback on student submissions for CS101.', 'Urgent', 'Pending', '2026-10-29', NULL, '2026-10-26 18:49:45', '2026-10-28 08:45:58'),
 ('4', '1', '3', '1', NULL, NULL, 'school', '1', 'Read Chapter 3', 'Read and summarize chapter 3 on Object-Oriented Programming and PDO security.', 'Low', 'Completed', '2026-10-24', '2026-10-26 18:49:45', '2026-10-26 18:49:45', '2026-10-28 08:45:58'),
-('5', '1', '1', NULL, NULL, NULL, 'school', NULL, 'Test Task', 'Test Description', 'Medium', 'Completed', '2026-11-02', '2026-10-28 07:10:21', '2026-10-26 18:55:57', '2026-10-28 08:45:58'),
-('18', '1', '1', '1', NULL, NULL, 'school', '1', 'QA Test Task', 'Created by QA', 'High', 'Pending', '2026-11-04', NULL, '2026-10-28 07:28:41', '2026-10-28 08:45:58'),
 ('21', '1', '6', '31', '6', '31', 'school', NULL, 'Algebra Worksheet Chapter 4', 'Complete exercises 4.1 to 4.5 and upload scans.', 'High', 'Pending', '2026-11-02', NULL, '2026-10-28 08:46:00', '2026-10-28 08:46:00'),
 ('22', '1', '6', '31', '6', '31', 'school', NULL, 'Science Lab Report', 'Write a report on the photosynthesis experiment.', 'Medium', 'In Progress', '2026-11-06', NULL, '2026-10-28 08:46:00', '2026-10-28 08:46:00'),
 ('23', '2', '10', '32', '10', '32', 'school', NULL, 'English Essay — My City', '300 words descriptive essay.', 'Medium', 'Pending', '2026-11-04', NULL, '2026-10-28 08:46:00', '2026-10-28 08:46:00');
@@ -673,7 +663,6 @@ INSERT INTO `users` (`id`, `school_id`, `full_name`, `email`, `password`, `role`
 ('1', NULL, 'System Administrator', 'admin@edusphere.com', '$2y$10$Ro246yHuqUPebBbJbl.9MeB9nETD76fg14wh2/VkT3XSxMY13eZn.', 'admin', '1', '2026-10-28 20:10:47', '2026-10-26 18:49:45', '2026-10-28 20:10:47'),
 ('2', '1', 'Demo Teacher', 'teacher@edusphere.com', '$2y$10$fdLHo1oH5S87q/wOHKEvG.1GMKqWP36codnsePNtzqkBMN.o9OaTy', 'teacher', '1', '2026-10-28 20:10:48', '2026-10-26 18:49:45', '2026-10-28 20:10:48'),
 ('3', '1', 'Demo Student', 'student@edusphere.com', '$2y$10$YVCQz.bWZCEQa0EzR59AjeAmntdQB//ttnGIcWZUuqn5sTEvLuu/.', 'student', '1', '2026-10-28 20:10:49', '2026-10-26 18:49:45', '2026-10-28 20:10:49'),
-('4', '1', 'Test Student', 'test1793022957@example.com', '$2y$10$F5kn.xKMxSKOawjNdnbm2eTMA4Zb/ALypXmVT0Y8U5KK8Zx/iH9qa', 'student', '1', NULL, '2026-10-26 18:55:57', '2026-10-28 08:45:58'),
 ('5', '1', 'Sarah Khan (School Admin)', 'schooladmin@sch001.com', '$2y$10$YwLek1mTDV08fvgv5LlAsesu4g/UtRNf74ro0zmBY374gu3oX1tdW', 'school_admin', '1', '2026-10-28 11:44:44', '2026-10-28 08:45:59', '2026-10-28 11:44:44'),
 ('6', '1', 'Imran Ali (Teacher)', 'teacher@sch001.com', '$2y$10$V1WJEsXhjrSCBXzUJOknZewGNMg28t6BO6PpAZtPPHeWTD10NBzoS', 'teacher', '1', '2026-10-28 11:44:41', '2026-10-28 08:45:59', '2026-10-28 11:44:41'),
 ('7', '1', 'Ayesha Malik (Student)', 'student@sch001.com', '$2y$10$1Ct1YACJbKErOf2ooF4r6OuiT.gY/T46Xegwc8.xC.PvOjwKgoduG', 'student', '1', '2026-10-28 11:44:48', '2026-10-28 08:45:59', '2026-10-28 11:44:48'),

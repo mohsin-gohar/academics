@@ -12,29 +12,39 @@ class EventsAlertsTest {
     public function run(): array {
         $results = [];
 
-        // Test 1: Emergency alerts table exists and active alert can be fetched
+        // Test 1: Emergency alerts table exists and an active alert can be fetched.
+        // Create a self-contained alert so the test never depends on demo data
+        // (or on dates that eventually expire).
+        $testAlertTitle = 'QA Emergency Closure ' . time();
+        $insAlert = $this->pdo->prepare("INSERT INTO emergency_alerts
+            (school_id, title, message, alert_type, effective_date, end_date, is_active)
+            VALUES (1, ?, 'Automated test alert', 'Emergency Closure', CURDATE(), DATE_ADD(CURDATE(), INTERVAL 1 DAY), 1)");
+        $insAlert->execute([$testAlertTitle]);
+        $alertId = (int)$this->pdo->lastInsertId();
+
         $alert = getActiveEmergencyAlert($this->pdo, 1);
         $results[] = [
             'name' => 'getActiveEmergencyAlert retrieves active emergency closure notice',
-            'pass' => $alert !== null && !empty($alert['title'])
+            'pass' => $alert !== null && (int)$alert['id'] === $alertId && !empty($alert['title'])
         ];
 
         // Test 2: Emergency alert status toggle
-        if ($alert) {
-            $currStatus = (int)$alert['is_active'];
-            $newStatus = $currStatus === 1 ? 0 : 1;
-            $this->pdo->prepare("UPDATE emergency_alerts SET is_active = ? WHERE id = ?")->execute([$newStatus, $alert['id']]);
-            
+        if ($alertId > 0) {
+            $newStatus = 0;
+            $this->pdo->prepare("UPDATE emergency_alerts SET is_active = ? WHERE id = ?")->execute([$newStatus, $alertId]);
+
             $chk = $this->pdo->prepare("SELECT is_active FROM emergency_alerts WHERE id = ?");
-            $chk->execute([$alert['id']]);
+            $chk->execute([$alertId]);
             $updated = (int)$chk->fetchColumn();
 
-            // restore original status
-            $this->pdo->prepare("UPDATE emergency_alerts SET is_active = ? WHERE id = ?")->execute([$currStatus, $alert['id']]);
+            // A deactivated alert must no longer be returned.
+            $afterToggle = getActiveEmergencyAlert($this->pdo, 1);
+
+            $this->pdo->prepare("DELETE FROM emergency_alerts WHERE id = ?")->execute([$alertId]);
 
             $results[] = [
                 'name' => 'Emergency alert is_active status can be toggled by school admin',
-                'pass' => $updated === $newStatus
+                'pass' => $updated === $newStatus && ($afterToggle === null || (int)$afterToggle['id'] !== $alertId)
             ];
         }
 

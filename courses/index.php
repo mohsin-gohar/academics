@@ -96,7 +96,11 @@ $courses = $stmt->fetchAll();
                                 <a href="show.php?id=<?php echo $c['id']; ?>" class="btn btn-sm btn-outline-info" title="View"><i class="fas fa-eye"></i></a>
                                 <?php if (isStaff()): ?>
                                 <a href="edit.php?id=<?php echo $c['id']; ?>" class="btn btn-sm btn-outline-primary" title="Edit"><i class="fas fa-edit"></i></a>
-                                <a href="delete.php?id=<?php echo $c['id']; ?>&csrf_token=<?php echo generateCsrfToken(); ?>" class="btn btn-sm btn-outline-danger" title="Delete" onclick="return confirm('Delete this course?')"><i class="fas fa-trash"></i></a>
+                                <form method="post" action="delete.php" class="d-inline" onsubmit="return confirm('Delete this course?');">
+                                    <?php echo csrfField(); ?>
+                                    <input type="hidden" name="id" value="<?php echo (int)$c['id']; ?>">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete"><i class="fas fa-trash"></i></button>
+                                </form>
                                 <?php endif; ?>
                             </td>
                         </tr>

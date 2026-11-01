@@ -1,4 +1,4 @@
-# EduSphere Apache Security Configuration
+# Academics Apache Security Configuration
 
 # Prevent Directory Browsing
 Options -Indexes
@@ -8,26 +8,45 @@ AddDefaultCharset UTF-8
 
 # Security Headers
 <IfModule mod_headers.c>
-    Header set X-Content-Type-Options "nosniff"
-    Header set X-Frame-Options "SAMEORIGIN"
-    Header set X-XSS-Protection "1; mode=block"
-    Header set Referrer-Policy "strict-origin-when-cross-origin"
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set X-XSS-Protection "1; mode=block"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    Header always set Permissions-Policy "geolocation=(), microphone=(), camera=()"
+    Header always set Cross-Origin-Opener-Policy "same-origin"
+    # Only advertise HSTS when the request actually arrived over HTTPS.
+    Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains" env=HTTPS
 </IfModule>
 
 # Protect sensitive files from web access
-<FilesMatch "^(\.env|\.git|\.htaccess|.*\.sql|composer\.json|package\.json)$">
+<FilesMatch "^(\.env.*|\.git.*|\.htaccess|.*\.sql|.*\.log|composer\.(json|lock)|package(-lock)?\.json|README\.md|.*\.md)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
     <IfModule !mod_authz_core.c>
         Order allow,deny
         Deny from all
     </IfModule>
+</FilesMatch>
+
+# Block direct web access to server-side only directories.
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^(storage|tests|database|config|includes)/ - [F,L]
+</IfModule>
+
+# Fallback for hosts without mod_rewrite: deny these directories outright.
+<IfModule !mod_rewrite.c>
+    RedirectMatch 403 ^/(storage|tests|database|config|includes)/
+</IfModule>
+
+# Deny legacy debug / one-off scripts if they are ever re-added.
+<FilesMatch "^(check_schema.*|cleanup_test|fix_demo_data|populate_demo|test_insert|verify_data)\.php$">
     <IfModule mod_authz_core.c>
         Require all denied
     </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
 </FilesMatch>
-
-# Block access to storage and logs
-<IfModule mod_rewrite.c>
-    RewriteEngine On
-    RewriteRule ^storage/logs/ - [F,L]
-    RewriteRule ^tests/ - [F,L]
-</IfModule>

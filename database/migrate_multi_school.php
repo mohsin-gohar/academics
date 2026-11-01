@@ -312,16 +312,16 @@ seedTask($pdo, $school1, $userIds['teacher@sch001.com'], $stu1, 'Algebra Workshe
 seedTask($pdo, $school1, $userIds['teacher@sch001.com'], $stu1, 'Science Lab Report', 'Write a report on the photosynthesis experiment.', 'Medium', 'In Progress', 9);
 seedTask($pdo, $school2, $userIds['teacher@sch002.com'], $stu2, 'English Essay — My City', '300 words descriptive essay.', 'Medium', 'Pending', 7);
 
-function seedEvent(PDO $pdo, int $schoolId, int $creatorId, string $title, string $type, string $date, int $holiday, string $status): void {
+function seedEvent(PDO $pdo, int $schoolId, int $creatorId, string $title, string $type, string $date, int $holiday, string $status, string $desc = 'School community event.'): void {
     $exists = q($pdo, "SELECT COUNT(*) FROM school_events WHERE school_id = ? AND title = ?", [$schoolId, $title])->fetchColumn();
     if ($exists) return;
     q($pdo, "INSERT INTO school_events (school_id, title, event_type, description, event_date, is_holiday, status, created_by)
              VALUES (?,?,?,?,?,?,?,?)",
-        [$schoolId, $title, $type, 'Auto-seeded demo event.', $date, $holiday, $status, $creatorId]);
+        [$schoolId, $title, $type, $desc, $date, $holiday, $status, $creatorId]);
 }
-seedEvent($pdo, $school1, $userIds['schooladmin@sch001.com'], 'Annual Science Exhibition', 'Function', date('Y-m-d', strtotime('+12 days')), 0, 'Upcoming');
-seedEvent($pdo, $school1, $userIds['schooladmin@sch001.com'], 'Founder\'s Day Holiday', 'Holiday', date('Y-m-d', strtotime('+20 days')), 1, 'Upcoming');
-seedEvent($pdo, $school2, $userIds['schooladmin@sch002.com'], 'Inter-School Debate', 'Competition', date('Y-m-d', strtotime('+15 days')), 0, 'Upcoming');
+seedEvent($pdo, $school1, $userIds['schooladmin@sch001.com'], 'Annual Science Exhibition', 'Function', date('Y-m-d', strtotime('+12 days')), 0, 'Upcoming', 'Students showcase science projects, experiments and innovations.');
+seedEvent($pdo, $school1, $userIds['schooladmin@sch001.com'], 'Founder\'s Day Holiday', 'Holiday', date('Y-m-d', strtotime('+20 days')), 1, 'Upcoming', 'Campus closed in honour of the school founder.');
+seedEvent($pdo, $school2, $userIds['schooladmin@sch002.com'], 'Inter-School Debate', 'Function', date('Y-m-d', strtotime('+15 days')), 0, 'Upcoming', 'Debate teams from neighbouring schools compete on current affairs.');
 echo "[ok] demo tasks & events\n";
 
 /* ------------------------------------------------------------------

@@ -3,10 +3,11 @@ require_once '../includes/functions.php';
 require_once '../includes/tenant.php';
 require_once '../config/db.php';
 requireStaff();
+requirePost();
 
-$token = $_POST['csrf_token'] ?? $_GET['csrf_token'] ?? '';
-$id = isset($_REQUEST['id']) ? (int)$_REQUEST['id'] : 0;
-$course_id = isset($_REQUEST['course']) ? (int)$_REQUEST['course'] : 0;
+$token = $_POST['csrf_token'] ?? '';
+$id = isset($_POST['id']) ? (int)$_POST['id'] : 0;
+$course_id = isset($_POST['course']) ? (int)$_POST['course'] : 0;
 
 if ($id <= 0 || !validateCsrfToken($token)) { 
     header('Location: ' . ($course_id ? 'show.php?id=' . $course_id : 'index.php') . '&error=' . urlencode('Invalid security token.')); 

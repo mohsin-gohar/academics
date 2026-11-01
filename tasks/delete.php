@@ -4,10 +4,11 @@ require_once '../includes/tenant.php';
 require_once '../config/db.php';
 requireAuth();
 requireStaff();
+requirePost();
 
 $user_id = $_SESSION['user_id'];
 $token = $_POST['csrf_token'] ?? '';
-$id = isset($_POST['id']) ? (int)$_POST['id'] : (isset($_GET['id']) ? (int)$_GET['id'] : 0);
+$id = isset($_POST['id']) ? (int)$_POST['id'] : 0;
 
 if ($id <= 0 || $token === '' || !validateCsrfToken($token)) {
     header('Location: index.php?error=' . urlencode('Invalid or missing security token.'));
