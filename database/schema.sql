@@ -325,3 +325,71 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
     KEY idx_school (school_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- TIMETABLES TABLE
+CREATE TABLE IF NOT EXISTS timetables (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    school_id INT NULL,
+    teacher_id INT NOT NULL,
+    course_id INT NOT NULL,
+    day_of_week ENUM('Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday') NOT NULL,
+    start_time TIME NOT NULL,
+    end_time TIME NOT NULL,
+    room VARCHAR(100) DEFAULT NULL,
+    student_ids TEXT DEFAULT NULL,
+    status ENUM('Active','Cancelled') DEFAULT 'Active',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (teacher_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE,
+    INDEX idx_tt_teacher (teacher_id),
+    INDEX idx_tt_course (course_id),
+    INDEX idx_tt_day (day_of_week)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- MESSAGES TABLE
+CREATE TABLE IF NOT EXISTS messages (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    school_id INT NULL,
+    sender_id INT NOT NULL,
+    receiver_id INT NOT NULL,
+    content TEXT NOT NULL,
+    type ENUM('System','Parent','Teacher','General') DEFAULT 'Teacher',
+    read_status TINYINT(1) DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (receiver_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_msg_sender (sender_id),
+    INDEX idx_msg_receiver (receiver_id),
+    INDEX idx_msg_read (read_status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- LEAVE REQUESTS TABLE
+CREATE TABLE IF NOT EXISTS leave_requests (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    school_id INT NULL,
+    user_id INT NOT NULL,
+    leave_type ENUM('Medical','Personal','Study','Other') NOT NULL DEFAULT 'Personal',
+    start_date DATE NOT NULL,
+    end_date DATE NOT NULL,
+    reason TEXT NOT NULL,
+    status ENUM('Pending','Approved','Rejected') DEFAULT 'Pending',
+    approved_by INT DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (approved_by) REFERENCES users(id) ON DELETE SET NULL,
+    INDEX idx_leave_user (user_id),
+    INDEX idx_leave_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- SETTINGS TABLE (Alias for application / tenant settings)
+CREATE TABLE IF NOT EXISTS settings (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    `key` VARCHAR(100) NOT NULL UNIQUE,
+    `value` TEXT,
+    category VARCHAR(50) DEFAULT 'General',
+    updated_by INT DEFAULT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL,
+    INDEX idx_settings_key (`key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
