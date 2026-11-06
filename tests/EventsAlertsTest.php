@@ -44,7 +44,7 @@ class EventsAlertsTest {
 
             $results[] = [
                 'name' => 'Emergency alert is_active status can be toggled by school admin',
-                'pass' => $updated === $newStatus && ($afterToggle === null || (int)$afterToggle['id'] !== $alertId)
+                'pass' => $updated === $newStatus && (empty($afterToggle) || (int)$afterToggle['id'] !== $alertId)
             ];
         }
 

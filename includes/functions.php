@@ -83,6 +83,11 @@ function getUserRole() {
     return $_SESSION['user_role'] ?? 'student';
 }
 
+// Alias for getUserRole
+function getRole() {
+    return getUserRole();
+}
+
 // Check if user has role
 function hasRole($role) {
     return getUserRole() === $role;
@@ -131,6 +136,16 @@ function isSchoolManagement() {
 function requireSuperAdmin() {
     requireAuth();
     if (!isSuperAdmin()) {
+        http_response_code(403);
+        header('Location: ' . getBasePath() . 'errors/403.php');
+        exit;
+    }
+}
+
+// Require student access
+function requireStudent() {
+    requireAuth();
+    if (!isStudent()) {
         http_response_code(403);
         header('Location: ' . getBasePath() . 'errors/403.php');
         exit;
@@ -575,6 +590,21 @@ function logActivity($pdo, $userId, $action, $entityType = null, $entityId = nul
     }
 }
 
+// Alias for logActivity
+function recordActivity($pdo, $userId, $action, $entityType = null, $entityId = null, $description = null) {
+    return logActivity($pdo, $userId, $action, $entityType, $entityId, $description);
+}
+
+// Password hashing helper
+function hashPassword($password) {
+    return password_hash($password, PASSWORD_BCRYPT);
+}
+
+// Password verification helper
+function verifyPassword($password, $hash) {
+    return password_verify($password, $hash);
+}
+
 // Check login rate limit
 function checkLoginRateLimit($pdo, $email) {
     $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
@@ -692,7 +722,8 @@ function getActiveEmergencyAlert($pdo, $schoolId = null) {
                 ORDER BY (school_id = ?) DESC, id DESC LIMIT 1");
             $stmt->execute([(int)$schoolId, (int)$schoolId]);
         }
-        return $stmt->fetch(PDO::FETCH_ASSOC);
+        $res = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $res ?: null;
     } catch (PDOException $e) {
         return null;
     }

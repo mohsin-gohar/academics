@@ -1,7 +1,7 @@
 <?php
 /**
- * Academics Automated Test Runner
- * Executes unit, integration, database, and security tests.
+ * Academics / EduSphere Automated Test Runner
+ * Executes unit, integration, database, security, and feature tests.
  */
 
 // Set CLI environment
@@ -12,6 +12,7 @@ require_once __DIR__ . '/../includes/functions.php';
 startSecureSession();
 require_once __DIR__ . '/../config/db.php';
 
+// Core suites
 require_once __DIR__ . '/AuthTest.php';
 require_once __DIR__ . '/TasksTest.php';
 require_once __DIR__ . '/StudentsCoursesTest.php';
@@ -19,9 +20,15 @@ require_once __DIR__ . '/SecurityTest.php';
 require_once __DIR__ . '/EventsAlertsTest.php';
 require_once __DIR__ . '/SaasTest.php';
 
+// Expanded modular suites
+require_once __DIR__ . '/test_auth.php';
+require_once __DIR__ . '/test_security.php';
+require_once __DIR__ . '/test_models.php';
+require_once __DIR__ . '/test_features.php';
+
 echo "\n";
 echo "====================================================================\n";
-echo "       ACADEMICS SCHOOL MANAGEMENT PLATFORM — TEST SUITE          \n";
+echo "       EDUSPHERE ENTERPRISE SCHOOL MANAGEMENT — TEST SUITE          \n";
 echo "====================================================================\n";
 echo " Environment: PHP " . PHP_VERSION . " | MySQL PDO | UTF-8\n";
 echo " Timezone:    " . date_default_timezone_get() . "\n";
@@ -30,10 +37,14 @@ echo "--------------------------------------------------------------------\n\n";
 
 $suites = [
     'Authentication & Session Security' => new AuthTest($pdo),
+    'Auth Deep-Dive Suite (test_auth)' => new TestAuthSuite($pdo),
     'Mandatory Tasks Module & Lifecycle' => new TasksTest($pdo),
     'Students, Courses & Enrollments'   => new StudentsCoursesTest($pdo),
+    'Database Models & Constraints (test_models)' => new TestModelsSuite($pdo),
     'Security, SQLi, XSS & Injection'   => new SecurityTest($pdo),
+    'Security Hardening & RBAC (test_security)' => new TestSecuritySuite($pdo),
     'School Events, Holidays & Alerts'  => new EventsAlertsTest($pdo),
+    'Advanced Features: Attendance, Grades, Fees, Timetable (test_features)' => new TestFeaturesSuite($pdo),
     'SaaS Plans, Trials & Subscriptions' => new SaasTest($pdo),
 ];
 

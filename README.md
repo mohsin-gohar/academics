@@ -295,15 +295,14 @@ Legacy demo accounts `teacher@edusphere.com` / `Teacher@123` and `student@edusph
 
 ## 7. How to Run the Automated Test Suite
 
-Academics includes an automated test runner verifying 53 critical test cases across authentication, task management, relational integrity, tenant isolation, SaaS billing, and application security.
+EduSphere / Academics includes a comprehensive automated test runner verifying **100+ critical test cases** across authentication, security, database models, feature workflows (attendance, grades, fees, timetables, messages, leave requests), tenant isolation, SaaS billing, and application security.
 
-To run the tests from your terminal (PowerShell or Command Prompt):
-```powershell
-cd F:\student-task-manager
+To run the tests from your terminal:
+```bash
 php tests/run_tests.php
 ```
 
-### Verified Test Suite Breakdown:
+### Verified Test Suite Breakdown (101 Passing Tests):
 1. **Authentication & Session Security Suite**:
    - `Password hashing creates valid bcrypt hash`
    - `Admin demo account authenticates with Admin@123`
@@ -315,7 +314,22 @@ php tests/run_tests.php
    - `validateCsrfToken accepts matching token`
    - `validateCsrfToken rejects forged or tampered token`
 
-2. **Mandatory Tasks Module & Lifecycle Suite**:
+2. **Auth Deep-Dive Suite (test_auth.php)**:
+   - `hashPassword creates valid bcrypt signature`
+   - `verifyPassword helper returns true for valid password`
+   - `verifyPassword helper returns false for invalid password`
+   - `generateCsrfToken produces 64-char hexadecimal string`
+   - `validateCsrfToken validates session token correctly`
+   - `validateCsrfToken rejects empty or invalid token`
+   - `checkLoginRateLimit triggers after 5 failed attempts`
+   - `clearLoginAttempts resets rate limit counter`
+   - `isValidEmail accepts valid formats and rejects invalid formats`
+   - `getRole returns valid role string`
+   - `createPasswordResetToken generates valid reset token`
+   - `validatePasswordResetToken returns matching email address`
+   - `consumePasswordResetToken updates user password successfully`
+
+3. **Mandatory Tasks Module & Lifecycle Suite**:
    - `Task can be successfully created in database`
    - `Created task can be retrieved with correct attributes`
    - `Completing a task records completion timestamp`
@@ -323,7 +337,7 @@ php tests/run_tests.php
    - `Overdue tasks are correctly identified by query logic`
    - `Task can be deleted and removed from database`
 
-3. **Students, Courses & Enrollments Suite**:
+4. **Students, Courses & Enrollments Suite**:
    - `generateStudentNumber returns standard STU-YYYY-XXXX format`
    - `Student record can be created successfully`
    - `Database enforces UNIQUE constraint on student email`
@@ -332,7 +346,19 @@ php tests/run_tests.php
    - `Student successfully enrolled into course`
    - `Database prevents duplicate enrollment of same student in same course`
 
-4. **Security, SQLi, XSS & Injection Suite**:
+5. **Database Models & Constraints Suite (test_models.php)**:
+   - `Users model: Insert record and retrieve ID`
+   - `Students model: Auto-generates valid format student number`
+   - `Students model: Create student record successfully`
+   - `Students model: Database enforces unique student_number constraint`
+   - `Courses model: Create course record with code and credits`
+   - `Enrollments model: Enroll student to course`
+   - `Enrollments model: Enforces unique student and course composite key`
+   - `Tasks model: Create and assign task successfully`
+   - `Tasks model: Completed status stamps completed_at timestamp`
+   - `Models cascade deletion and test data cleanup`
+
+6. **Security, SQLi, XSS & Injection Suite**:
    - `Prepared statement safely neutralizes classic SQLi payload (OR 1=1)`
    - `Prepared statement neutralizes UNION-based SQLi attempt`
    - `e() helper escapes dangerous script tags to &lt;script&gt;`
@@ -344,10 +370,36 @@ php tests/run_tests.php
    - `Teacher role correctly validates isStaff=true, isAdmin=false, isStudent=false`
    - `Student role correctly validates isStudent=true, isStaff=false, isAdmin=false`
 
-5. **School Events, Holidays & Alerts Suite**:
-   - Event lifecycle, holiday handling, emergency alerts, and tenant-scoped visibility.
+7. **Security Hardening & RBAC Suite (test_security.php)**:
+   - `SQLi attacks safely neutralized across parameter variations`
+   - `e() HTML entity encoding neutralizes malicious script tags and attributes`
+   - `safeCsvCell neutralizes formula injection triggers (=, +, -, @)`
+   - `safeCsvCell leaves safe alphanumeric strings unchanged`
+   - `Admin role grants isAdmin and isStaff`
+   - `Teacher role grants isStaff and blocks isAdmin`
+   - `Student role grants isStudent and blocks isStaff/isAdmin`
+   - `Parent role correctly validates isParent and blocks isStaff`
+   - `recordActivity successfully records security audit logs`
 
-6. **SaaS Plans, Trials & Subscriptions Suite** (15 tests):
+8. **School Events, Holidays & Alerts Suite**:
+   - `getActiveEmergencyAlert retrieves active emergency closure notice`
+   - `Emergency alert is_active status can be toggled by school admin`
+   - `School function event can be created with date and status`
+   - `getSchoolEventsList successfully returns upcoming events`
+   - `Gazetted holidays and off-days are correctly indexed and queryable`
+   - `School event can be safely deleted with cleanup`
+
+9. **Advanced Features Suite (test_features.php)**:
+   - Attendance marking and summary/percentage calculations
+   - Assessment creation and marks recording
+   - Student GPA and course performance calculations
+   - Fee invoices and payment processing
+   - Timetable scheduling and conflict detection
+   - Internal messaging and read receipts
+   - Staff leave requests and admin approval workflow
+   - System settings persistence
+
+10. **SaaS Plans, Trials & Subscriptions Suite** (15 tests):
    - Migration adds `subdomain`, `status`, `plan`, and `trial_ends_at`; subscription and contact tables exist.
    - Three plans are priced Basic $50, Pro $150, Enterprise $500; legacy plans map correctly.
    - Subdomain validation rejects reserved/malformed names; host resolution supports `APP_DOMAIN`, `*.localhost`, ports, and ignores raw IPs.
