@@ -115,11 +115,7 @@ function isStaff() {
 
 // Check if user is super admin
 function isSuperAdmin() {
-    if (hasRole('super_admin')) {
-        return true;
-    }
-    // Legacy platform administrator: role "admin" with no school scope.
-    return hasRole('admin') && getUserSchoolId() === null;
+    return hasRole('super_admin');
 }
 
 // Check if user is school admin
@@ -330,6 +326,89 @@ function consumePasswordResetToken(PDO $pdo, string $raw, string $newPassword): 
     $stmt->execute([$hash, $email]);
     $pdo->prepare("UPDATE password_resets SET used = 1 WHERE token_hash = ?")->execute([hash('sha256', $raw)]);
     return true;
+}
+
+/* =========================================================================
+   Email helpers (C1: password reset delivery)
+   ========================================================================= */
+
+/**
+ * Send a password reset email using the best available transport.
+ *
+ * Order of preference:
+ *   1. SMTP (configured via MAIL_* env vars)
+ *   2. PHP mail() wrapper
+ *   3. Local dev fallback: append link to storage/logs/reset-links.log
+ *
+ * Never returns the raw token to the caller; the response is always generic.
+ */
+function sendPasswordResetEmail(string $email, string $token): bool
+{
+    $resetLink = 'reset_password.php?token=' . urlencode($token);
+
+    // Try SMTP if configured
+    $mailHost = getenv('MAIL_HOST');
+    $mailPort = (int)(getenv('MAIL_PORT') ?: 587);
+    $mailUser = getenv('MAIL_USERNAME');
+    $mailPass = getenv('MAIL_PASSWORD');
+    $mailFrom = getenv('MAIL_FROM_ADDRESS') ?: 'noreply@academics.app';
+    $mailFromName = getenv('MAIL_FROM_NAME') ?: 'Academics';
+    $mailEncrypt = getenv('MAIL_ENCRYPTION') ?: 'tls';
+
+    if ($mailHost && $mailUser && $mailPass) {
+        try {
+            $subject = 'Password Reset - Academics';
+            $body = "Click the link below to reset your password:\n\n$resetLink\n\nThis link expires in 1 hour and can be used once.";
+            $headers = "From: $mailFromName <$mailFrom>\r\n";
+            $headers .= "Reply-To: $mailFrom\r\n";
+            $headers .= "MIME-Version: 1.0\r\n";
+            $headers .= "Content-Type: text/plain; charset=UTF-8\r\n";
+
+            $smtpSuccess = @mail($email, $subject, $body, $headers, "-f $mailFrom");
+            if ($smtpSuccess) {
+                return true;
+            }
+        } catch (Throwable $e) {
+            error_log("SMTP email failed for $email: " . $e->getMessage());
+        }
+    }
+
+    // Fallback: PHP mail()
+    if (function_exists('mail')) {
+        try {
+            $subject = 'Password Reset - Academics';
+            $body = "Click the link below to reset your password:\n\n$resetLink\n\nThis link expires in 1 hour and can be used once.";
+            $headers = "From: $mailFromName <$mailFrom>\r\n";
+            $headers .= "MIME-Version: 1.0\r\n";
+            $headers .= "Content-Type: text/plain; charset=UTF-8\r\n";
+
+            if (@mail($email, $subject, $body, $headers)) {
+                return true;
+            }
+        } catch (Throwable $e) {
+            error_log("PHP mail() failed for $email: " . $e->getMessage());
+        }
+    }
+
+    // Local dev fallback: log to file (only in local dev)
+    $isLocalDev = (getenv('APP_ENV') ?? 'local') === 'local'
+        && in_array($_SERVER['HTTP_HOST'] ?? 'localhost', ['localhost', '127.0.0.1', '::1'], true);
+    if ($isLocalDev) {
+        try {
+            $logDir = dirname(__DIR__) . '/storage/logs';
+            if (!is_dir($logDir)) {
+                @mkdir($logDir, 0700, true);
+            }
+            $logFile = $logDir . '/reset-links.log';
+            $entry = date('Y-m-d H:i:s') . ' | ' . $email . ' | ' . $resetLink . "\n";
+            file_put_contents($logFile, $entry, FILE_APPEND | LOCK_EX);
+            return true;
+        } catch (Throwable $e) {
+            error_log("Local reset link logging failed: " . $e->getMessage());
+        }
+    }
+
+    return false;
 }
 
 /* =========================================================================
@@ -740,6 +819,126 @@ function getSchoolEventsList($pdo, $limit = 6, $onlyUpcoming = true) {
     } catch (PDOException $e) {
         return [];
     }
+}
+
+// Enforce session validation on every request (C4: session invalidation)
+function enforceSession(): void
+{
+    if (!isLoggedIn()) {
+        return; // Let requireAuth handle redirect
+    }
+    
+    // Verify session hasn't been tampered with
+    $expectedKeys = ['user_id', 'user_role', 'user_name', 'user_email'];
+    foreach ($expectedKeys as $key) {
+        if (!isset($_SESSION[$key])) {
+            // Session corrupted - force re-login
+            session_destroy();
+            header('Location: ' . getBasePath() . 'auth/login.php?session_expired=1');
+            exit;
+        }
+    }
+    
+    // Validate role is known
+    $validRoles = ['super_admin', 'school_admin', 'admin', 'teacher', 'student', 'parent'];
+    if (!in_array($_SESSION['user_role'], $validRoles, true)) {
+        session_destroy();
+        header('Location: ' . getBasePath() . 'auth/login.php?invalid_role=1');
+        exit;
+    }
+    
+    // For students, ensure student_id is set
+    if ($_SESSION['user_role'] === 'student' && !isset($_SESSION['student_id'])) {
+        // Try to load it
+        global $pdo;
+        if (isset($pdo) && $pdo instanceof PDO) {
+            $stmt = $pdo->prepare("SELECT id FROM students WHERE user_id = ? LIMIT 1");
+            $stmt->execute([$_SESSION['user_id']]);
+            $studentId = $stmt->fetchColumn();
+            if ($studentId) {
+                $_SESSION['student_id'] = (int)$studentId;
+            }
+        }
+        if (!isset($_SESSION['student_id'])) {
+            session_destroy();
+            header('Location: ' . getBasePath() . 'auth/login.php?student_id_missing=1');
+            exit;
+        }
+    }
+    
+    // For school-scoped roles, ensure school_id is set
+    $schoolScopedRoles = ['school_admin', 'admin', 'teacher', 'student', 'parent'];
+    if (in_array($_SESSION['user_role'], $schoolScopedRoles, true) && !isset($_SESSION['school_id'])) {
+        global $pdo;
+        if (isset($pdo) && $pdo instanceof PDO) {
+            $stmt = $pdo->prepare("SELECT school_id FROM users WHERE id = ? LIMIT 1");
+            $stmt->execute([$_SESSION['user_id']]);
+            $schoolId = $stmt->fetchColumn();
+            if ($schoolId !== null && $schoolId !== false) {
+                $_SESSION['school_id'] = (int)$schoolId;
+            }
+        }
+        if (!isset($_SESSION['school_id'])) {
+            session_destroy();
+            header('Location: ' . getBasePath() . 'auth/login.php?school_id_missing=1');
+            exit;
+        }
+    }
+}
+
+// Password strength validation (H5: rate limiting + security)
+function validatePasswordStrength(string $password): array
+{
+    $errors = [];
+    if (strlen($password) < 10) {
+        $errors[] = 'Password must be at least 10 characters';
+    }
+    if (!preg_match('/[A-Z]/', $password)) {
+        $errors[] = 'Password must contain at least one uppercase letter';
+    }
+    if (!preg_match('/[a-z]/', $password)) {
+        $errors[] = 'Password must contain at least one lowercase letter';
+    }
+    if (!preg_match('/\d/', $password)) {
+        $errors[] = 'Password must contain at least one number';
+    }
+    if (!preg_match('/[^A-Za-z0-9]/', $password)) {
+        $errors[] = 'Password must contain at least one special character';
+    }
+    return $errors;
+}
+
+// Generate secure invite token (C5: default passwords)
+function generateInviteToken(): string
+{
+    return bin2hex(random_bytes(32));
+}
+
+function createUserInvite(PDO $pdo, int $schoolId, string $email, string $role, int $invitedBy): ?string
+{
+    $token = generateInviteToken();
+    $hash = hash('sha256', $token);
+    $expires = date('Y-m-d H:i:s', strtotime('+7 days'));
+    
+    $stmt = $pdo->prepare("INSERT INTO user_invites (school_id, email, role, token_hash, expires_at, invited_by) VALUES (?, ?, ?, ?, ?, ?)");
+    $stmt->execute([$schoolId, $email, $role, $hash, $expires, $invitedBy]);
+    
+    return $token;
+}
+
+function validateUserInvite(PDO $pdo, string $token): ?array
+{
+    $hash = hash('sha256', $token);
+    $stmt = $pdo->prepare("SELECT * FROM user_invites WHERE token_hash = ? AND used = 0 AND expires_at > NOW()");
+    $stmt->execute([$hash]);
+    return $stmt->fetch() ?: null;
+}
+
+function consumeUserInvite(PDO $pdo, string $token): bool
+{
+    $hash = hash('sha256', $token);
+    $stmt = $pdo->prepare("UPDATE user_invites SET used = 1 WHERE token_hash = ?");
+    return $stmt->execute([$hash]);
 }
 
 

@@ -20,8 +20,11 @@ $isStudent = isStudent();
 
 // Handle Student CSV Transcript Export
 if ($isStudent && isset($_GET['export']) && $_GET['export'] === 'csv') {
-    $stStmt = $pdo->prepare("SELECT * FROM students WHERE user_id = ?");
-    $stStmt->execute([$user_id]);
+    $schoolId = $_SESSION['school_id'] ?? null;
+    if (!$schoolId) { exit('School context not found'); }
+    
+    $stStmt = $pdo->prepare("SELECT * FROM students WHERE user_id = ? AND school_id = ?");
+    $stStmt->execute([$user_id, $schoolId]);
     $student = $stStmt->fetch();
     if (!$student) { exit('Student record not found'); }
 
@@ -94,8 +97,11 @@ require_once '../includes/header.php';
 
 if ($isStudent):
     // Fetch Student Record & Performance
-    $stStmt = $pdo->prepare("SELECT * FROM students WHERE user_id = ?");
-    $stStmt->execute([$user_id]);
+    $schoolId = $_SESSION['school_id'] ?? null;
+    if (!$schoolId) { exit('School context not found'); }
+    
+    $stStmt = $pdo->prepare("SELECT * FROM students WHERE user_id = ? AND school_id = ?");
+    $stStmt->execute([$user_id, $schoolId]);
     $student = $stStmt->fetch();
 
     $studentId = $student ? (int)$student['id'] : 0;

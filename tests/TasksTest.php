@@ -4,6 +4,7 @@
  */
 class TasksTest {
     private $pdo;
+    private $schoolId = 1;
 
     public function __construct($pdo) {
         $this->pdo = $pdo;
@@ -12,10 +13,13 @@ class TasksTest {
     public function run() {
         $results = [];
 
+        // Ensure test school and student exist
+        $this->ensureTestSchool();
+
         // 1. Create a Task
         $title = 'Test Task ' . uniqid();
-        $ins = $this->pdo->prepare("INSERT INTO tasks (user_id, student_id, course_id, title, description, priority, status, due_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-        $ins->execute([1, 1, 1, $title, 'Test task description', 'High', 'Pending', date('Y-m-d', strtotime('+3 days'))]);
+        $ins = $this->pdo->prepare("INSERT INTO tasks (school_id, user_id, student_id, course_id, title, description, priority, status, due_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        $ins->execute([$this->schoolId, 1, 1, 1, $title, 'Test task description', 'High', 'Pending', date('Y-m-d', strtotime('+3 days'))]);
         $taskId = (int)$this->pdo->lastInsertId();
 
         $results[] = [
@@ -76,5 +80,38 @@ class TasksTest {
         ];
 
         return $results;
+    }
+
+    private function ensureTestSchool(): void {
+        $stmt = $this->pdo->prepare("SELECT id FROM schools WHERE id = ?");
+        $stmt->execute([$this->schoolId]);
+        if (!$stmt->fetch()) {
+            $this->pdo->prepare("INSERT INTO schools (id, school_name, school_code, school_email, owner_name, status, plan, is_active) VALUES (?, 'Test School', 'TEST001', 'test@school.com', 'Test Admin', 'active', 'pro', 1)")
+                ->execute([$this->schoolId]);
+        }
+
+        // Ensure test student exists
+        $stmt = $this->pdo->prepare("SELECT id FROM students WHERE id = ?");
+        $stmt->execute([1]);
+        if (!$stmt->fetch()) {
+            $this->pdo->prepare("INSERT INTO students (id, school_id, user_id, student_number, full_name, email, enrollment_date, status) VALUES (?, 1, 1, 'STU-TEST-0001', 'Test Student', 'test@student.com', CURDATE(), 'Active')")
+                ->execute([1]);
+        }
+
+        // Ensure test user exists
+        $stmt = $this->pdo->prepare("SELECT id FROM users WHERE id = ?");
+        $stmt->execute([1]);
+        if (!$stmt->fetch()) {
+            $this->pdo->prepare("INSERT INTO users (id, full_name, email, password, role, is_active, school_id) VALUES (?, 'Test User', 'test@user.com', 'password', 'admin', 1, 1)")
+                ->execute([1]);
+        }
+
+        // Ensure test course exists
+        $stmt = $this->pdo->prepare("SELECT id FROM courses WHERE id = ?");
+        $stmt->execute([1]);
+        if (!$stmt->fetch()) {
+            $this->pdo->prepare("INSERT INTO courses (id, school_id, course_code, course_name, credits, status, created_by) VALUES (?, 1, 'TEST101', 'Test Course', 3, 'Active', 1)")
+                ->execute([1]);
+        }
     }
 }

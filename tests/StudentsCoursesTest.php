@@ -4,6 +4,7 @@
  */
 class StudentsCoursesTest {
     private $pdo;
+    private $schoolId = 1;
 
     public function __construct($pdo) {
         $this->pdo = $pdo;
@@ -11,6 +12,9 @@ class StudentsCoursesTest {
 
     public function run() {
         $results = [];
+
+        // Ensure test school exists
+        $this->ensureTestSchool();
 
         // 1. Unique Student Number Generation
         $num1 = generateStudentNumber($this->pdo);
@@ -22,8 +26,8 @@ class StudentsCoursesTest {
         // 2. Student CRUD & Unique Constraints
         $testEmail = 'student_test_' . uniqid() . '@edusphere.com';
         $testNum = 'STU-TEST-' . rand(10000, 99999);
-        $ins = $this->pdo->prepare("INSERT INTO students (user_id, student_number, full_name, email, enrollment_date, status) VALUES (1, ?, 'Test Student', ?, CURDATE(), 'Active')");
-        $ins->execute([$testNum, $testEmail]);
+        $ins = $this->pdo->prepare("INSERT INTO students (school_id, user_id, student_number, full_name, email, enrollment_date, status) VALUES (?, 2, ?, 'Test Student', ?, CURDATE(), 'Active')");
+        $ins->execute([$this->schoolId, $testNum, $testEmail]);
         $stuId = (int)$this->pdo->lastInsertId();
 
         $results[] = [
@@ -31,23 +35,23 @@ class StudentsCoursesTest {
             'pass' => ($stuId > 0)
         ];
 
-        // Unique student email constraint check
+        // Unique student email constraint check (school-scoped)
         $dupCaught = false;
         try {
-            $insDup = $this->pdo->prepare("INSERT INTO students (user_id, student_number, full_name, email, enrollment_date, status) VALUES (1, 'STU-DIFF', 'Dup Student', ?, CURDATE(), 'Active')");
-            $insDup->execute([$testEmail]);
+            $insDup = $this->pdo->prepare("INSERT INTO students (school_id, user_id, student_number, full_name, email, enrollment_date, status) VALUES (?, 3, 'STU-DIFF', 'Dup Student', ?, CURDATE(), 'Active')");
+            $insDup->execute([$this->schoolId, $testEmail]);
         } catch (PDOException $e) {
             $dupCaught = true;
         }
         $results[] = [
-            'name' => 'Database enforces UNIQUE constraint on student email',
+            'name' => 'Database enforces UNIQUE constraint on student email (school-scoped)',
             'pass' => $dupCaught
         ];
 
-        // 3. Course CRUD & Unique Code Constraint
+        // 3. Course CRUD & Unique Code Constraint (school-scoped)
         $testCode = 'TEST' . rand(100, 999);
-        $insCourse = $this->pdo->prepare("INSERT INTO courses (course_code, course_name, credits, status, created_by) VALUES (?, 'Test Course Engineering', 3, 'Active', 1)");
-        $insCourse->execute([$testCode]);
+        $insCourse = $this->pdo->prepare("INSERT INTO courses (school_id, course_code, course_name, credits, status, created_by) VALUES (?, ?, 'Test Course Engineering', 3, 'Active', 1)");
+        $insCourse->execute([$this->schoolId, $testCode]);
         $courseId = (int)$this->pdo->lastInsertId();
 
         $results[] = [
@@ -57,19 +61,19 @@ class StudentsCoursesTest {
 
         $dupCourseCodeCaught = false;
         try {
-            $insCourseDup = $this->pdo->prepare("INSERT INTO courses (course_code, course_name, credits, status, created_by) VALUES (?, 'Duplicate Course', 3, 'Active', 1)");
-            $insCourseDup->execute([$testCode]);
+            $insCourseDup = $this->pdo->prepare("INSERT INTO courses (school_id, course_code, course_name, credits, status, created_by) VALUES (?, ?, 'Duplicate Course', 3, 'Active', 1)");
+            $insCourseDup->execute([$this->schoolId, $testCode]);
         } catch (PDOException $e) {
             $dupCourseCodeCaught = true;
         }
         $results[] = [
-            'name' => 'Database enforces UNIQUE constraint on course code',
+            'name' => 'Database enforces UNIQUE constraint on course code (school-scoped)',
             'pass' => $dupCourseCodeCaught
         ];
 
         // 4. Enrollment Many-to-Many Relationship
-        $insEnr = $this->pdo->prepare("INSERT INTO enrollments (student_id, course_id, enrollment_date, status) VALUES (?, ?, CURDATE(), 'Enrolled')");
-        $insEnr->execute([$stuId, $courseId]);
+        $insEnr = $this->pdo->prepare("INSERT INTO enrollments (school_id, student_id, course_id, enrollment_date, status) VALUES (?, ?, ?, CURDATE(), 'Enrolled')");
+        $insEnr->execute([$this->schoolId, $stuId, $courseId]);
         $enrId = (int)$this->pdo->lastInsertId();
 
         $results[] = [
@@ -80,8 +84,8 @@ class StudentsCoursesTest {
         // Unique enrollment pair constraint
         $dupEnrollCaught = false;
         try {
-            $insEnrDup = $this->pdo->prepare("INSERT INTO enrollments (student_id, course_id, enrollment_date, status) VALUES (?, ?, CURDATE(), 'Enrolled')");
-            $insEnrDup->execute([$stuId, $courseId]);
+            $insEnrDup = $this->pdo->prepare("INSERT INTO enrollments (school_id, student_id, course_id, enrollment_date, status) VALUES (?, ?, ?, CURDATE(), 'Enrolled')");
+            $insEnrDup->execute([$this->schoolId, $stuId, $courseId]);
         } catch (PDOException $e) {
             $dupEnrollCaught = true;
         }
@@ -96,5 +100,14 @@ class StudentsCoursesTest {
         $this->pdo->prepare("DELETE FROM courses WHERE id = ?")->execute([$courseId]);
 
         return $results;
+    }
+
+    private function ensureTestSchool(): void {
+        $stmt = $this->pdo->prepare("SELECT id FROM schools WHERE id = ?");
+        $stmt->execute([$this->schoolId]);
+        if (!$stmt->fetch()) {
+            $this->pdo->prepare("INSERT INTO schools (id, school_name, school_code, school_email, owner_name, status, plan, is_active) VALUES (?, 'Test School', 'TEST001', 'test@school.com', 'Test Admin', 'active', 'pro', 1)")
+                ->execute([$this->schoolId]);
+        }
     }
 }

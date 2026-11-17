@@ -5,6 +5,27 @@
  * Production Multi-Engine Self-Healing Database Layer
  */
 
+// Minimal .env loader (no external dependency)
+function load_env(string $path = null): void
+{
+    $path = $path ?: __DIR__ . '/../../.env';
+    if (!is_file($path)) return;
+    $lines = file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    foreach ($lines as $line) {
+        $line = trim($line);
+        if ($line === '' || $line[0] === '#') continue;
+        if (strpos($line, '=') === false) continue;
+        [$key, $value] = array_map('trim', explode('=', $line, 2));
+        $value = trim($value, "\"' ");
+        if (!array_key_exists($key, $_SERVER) && !array_key_exists($key, $_ENV)) {
+            putenv("$key=$value");
+            $_ENV[$key] = $value;
+            $_SERVER[$key] = $value;
+        }
+    }
+}
+load_env();
+
 // App configuration
 if (!defined('APP_NAME')) {
     define('APP_NAME', 'Academics');
@@ -27,8 +48,7 @@ if (!defined('APP_SUPPORT_EMAIL')) {
 }
 date_default_timezone_set(APP_TIMEZONE);
 
-// Only local development gets convenience self-healing behaviour. Production
-// must never auto-start services, expose DB diagnostics, or seed demo users.
+// Environment detection
 if (!defined('APP_ENV')) {
     $appEnv = getenv('APP_ENV');
     define('APP_ENV', $appEnv !== false && trim((string)$appEnv) !== '' ? strtolower(trim((string)$appEnv)) : 'local');
@@ -36,6 +56,7 @@ if (!defined('APP_ENV')) {
 $requestHost = strtolower((string)parse_url('http://' . ($_SERVER['HTTP_HOST'] ?? 'localhost'), PHP_URL_HOST));
 $isLocalDev = (APP_ENV === 'local' || APP_ENV === 'development')
     && (PHP_SAPI === 'cli' || in_array($requestHost, ['localhost', '127.0.0.1', '::1'], true));
+$isTestEnv = (APP_ENV === 'test' || APP_ENV === 'testing');
 
 // Load external hosting configuration if available
 if (file_exists(__DIR__ . '/db_config.php')) {
@@ -43,6 +64,20 @@ if (file_exists(__DIR__ . '/db_config.php')) {
 }
 
 if (!defined('DB_CHARSET')) define('DB_CHARSET', 'utf8mb4');
+
+// Database name selection: test environment gets isolated database
+if (!defined('DB_NAME')) {
+    $dbNameEnv = getenv('DB_NAME');
+    if ($isTestEnv && getenv('DB_NAME_TEST')) {
+        define('DB_NAME', getenv('DB_NAME_TEST'));
+    } elseif ($dbNameEnv !== false) {
+        define('DB_NAME', $dbNameEnv);
+    } else {
+        define('DB_NAME', 'edusphere');
+    }
+}
+
+if (!defined('DB_USER')) define('DB_USER', getenv('DB_USER') ?: 'root');
 
 // Production / InfinityFree Direct Connection
 if (defined('IS_PRODUCTION') && IS_PRODUCTION) {
@@ -52,19 +87,19 @@ if (defined('IS_PRODUCTION') && IS_PRODUCTION) {
         PDO::ATTR_EMULATE_PREPARES   => false,
         PDO::ATTR_TIMEOUT            => 5,
     ];
-    
+
     $dsn = "mysql:host=" . DB_HOST . ";port=" . DB_PORT . ";dbname=" . DB_NAME . ";charset=" . DB_CHARSET;
     try {
         $pdo = new PDO($dsn, DB_USER, DB_PASS, $options);
     } catch (PDOException $e) {
         error_log("InfinityFree DB Connection Error: " . $e->getMessage());
-        http_response_code(500);
+        http_response_code(503);
         ?>
         <!DOCTYPE html>
         <html lang="en">
         <head>
             <meta charset="UTF-8">
-            <title>Database Connection Error — Academics</title>
+            <title>Service Unavailable — Academics</title>
             <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
             <style>
                 body { background: #0F172A; color: #F8FAFC; min-height: 100vh; display: flex; align-items: center; justify-content: center; font-family: sans-serif; }
@@ -73,9 +108,9 @@ if (defined('IS_PRODUCTION') && IS_PRODUCTION) {
         </head>
         <body>
             <div class="card-box text-center">
-                <h3 class="fw-bold mb-3">Database Connection Error</h3>
+                <h3 class="fw-bold mb-3">Service Unavailable</h3>
                 <p class="text-secondary small mb-3">Academics cannot connect to its database right now. Please try again in a moment.</p>
-                <p class="text-muted small mb-0">If you are the site administrator, check the database credentials in <code>config/db_config.php</code> and confirm that the database has been imported from <code>database.sql</code>.</p>
+                <p class="text-muted small mb-0">If you are the site administrator, check the database credentials and confirm migrations have been applied.</p>
             </div>
         </body>
         </html>
@@ -86,9 +121,6 @@ if (defined('IS_PRODUCTION') && IS_PRODUCTION) {
 }
 
 // Database configuration defaults (Localhost)
-if (!defined('DB_USER')) define('DB_USER', getenv('DB_USER') ?: 'root');
-if (!defined('DB_NAME')) define('DB_NAME', getenv('DB_NAME') ?: 'edusphere');
-
 $options = [
     PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
@@ -136,7 +168,6 @@ foreach ($targets as $target) {
         $workingPass = $target['pass'];
         break;
     } catch (PDOException $e) {
-        // Never log credentials; only the endpoint and driver message.
         $connectionErrors[] = "{$target['host']}:{$target['port']}: " . $e->getMessage();
     }
 }
@@ -172,7 +203,7 @@ if (!$serverPdo && $isLocalDev && PHP_SAPI === 'cli' && PHP_OS_FAMILY === 'Windo
 
 if (!$serverPdo) {
     error_log("MySQL connection failed across all candidate targets: " . implode(" | ", $connectionErrors));
-    http_response_code(500);
+    http_response_code(503);
     ?>
     <!DOCTYPE html>
     <html lang="en">
@@ -202,32 +233,22 @@ if (!defined('DB_HOST')) define('DB_HOST', $workingHost);
 if (!defined('DB_PORT')) define('DB_PORT', $workingPort);
 if (!defined('DB_PASS')) define('DB_PASS', $workingPass);
 
-// Ensure the application database exists; create + import schema if missing or empty
+// Ensure the application database exists; create if missing (do NOT auto-import schema in production)
 try {
     $exists = $serverPdo->query(
         "SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = " . $serverPdo->quote(DB_NAME)
     )->fetchColumn();
 
-    $needImport = false;
     if (!$exists) {
-        $needImport = true;
+        $serverPdo->exec("CREATE DATABASE IF NOT EXISTS `" . DB_NAME . "` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+        error_log("Database '$DB_NAME' created. Run 'php database/migrate.php' to apply schema.");
     } else {
+        // Check if schema_migrations table exists (canonical migrations applied)
         $tblExists = $serverPdo->query(
-            "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = " . $serverPdo->quote(DB_NAME) . " AND TABLE_NAME = 'users'"
+            "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = " . $serverPdo->quote(DB_NAME) . " AND TABLE_NAME = 'schema_migrations'"
         )->fetchColumn();
-        if (!$tblExists) {
-            $needImport = true;
-        }
-    }
-
-    if ($needImport) {
-        $sqlFile = __DIR__ . '/../database.sql';
-        if (is_readable($sqlFile)) {
-            $sql = file_get_contents($sqlFile);
-            $sql = preg_replace('/^\xEF\xBB\xBF/', '', $sql);
-            $serverPdo->exec($sql);
-        } else {
-            $serverPdo->exec("CREATE DATABASE IF NOT EXISTS `" . DB_NAME . "` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+        if (!$tblExists && !$isTestEnv && !$isLocalDev) {
+            error_log("Database '$DB_NAME' exists but canonical migrations not applied. Run 'php database/migrate.php'.");
         }
     }
 } catch (PDOException $e) {
@@ -241,27 +262,27 @@ try {
     $pdo = new PDO($dsn, DB_USER, DB_PASS, $options);
 } catch (PDOException $e) {
     error_log("Database connection failed: " . $e->getMessage());
-    http_response_code(500);
-    die("Database connection failed. Please check your configuration.");
+    http_response_code(503);
+    die("Database connection failed. Please check your configuration and ensure migrations have been applied.");
 }
 
-// Self-heal demo accounts for local development only.
-if ($isLocalDev) {
-try {
-    $demoAccounts = [
-        ['System Administrator', 'admin@edusphere.com', '$2y$10$mmx/UMwzNmkfhEKRGUYctuNSrl/xrRLp4f8o3R5M1ksN1c2J45tQu', 'admin'],
-        ['Demo Teacher', 'teacher@edusphere.com', '$2y$10$QHDpb.tWT6fuT4va4VjzcO6SQfC1MTOl6kNAm4yjTytXQN3JJ/SXe', 'teacher'],
-        ['Demo Student', 'student@edusphere.com', '$2y$10$k6JdjbAJbgtIGbf1I.fnE.wfB4TW1ditc8qgSGdj5VUIg9k/qlqzS', 'student'],
-    ];
-    foreach ($demoAccounts as $acc) {
-        $stmt = $pdo->prepare("SELECT id FROM users WHERE email = ? LIMIT 1");
-        $stmt->execute([$acc[1]]);
-        if (!$stmt->fetch()) {
-            $ins = $pdo->prepare("INSERT INTO users (full_name, email, password, role, is_active) VALUES (?, ?, ?, ?, 1)");
-            $ins->execute([$acc[0], $acc[1], $acc[2], $acc[3]]);
+// Self-heal demo accounts for local development only (skip during migrations).
+if ($isLocalDev && !defined('MIGRATION_RUNNING')) {
+    try {
+        $demoAccounts = [
+            ['System Administrator', 'admin@edusphere.com', '$2y$10$mmx/UMwzNmkfhEKRGUYctuNSrl/xrRLp4f8o3R5M1ksN1c2J45tQu', 'admin'],
+            ['Demo Teacher', 'teacher@edusphere.com', '$2y$10$QHDpb.tWT6fuT4va4VjzcO6SQfC1MTOl6kNAm4yjTytXQN3JJ/SXe', 'teacher'],
+            ['Demo Student', 'student@edusphere.com', '$2y$10$k6JdjbAJbgtIGbf1I.fnE.wfB4TW1ditc8qgSGdj5VUIg9k/qlqzS', 'student'],
+        ];
+        foreach ($demoAccounts as $acc) {
+            $stmt = $pdo->prepare("SELECT id FROM users WHERE email = ? LIMIT 1");
+            $stmt->execute([$acc[1]]);
+            if (!$stmt->fetch()) {
+                $ins = $pdo->prepare("INSERT INTO users (full_name, email, password, role, is_active) VALUES (?, ?, ?, ?, 1)");
+                $ins->execute([$acc[0], $acc[1], $acc[2], $acc[3]]);
+            }
         }
+    } catch (PDOException $e) {
+        error_log("Demo accounts self-heal notice: " . $e->getMessage());
     }
-} catch (PDOException $e) {
-    error_log("Demo accounts self-heal notice: " . $e->getMessage());
-}
 }

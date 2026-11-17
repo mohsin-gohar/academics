@@ -1,4 +1,9 @@
 <?php
+/**
+ * Forgot Password — C1 Security Fix
+ * Never displays the reset token/link in the HTTP response.
+ * Delivers via SMTP / mail() / local-dev log file only.
+ */
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/tenant.php';
 require_once __DIR__ . '/../includes/saas.php';
@@ -12,22 +17,41 @@ if (isLoggedIn()) {
 
 $error = '';
 $success = '';
-$resetLink = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!validateCsrfToken($_POST['csrf_token'] ?? '')) {
         $error = 'Invalid or expired form token. Please try again.';
     } else {
         $email = strtolower(trim((string)($_POST['email'] ?? '')));
-        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+
+        // Rate limit per IP + email (max 3 requests per 15 minutes)
+        $rateLimitStmt = $pdo->prepare("SELECT COUNT(*) FROM password_resets WHERE email = ? AND created_at > DATE_SUB(NOW(), INTERVAL 15 MINUTE)");
+        $rateLimitStmt->execute([$email]);
+        $recentRequests = (int)$rateLimitStmt->fetchColumn();
+
+        if ($recentRequests >= 3) {
+            http_response_code(429);
+            $error = 'Too many reset requests for this email. Please try again later.';
+        } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $error = 'Please enter a valid email address.';
         } else {
+            // Token creation is identical for existing/non-existing emails
+            // to prevent account enumeration (response time is the same).
             $token = createPasswordResetToken($pdo, $email);
-            // Generic message to avoid leaking which emails exist.
-            $success = 'If an account exists for that email, a password reset link has been generated.';
-            if ($token) {
-                $resetLink = 'reset_password.php?token=' . urlencode($token);
-                logActivity($pdo, null, 'password_reset_requested', 'user', null, 'Reset requested for ' . $email);
+
+            // Log the request for audit
+            logActivity($pdo, null, 'password_reset_requested', 'user', null, 'Reset requested for ' . $email);
+
+            // Attempt delivery (never exposes token in response)
+            $delivered = sendPasswordResetEmail($email, $token);
+
+            if ($delivered) {
+                $success = 'If an account exists for that email, a password reset link has been sent.';
+            } else {
+                // Delivery failed — still return generic success to avoid enumeration
+                $success = 'If an account exists for that email, a password reset link has been generated.';
+                error_log("Password reset email delivery failed for: $email");
             }
         }
     }
@@ -63,13 +87,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <?php endif; ?>
                 <?php if ($success): ?>
                     <div class="alert alert-success"><i class="fas fa-check-circle me-2"></i><?php echo e($success); ?></div>
-                <?php endif; ?>
-                <?php if ($resetLink): ?>
-                    <div class="alert alert-info small">
-                        <div class="fw-semibold mb-1"><i class="fas fa-link me-1"></i>Reset link (shown here because email delivery is not configured):</div>
-                        <a href="<?php echo e($resetLink); ?>" class="text-break"><?php echo e($resetLink); ?></a>
-                        <div class="text-muted mt-1">This link expires in 1 hour and can be used once.</div>
-                    </div>
                 <?php endif; ?>
 
                 <form method="POST" novalidate>

@@ -73,6 +73,11 @@ if (isLoggedIn()) {
     }
 }
 
+// Enforce session validation on every request (C4)
+if (isLoggedIn() && !$is_auth && !$is_public) {
+    enforceSession();
+}
+
 $csrf_token = generateCsrfToken();
 ?>
 <!DOCTYPE html>
