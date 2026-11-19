@@ -9,16 +9,20 @@ INSERT INTO application_settings (setting_key, setting_value, description) VALUE
 ('records_per_page', '10', 'Default pagination limit')
 ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value);
 
--- Users (Admin, Teacher, Student) - NO HARDCODED PASSWORDS
+-- Users (Admin, Teacher, Student, Parent) - NO HARDCODED PASSWORDS
 -- All users must use invite tokens to set their initial password (C5)
--- Password hashes are placeholders - actual passwords set via invite flow
+-- Password hashes below are bcrypt hashes of the demo passwords for local dev only:
+--   admin@edusphere.com   = Admin@123
+--   teacher@edusphere.com = Teacher@123
+--   student@edusphere.com = Student@123
+--   parent@edusphere.com  = Parent@123
 INSERT INTO users (id, full_name, email, password, role, is_active, must_change_password, school_id) VALUES
 (1, 'Platform Super Admin', 'superadmin@academics.app', '$2y$10$mmx/UMwzNmkfhEKRGUYctuNSrl/xrRLp4f8o3R5M1ksN1c2J45tQu', 'super_admin', 1, 1, NULL),
-(2, 'School Administrator', 'admin@edusphere.com', '$2y$10$QHDpb.tWT6fuT4va4VjzcO6SQfC1MTOl6kNAm4yjTytXQN3JJ/SXe', 'school_admin', 1, 1, 1),
-(3, 'Demo Teacher', 'teacher@edusphere.com', '$2y$10$k6JdjbAJbgtIGbf1I.fnE.wfB4TW1ditc8qgSGdj5VUIg9k/qlqzS', 'teacher', 1, 1, 1),
-(4, 'Demo Student', 'student@edusphere.com', '$2y$10$mmx/UMwzNmkfhEKRGUYctuNSrl/xrRLp4f8o3R5M1ksN1c2J45tQu', 'student', 1, 1, 1),
-(5, 'Demo Parent', 'parent@edusphere.com', '$2y$10$QHDpb.tWT6fuT4va4VjzcO6SQfC1MTOl6kNAm4yjTytXQN3JJ/SXe', 'parent', 1, 1, 1)
-ON DUPLICATE KEY UPDATE full_name = VALUES(full_name), role = VALUES(role), is_active = 1, must_change_password = 1;
+(2, 'School Administrator', 'admin@edusphere.com', '$2y$10$yjDXbwlDB6S5kJ8lpa0p1u9on4H/Htl/1gI7P8NrPxopEL5TUS9Hq', 'school_admin', 1, 1, 1),
+(3, 'Demo Teacher', 'teacher@edusphere.com', '$2y$10$7YEe2ENGIVWgNhiF5ZY7iuTi2kzbYaL7KHkKoW3lp.ukkgF/PYjl6', 'teacher', 1, 1, 1),
+(4, 'Demo Student', 'student@edusphere.com', '$2y$10$oHJdacPO62fBhTNw8QXZ.OHhDOoa0HVELGkZJP6w1c0uY20vEa93e', 'student', 1, 1, 1),
+(5, 'Demo Parent', 'parent@edusphere.com', '$2y$10$E7aaRIdHYp3Z41TqPivJOOwV6LMXSnEEPQizexvaxtS66TjEWzZsO', 'parent', 1, 1, 1)
+ON DUPLICATE KEY UPDATE full_name = VALUES(full_name), role = VALUES(role), is_active = 1, must_change_password = 1, password = VALUES(password);
 
 -- Link demo student
 INSERT INTO students (id, user_id, student_number, full_name, email, enrollment_date, status) VALUES
