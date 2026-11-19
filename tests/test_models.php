@@ -5,6 +5,7 @@
  */
 class TestModelsSuite {
     private PDO $pdo;
+    private $schoolId = 1;
 
     public function __construct(PDO $pdo) {
         $this->pdo = $pdo;
@@ -13,11 +14,19 @@ class TestModelsSuite {
     public function run(): array {
         $results = [];
 
+        // Ensure the demo school exists (tests run against a seeded DB)
+        $stmt = $this->pdo->prepare("SELECT id FROM schools WHERE id = ?");
+        $stmt->execute([$this->schoolId]);
+        if (!$stmt->fetch()) {
+            $this->pdo->prepare("INSERT INTO schools (id, school_name, school_code, school_email, owner_name, status, plan, is_active) VALUES (?, 'Test School', 'TESTSCH', 'test@school.com', 'Test Owner', 'active', 'pro', 1)")
+                ->execute([$this->schoolId]);
+        }
+
         // 1. Users Model CRUD
         $uniq = time() . '_' . rand(100, 999);
         $userEmail = "model_user_{$uniq}@edusphere.com";
-        $insUser = $this->pdo->prepare("INSERT INTO users (full_name, email, password, role, is_active) VALUES ('Model User', ?, 'dummy_hash', 'student', 1)");
-        $insUser->execute([$userEmail]);
+        $insUser = $this->pdo->prepare("INSERT INTO users (full_name, email, password, role, is_active, school_id) VALUES ('Model User', ?, 'dummy_hash', 'student', 1, ?)");
+        $insUser->execute([$userEmail, $this->schoolId]);
         $userId = (int)$this->pdo->lastInsertId();
         $results[] = [
             'name' => 'Users model: Insert record and retrieve ID',
@@ -33,19 +42,19 @@ class TestModelsSuite {
 
         // 3. Students Model CRUD
         $stuEmail = "model_stu_{$uniq}@edusphere.com";
-        $insStu = $this->pdo->prepare("INSERT INTO students (user_id, student_number, full_name, email, enrollment_date, status) VALUES (?, ?, 'Model Student', ?, CURDATE(), 'Active')");
-        $insStu->execute([$userId, $stuNum, $stuEmail]);
+        $insStu = $this->pdo->prepare("INSERT INTO students (school_id, user_id, student_number, full_name, email, enrollment_date, status) VALUES (?, ?, ?, 'Model Student', ?, CURDATE(), 'Active')");
+        $insStu->execute([$this->schoolId, $userId, $stuNum, $stuEmail]);
         $studentId = (int)$this->pdo->lastInsertId();
         $results[] = [
             'name' => 'Students model: Create student record successfully',
             'pass' => $studentId > 0
         ];
 
-        // 4. Unique Constraint on Student Number
+        // 4. Unique Constraint on Student Number (scoped to school)
         $dupNumCaught = false;
         try {
-            $insDup = $this->pdo->prepare("INSERT INTO students (user_id, student_number, full_name, email, enrollment_date, status) VALUES (?, ?, 'Duplicate Student', 'another@edusphere.com', CURDATE(), 'Active')");
-            $insDup->execute([$userId, $stuNum]);
+            $insDup = $this->pdo->prepare("INSERT INTO students (school_id, user_id, student_number, full_name, email, enrollment_date, status) VALUES (?, ?, ?, 'Duplicate Student', 'another@edusphere.com', CURDATE(), 'Active')");
+            $insDup->execute([$this->schoolId, $userId, $stuNum]);
         } catch (PDOException $e) {
             $dupNumCaught = true;
         }
@@ -56,8 +65,8 @@ class TestModelsSuite {
 
         // 5. Courses Model CRUD
         $courseCode = "MOD" . rand(100, 999);
-        $insCourse = $this->pdo->prepare("INSERT INTO courses (course_code, course_name, credits, status, created_by) VALUES (?, 'Model Testing 101', 3, 'Active', 1)");
-        $insCourse->execute([$courseCode]);
+        $insCourse = $this->pdo->prepare("INSERT INTO courses (school_id, course_code, course_name, credits, status, created_by) VALUES (?, ?, 'Model Testing 101', 3, 'Active', ?)");
+        $insCourse->execute([$this->schoolId, $courseCode, $userId]);
         $courseId = (int)$this->pdo->lastInsertId();
         $results[] = [
             'name' => 'Courses model: Create course record with code and credits',
@@ -65,8 +74,8 @@ class TestModelsSuite {
         ];
 
         // 6. Enrollments Model CRUD
-        $insEnroll = $this->pdo->prepare("INSERT INTO enrollments (student_id, course_id, enrollment_date, status) VALUES (?, ?, CURDATE(), 'Enrolled')");
-        $insEnroll->execute([$studentId, $courseId]);
+        $insEnroll = $this->pdo->prepare("INSERT INTO enrollments (school_id, student_id, course_id, enrollment_date, status) VALUES (?, ?, ?, CURDATE(), 'Enrolled')");
+        $insEnroll->execute([$this->schoolId, $studentId, $courseId]);
         $enrollId = (int)$this->pdo->lastInsertId();
         $results[] = [
             'name' => 'Enrollments model: Enroll student to course',
@@ -76,7 +85,7 @@ class TestModelsSuite {
         // 7. Duplicate enrollment prevention
         $dupEnrollCaught = false;
         try {
-            $insEnroll->execute([$studentId, $courseId]);
+            $insEnroll->execute([$this->schoolId, $studentId, $courseId]);
         } catch (PDOException $e) {
             $dupEnrollCaught = true;
         }
@@ -86,8 +95,8 @@ class TestModelsSuite {
         ];
 
         // 8. Tasks Model CRUD
-        $insTask = $this->pdo->prepare("INSERT INTO tasks (user_id, student_id, course_id, title, priority, status, due_date) VALUES (1, ?, ?, 'Model Task Test', 'High', 'Pending', CURDATE())");
-        $insTask->execute([$studentId, $courseId]);
+        $insTask = $this->pdo->prepare("INSERT INTO tasks (school_id, user_id, student_id, course_id, title, priority, status, due_date) VALUES (?, ?, ?, ?, 'Model Task Test', 'High', 'Pending', CURDATE())");
+        $insTask->execute([$this->schoolId, $userId, $studentId, $courseId]);
         $taskId = (int)$this->pdo->lastInsertId();
         $results[] = [
             'name' => 'Tasks model: Create and assign task successfully',

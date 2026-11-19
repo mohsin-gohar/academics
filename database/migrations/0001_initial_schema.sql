@@ -93,17 +93,22 @@ CREATE TABLE IF NOT EXISTS `school_subscriptions` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- PARENT-STUDENT LINK TABLE
+-- NOTE: application code queries `parent_id` and `school_id` (see parent/*.php,
+-- dashboard.php, students/show.php). Keep these column names in sync with the app.
 CREATE TABLE IF NOT EXISTS `parent_student` (
     `id` INT AUTO_INCREMENT PRIMARY KEY,
-    `parent_user_id` INT NOT NULL,
+    `school_id` INT NOT NULL,
+    `parent_id` INT NOT NULL,
     `student_id` INT NOT NULL,
     `relationship` VARCHAR(50) DEFAULT 'Parent',
     `is_primary` TINYINT(1) DEFAULT 0,
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE KEY `uq_parent_student` (`parent_user_id`, `student_id`),
-    INDEX `idx_ps_parent` (`parent_user_id`),
+    UNIQUE KEY `uq_parent_student` (`parent_id`, `student_id`),
+    INDEX `idx_ps_parent` (`parent_id`),
     INDEX `idx_ps_student` (`student_id`),
-    FOREIGN KEY (`parent_user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
+    INDEX `idx_ps_school` (`school_id`),
+    FOREIGN KEY (`school_id`) REFERENCES `schools`(`id`) ON DELETE CASCADE,
+    FOREIGN KEY (`parent_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
     FOREIGN KEY (`student_id`) REFERENCES `students`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -539,41 +544,51 @@ CREATE TABLE IF NOT EXISTS `leave_requests` (
 CREATE TABLE IF NOT EXISTS `timetables` (
     `id` INT AUTO_INCREMENT PRIMARY KEY,
     `school_id` INT NOT NULL,
+    `teacher_id` INT NULL,
     `course_id` INT NOT NULL,
-    `day_of_week` TINYINT UNSIGNED NOT NULL COMMENT '1=Monday, 7=Sunday',
+    `day_of_week` ENUM('Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday') NOT NULL,
     `start_time` TIME NOT NULL,
     `end_time` TIME NOT NULL,
     `room` VARCHAR(50) NULL,
+    `status` ENUM('Active','Inactive') NOT NULL DEFAULT 'Active',
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX `idx_tt_school` (`school_id`),
     INDEX `idx_tt_course` (`course_id`),
+    INDEX `idx_tt_teacher` (`teacher_id`),
     INDEX `idx_tt_day` (`day_of_week`),
+    INDEX `idx_tt_status` (`status`),
     FOREIGN KEY (`school_id`) REFERENCES `schools`(`id`) ON DELETE CASCADE,
-    FOREIGN KEY (`course_id`) REFERENCES `courses`(`id`) ON DELETE CASCADE
+    FOREIGN KEY (`course_id`) REFERENCES `courses`(`id`) ON DELETE CASCADE,
+    FOREIGN KEY (`teacher_id`) REFERENCES `users`(`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- MESSAGES TABLE
+-- NOTE: application code (messages/chat.php, received.php, sent.php) uses
+-- `content`, `type`, `read_status`, and `parent_id`. Keep in sync with the app.
 CREATE TABLE IF NOT EXISTS `messages` (
     `id` INT AUTO_INCREMENT PRIMARY KEY,
     `school_id` INT NOT NULL,
     `sender_id` INT NOT NULL,
     `receiver_id` INT NOT NULL,
     `subject` VARCHAR(200) NULL,
-    `body` TEXT NOT NULL,
-    `is_read` TINYINT(1) DEFAULT 0,
+    `content` TEXT NOT NULL,
+    `type` VARCHAR(20) NOT NULL DEFAULT 'General',
+    `read_status` TINYINT(1) DEFAULT 0,
     `read_at` DATETIME NULL,
-    `parent_message_id` INT NULL,
+    `parent_id` INT NULL,
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX `idx_msg_school` (`school_id`),
     INDEX `idx_msg_sender` (`sender_id`),
     INDEX `idx_msg_receiver` (`receiver_id`),
-    INDEX `idx_msg_parent` (`parent_message_id`),
+    INDEX `idx_msg_parent` (`parent_id`),
+    INDEX `idx_msg_read` (`read_status`),
     INDEX `idx_msg_created` (`created_at`),
     FOREIGN KEY (`school_id`) REFERENCES `schools`(`id`) ON DELETE CASCADE,
     FOREIGN KEY (`sender_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
     FOREIGN KEY (`receiver_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
-    FOREIGN KEY (`parent_message_id`) REFERENCES `messages`(`id`) ON DELETE SET NULL
+    FOREIGN KEY (`parent_id`) REFERENCES `messages`(`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ANNOUNCEMENTS TABLE
@@ -644,6 +659,25 @@ CREATE TABLE IF NOT EXISTS `expenses` (
     FOREIGN KEY (`received_by`) REFERENCES `users`(`id`) ON DELETE SET NULL,
     FOREIGN KEY (`approved_by`) REFERENCES `users`(`id`) ON DELETE SET NULL,
     FOREIGN KEY (`created_by`) REFERENCES `users`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- USER INVITES TABLE (C5: replace hardcoded passwords with invite tokens)
+CREATE TABLE IF NOT EXISTS `user_invites` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `school_id` INT NOT NULL,
+    `email` VARCHAR(255) NOT NULL,
+    `role` VARCHAR(50) NOT NULL,
+    `token_hash` CHAR(64) NOT NULL,
+    `expires_at` DATETIME NOT NULL,
+    `used` TINYINT(1) DEFAULT 0,
+    `invited_by` INT NOT NULL,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX `idx_user_invites_school` (`school_id`),
+    INDEX `idx_user_invites_email` (`email`),
+    UNIQUE KEY `uq_user_invites_token` (`token_hash`),
+    INDEX `idx_user_invites_used` (`used`),
+    FOREIGN KEY (`school_id`) REFERENCES `schools`(`id`) ON DELETE CASCADE,
+    FOREIGN KEY (`invited_by`) REFERENCES `users`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 SET FOREIGN_KEY_CHECKS = 1;

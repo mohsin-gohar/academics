@@ -116,7 +116,7 @@ class TestFeaturesSuite {
 
         // 6. Leave Requests Workflow
         $insLeave = $this->pdo->prepare("INSERT INTO leave_requests (school_id, user_id, leave_type, start_date, end_date, reason, status)
-                                         VALUES (?, 2, 'Medical', CURDATE(), DATE_ADD(CURDATE(), INTERVAL 2 DAY), 'Doctor appointment', 'Pending')");
+                                         VALUES (?, 2, 'Sick', CURDATE(), DATE_ADD(CURDATE(), INTERVAL 2 DAY), 'Doctor appointment', 'Pending')");
         $insLeave->execute([$schoolId]);
         $leaveId = (int)$this->pdo->lastInsertId();
         $results[] = [
@@ -134,11 +134,11 @@ class TestFeaturesSuite {
             'pass' => ($leaveRow['status'] === 'Approved' && (int)$leaveRow['approved_by'] === 1)
         ];
 
-        // 7. System Settings Key-Value Store
-        $stmtSet = $this->pdo->prepare("INSERT INTO settings (`key`, `value`, category) VALUES ('test_setting_key', 'test_setting_val', 'General')
-                                        ON DUPLICATE KEY UPDATE `value` = VALUES(`value`)");
+        // 7. System Settings Key-Value Store (application_settings is canonical)
+        $stmtSet = $this->pdo->prepare("INSERT INTO application_settings (setting_key, setting_value, description) VALUES ('test_setting_key', 'test_setting_val', 'General')
+                                        ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)");
         $stmtSet->execute();
-        $chkSet = $this->pdo->prepare("SELECT `value` FROM settings WHERE `key` = 'test_setting_key'");
+        $chkSet = $this->pdo->prepare("SELECT setting_value FROM application_settings WHERE setting_key = 'test_setting_key'");
         $chkSet->execute();
         $results[] = [
             'name' => 'Settings: Persist and retrieve configuration key-value pair',
@@ -146,7 +146,7 @@ class TestFeaturesSuite {
         ];
 
         // Cleanup test records
-        $this->pdo->prepare("DELETE FROM settings WHERE `key` = 'test_setting_key'")->execute();
+        $this->pdo->prepare("DELETE FROM application_settings WHERE setting_key = 'test_setting_key'")->execute();
         $this->pdo->prepare("DELETE FROM leave_requests WHERE id = ?")->execute([$leaveId]);
         $this->pdo->prepare("DELETE FROM messages WHERE id = ?")->execute([$msgId]);
         $this->pdo->prepare("DELETE FROM timetables WHERE id = ?")->execute([$ttId]);

@@ -43,10 +43,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $pdo->beginTransaction();
 
-            // Create user account
-            $default_password = password_hash('Student@123', PASSWORD_DEFAULT);
-            $stmt = $pdo->prepare("INSERT INTO users (full_name, email, password, role, school_id) VALUES (?, ?, ?, 'student', ?)");
-            $stmt->execute([$form_data['full_name'], $form_data['email'], $default_password, currentSchoolId()]);
+            // C5: never provision an account with a shared/known password.
+            // Generate a cryptographically random one-time password and force
+            // the student to change it on first login.
+            $temp_password = generateTemporaryPassword(16);
+            $password_hash = password_hash($temp_password, PASSWORD_DEFAULT);
+            $stmt = $pdo->prepare("INSERT INTO users (full_name, email, password, role, school_id, is_active, must_change_password) VALUES (?, ?, ?, 'student', ?, 1, 1)");
+            $stmt->execute([$form_data['full_name'], $form_data['email'], $password_hash, currentSchoolId()]);
             $user_id = $pdo->lastInsertId();
 
             // Create student profile
@@ -64,10 +67,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo->commit();
             logActivity($pdo, $_SESSION['user_id'], 'create', 'student', $student_id, 'Created student: ' . $form_data['full_name']);
 
-            header('Location: index.php?success=' . urlencode('Student added successfully! Default password: Student@123'));
+            // Show the one-time password in a session flash (never in a URL).
+            setFlashMessage('success',
+                'Student added successfully. One-time password for ' . $form_data['email'] .
+                ': ' . $temp_password . ' — share this securely; the student must change it on first login.');
+            header('Location: index.php');
             exit;
         } catch (PDOException $e) {
-            $pdo->rollBack();
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
             error_log("Student creation failed: " . $e->getMessage());
             $errors[] = 'Failed to create student. Please try again.';
         }

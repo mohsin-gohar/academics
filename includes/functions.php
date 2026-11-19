@@ -436,6 +436,27 @@ function getAssessmentsByCourse(PDO $pdo, int $schoolId, int $courseId): array
 
 function recordMark(PDO $pdo, int $schoolId, int $assessmentId, int $studentId, ?float $marks, ?string $remarks, ?int $gradedBy): bool
 {
+    // H4: validate the mark against the assessment's max and confirm the
+    // student is actually enrolled in the assessment's course.
+    $aStmt = $pdo->prepare("SELECT a.max_marks, a.course_id FROM assessments a WHERE a.id = ? AND a.school_id = ?");
+    $aStmt->execute([$assessmentId, $schoolId]);
+    $assessment = $aStmt->fetch(PDO::FETCH_ASSOC);
+    if (!$assessment) {
+        return false;
+    }
+
+    $enrStmt = $pdo->prepare("SELECT st.id FROM students st JOIN enrollments e ON e.student_id = st.id
+        WHERE st.id = ? AND st.school_id = ? AND e.course_id = ? AND e.status = 'Enrolled' LIMIT 1");
+    $enrStmt->execute([$studentId, $schoolId, (int)$assessment['course_id']]);
+    if (!$enrStmt->fetchColumn()) {
+        return false;
+    }
+
+    $max = (float)$assessment['max_marks'];
+    if ($marks !== null && ($marks < 0 || $marks > $max)) {
+        return false;
+    }
+
     $stmt = $pdo->prepare("INSERT INTO student_marks (school_id, assessment_id, student_id, marks_obtained, remarks, graded_by, graded_at)
         VALUES (?,?,?,?,?,?,NOW())
         ON DUPLICATE KEY UPDATE marks_obtained=VALUES(marks_obtained), remarks=VALUES(remarks), graded_by=VALUES(graded_by), graded_at=NOW(), updated_at=NOW()");
@@ -513,22 +534,51 @@ function createInvoice(PDO $pdo, int $schoolId, int $studentId, ?int $feeStructu
 
 function recordPayment(PDO $pdo, int $schoolId, int $invoiceId, float $amount, string $date, ?string $method, ?string $reference, ?int $receivedBy, ?string $notes): bool
 {
-    $stmt = $pdo->prepare("INSERT INTO payments (school_id, invoice_id, amount, payment_date, method, reference, received_by, notes) VALUES (?,?,?,?,?,?,?,?)");
-    $ok = $stmt->execute([$schoolId, $invoiceId, $amount, $date, $method, $reference, $receivedBy, $notes]);
-    if ($ok) {
-        // mark invoice paid if fully covered
-        $stmt = $pdo->prepare("SELECT amount FROM invoices WHERE id = ? AND school_id = ?");
+    // H4: validate invoice, amount, and outstanding balance inside a transaction.
+    if ($amount <= 0) {
+        return false;
+    }
+
+    try {
+        $pdo->beginTransaction();
+
+        $stmt = $pdo->prepare("SELECT amount, status FROM invoices WHERE id = ? AND school_id = ? FOR UPDATE");
         $stmt->execute([$invoiceId, $schoolId]);
-        $invAmount = (float)$stmt->fetchColumn();
-        $stmt = $pdo->prepare("SELECT COALESCE(SUM(amount),0) FROM payments WHERE invoice_id = ? AND school_id = ?");
-        $stmt->execute([$invoiceId, $schoolId]);
-        $paid = (float)$stmt->fetchColumn();
-        if ($paid >= $invAmount - 0.005) {
+        $invoice = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$invoice || $invoice['status'] === 'cancelled') {
+            $pdo->rollBack();
+            return false;
+        }
+
+        $invAmount = (float)$invoice['amount'];
+        $paidStmt = $pdo->prepare("SELECT COALESCE(SUM(amount),0) FROM payments WHERE invoice_id = ? AND school_id = ?");
+        $paidStmt->execute([$invoiceId, $schoolId]);
+        $alreadyPaid = (float)$paidStmt->fetchColumn();
+        $outstanding = round($invAmount - $alreadyPaid, 2);
+        if ($outstanding <= 0 || $amount > $outstanding + 0.005) {
+            $pdo->rollBack();
+            return false;
+        }
+
+        $ins = $pdo->prepare("INSERT INTO payments (school_id, invoice_id, amount, payment_date, method, reference, received_by, notes) VALUES (?,?,?,?,?,?,?,?)");
+        $ins->execute([$schoolId, $invoiceId, $amount, $date, $method, $reference, $receivedBy, $notes]);
+
+        $paidStmt2 = $pdo->prepare("SELECT COALESCE(SUM(amount),0) FROM payments WHERE invoice_id = ? AND school_id = ?");
+        $paidStmt2->execute([$invoiceId, $schoolId]);
+        $totalPaid = (float)$paidStmt2->fetchColumn();
+        if ($totalPaid >= $invAmount - 0.005) {
             $pdo->prepare("UPDATE invoices SET status='paid', paid_at=NOW(), payment_method=?, transaction_ref=? WHERE id=? AND school_id=?")
                 ->execute([$method, $reference, $invoiceId, $schoolId]);
         }
+
+        $pdo->commit();
+        return true;
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        return false;
     }
-    return $ok;
 }
 
 function getInvoices(PDO $pdo, int $schoolId, ?int $studentId = null, ?string $status = null): array
@@ -685,12 +735,31 @@ function verifyPassword($password, $hash) {
 }
 
 // Check login rate limit
+//
+// H5: previously this used `WHERE (email = ? OR ip_address = ?)`, which meant
+// 5 bad logins for RANDOM emails from one IP would lock out the real account
+// holder of that IP (e.g. everyone behind a NAT/router, the admin's own
+// office). Rate-limit the two dimensions separately:
+//   - per email: 5 failures / 15 min  (protects a specific account)
+//   - per IP:   25 failures / 15 min (protects against spraying many accounts)
 function checkLoginRateLimit($pdo, $email) {
     $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
-    $stmt = $pdo->prepare("SELECT COUNT(*) as attempts FROM login_attempts WHERE (email = ? OR ip_address = ?) AND attempted_at > DATE_SUB(NOW(), INTERVAL 15 MINUTE)");
-    $stmt->execute([$email, $ip]);
-    $result = $stmt->fetch();
-    return ($result['attempts'] ?? 0) < 5;
+
+    $emailStmt = $pdo->prepare("SELECT COUNT(*) FROM login_attempts
+        WHERE email = ? AND attempted_at > DATE_SUB(NOW(), INTERVAL 15 MINUTE)");
+    $emailStmt->execute([$email]);
+    if ((int)$emailStmt->fetchColumn() >= 5) {
+        return false;
+    }
+
+    $ipStmt = $pdo->prepare("SELECT COUNT(*) FROM login_attempts
+        WHERE ip_address = ? AND attempted_at > DATE_SUB(NOW(), INTERVAL 15 MINUTE)");
+    $ipStmt->execute([$ip]);
+    if ((int)$ipStmt->fetchColumn() >= 25) {
+        return false;
+    }
+
+    return true;
 }
 
 // Record login attempt
@@ -700,10 +769,10 @@ function recordLoginAttempt($pdo, $email) {
     $stmt->execute([$email, $ip]);
 }
 
-// Clear login attempts on success
+// Clear login attempts on success (only this account's failures for this IP)
 function clearLoginAttempts($pdo, $email) {
     $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
-    $stmt = $pdo->prepare("DELETE FROM login_attempts WHERE email = ? OR ip_address = ?");
+    $stmt = $pdo->prepare("DELETE FROM login_attempts WHERE email = ? AND ip_address = ?");
     $stmt->execute([$email, $ip]);
 }
 
@@ -821,69 +890,153 @@ function getSchoolEventsList($pdo, $limit = 6, $onlyUpcoming = true) {
     }
 }
 
-// Enforce session validation on every request (C4: session invalidation)
-function enforceSession(): void
+// Enforce session validation on every request (C4: live session invalidation)
+/**
+ * Re-validate the authenticated session against the database on every request.
+ *
+ * Unlike a pure structural check, this re-reads:
+ *   - users.is_active   (deactivated account -> immediate logout)
+ *   - users.role        (role changed -> force re-login so perms match the UI)
+ *   - users.school_id   (must be present for school-scoped roles)
+ *   - students.id       (must exist and be scoped to the user's school)
+ *   - schools.is_active / schools.status (suspended/disabled -> immediate logout)
+ *
+ * Results are cached for at most 60 seconds per session, keyed to a fingerprint
+ * of user_id + role + school_id, so a normal page load doesn't hit the DB beyond
+ * once a minute but a suspension/deactivation is enforced within 60s.
+ *
+ * Safe to call from AJAX/JSON endpoints: responds with 401 JSON instead of an
+ * HTML redirect when the request is an XHR / expects JSON.
+ */
+function enforceSession(?PDO $pdo = null): void
 {
     if (!isLoggedIn()) {
-        return; // Let requireAuth handle redirect
+        return; // requireAuth handles the redirect for pages that need auth
     }
-    
-    // Verify session hasn't been tampered with
-    $expectedKeys = ['user_id', 'user_role', 'user_name', 'user_email'];
-    foreach ($expectedKeys as $key) {
-        if (!isset($_SESSION[$key])) {
-            // Session corrupted - force re-login
-            session_destroy();
-            header('Location: ' . getBasePath() . 'auth/login.php?session_expired=1');
+
+    // Resolve a PDO handle: prefer the caller's, else the bootstrap global.
+    if (!$pdo) {
+        global $pdo;
+        $pdo = (isset($pdo) && $pdo instanceof PDO) ? $pdo : null;
+    }
+
+    $isAjax = (strtolower($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'xmlhttprequest')
+        || (stripos($_SERVER['HTTP_ACCEPT'] ?? '', 'application/json') !== false)
+        || (stripos($_SERVER['CONTENT_TYPE'] ?? '', 'application/json') !== false)
+        || (strpos($_SERVER['REQUEST_URI'] ?? '', '/ajax/') !== false);
+
+    $fail = static function (string $reason, bool $isAjax): void {
+        // Clear the session and its cookie before responding.
+        $_SESSION = [];
+        if (ini_get('session.use_cookies')) {
+            $params = session_get_cookie_params();
+            setcookie(session_name(), '', time() - 42000, $params['path'], $params['domain'], !empty($params['secure']), !empty($params['httponly']));
+        }
+        @session_destroy();
+
+        if ($isAjax) {
+            http_response_code(401);
+            if (!headers_sent()) {
+                header('Content-Type: application/json; charset=utf-8');
+            }
+            echo json_encode([
+                'success' => false,
+                'reason'  => $reason,
+                'message' => 'Your session is no longer valid. Please sign in again.',
+            ]);
             exit;
         }
-    }
-    
-    // Validate role is known
-    $validRoles = ['super_admin', 'school_admin', 'admin', 'teacher', 'student', 'parent'];
-    if (!in_array($_SESSION['user_role'], $validRoles, true)) {
-        session_destroy();
-        header('Location: ' . getBasePath() . 'auth/login.php?invalid_role=1');
+
+        if (!headers_sent()) {
+            header('Location: ' . getBasePath() . 'auth/login.php?' . http_build_query([$reason => 1]));
+        }
         exit;
-    }
-    
-    // For students, ensure student_id is set
-    if ($_SESSION['user_role'] === 'student' && !isset($_SESSION['student_id'])) {
-        // Try to load it
-        global $pdo;
-        if (isset($pdo) && $pdo instanceof PDO) {
-            $stmt = $pdo->prepare("SELECT id FROM students WHERE user_id = ? LIMIT 1");
-            $stmt->execute([$_SESSION['user_id']]);
-            $studentId = $stmt->fetchColumn();
-            if ($studentId) {
-                $_SESSION['student_id'] = (int)$studentId;
-            }
-        }
-        if (!isset($_SESSION['student_id'])) {
-            session_destroy();
-            header('Location: ' . getBasePath() . 'auth/login.php?student_id_missing=1');
-            exit;
+    };
+
+    // 1. Structural session keys
+    foreach (['user_id', 'user_role', 'user_name', 'user_email'] as $key) {
+        if (!isset($_SESSION[$key])) {
+            $fail('session_expired', $isAjax);
         }
     }
-    
-    // For school-scoped roles, ensure school_id is set
-    $schoolScopedRoles = ['school_admin', 'admin', 'teacher', 'student', 'parent'];
-    if (in_array($_SESSION['user_role'], $schoolScopedRoles, true) && !isset($_SESSION['school_id'])) {
-        global $pdo;
-        if (isset($pdo) && $pdo instanceof PDO) {
-            $stmt = $pdo->prepare("SELECT school_id FROM users WHERE id = ? LIMIT 1");
-            $stmt->execute([$_SESSION['user_id']]);
-            $schoolId = $stmt->fetchColumn();
-            if ($schoolId !== null && $schoolId !== false) {
-                $_SESSION['school_id'] = (int)$schoolId;
-            }
-        }
-        if (!isset($_SESSION['school_id'])) {
-            session_destroy();
-            header('Location: ' . getBasePath() . 'auth/login.php?school_id_missing=1');
-            exit;
-        }
+
+    // 2. Role must be one the codebase actually knows about
+    $validRoles = ['super_admin', 'school_admin', 'admin', 'teacher', 'student', 'parent'];
+    if (!in_array((string)$_SESSION['user_role'], $validRoles, true)) {
+        $fail('invalid_role', $isAjax);
     }
+
+    // 3. Without a DB handle, only the structural checks above can run
+    //    (e.g. during the login POST before $pdo is available).
+    if (!$pdo) {
+        return;
+    }
+
+    // 4. Up to 60s of caching keyed to the session fingerprint.
+    $now = time();
+    $validatedAt = (int)($_SESSION['_validated_at'] ?? 0);
+    $fingerprint = hash('sha256',
+        (string)($_SESSION['user_id'] ?? '') . '|' .
+        (string)($_SESSION['user_role'] ?? '') . '|' .
+        (string)($_SESSION['school_id'] ?? '')
+    );
+    if ($validatedAt > 0 && ($now - $validatedAt) < 60 && ($_SESSION['_validated_fp'] ?? '') === $fingerprint) {
+        return;
+    }
+
+    // 5. Re-read the user row and check account state
+    $stmt = $pdo->prepare("SELECT id, role, is_active, school_id FROM users WHERE id = ? LIMIT 1");
+    $stmt->execute([(int)$_SESSION['user_id']]);
+    $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$user || (int)$user['is_active'] !== 1) {
+        $fail('account_disabled', $isAjax);
+    }
+    if ((string)$user['role'] !== (string)$_SESSION['user_role']) {
+        // Role was changed by an administrator: force a fresh login so the
+        // server-side and UI permissions can never drift out of sync.
+        $fail('role_changed', $isAjax);
+    }
+
+    // 6. School-scoped roles must have a live, non-suspended school
+    $schoolScoped = in_array((string)$user['role'], ['school_admin', 'admin', 'teacher', 'student', 'parent'], true);
+    if ($schoolScoped) {
+        if (empty($user['school_id'])) {
+            $fail('school_id_missing', $isAjax);
+        }
+        $sStmt = $pdo->prepare("SELECT id, status, is_active FROM schools WHERE id = ? LIMIT 1");
+        $sStmt->execute([(int)$user['school_id']]);
+        $school = $sStmt->fetch(PDO::FETCH_ASSOC);
+        if (!$school || (int)$school['is_active'] !== 1) {
+            $fail('school_inactive', $isAjax);
+        }
+        if (in_array(strtolower((string)$school['status']), ['suspended', 'disabled'], true)) {
+            $fail('school_suspended', $isAjax);
+        }
+        $_SESSION['school_id'] = (int)$user['school_id'];
+    } else {
+        // super_admin is platform-level; never carry a school scope
+        unset($_SESSION['school_id']);
+    }
+
+    // 7. Students must resolve to a student record inside their own school
+    if ((string)$user['role'] === 'student') {
+        $stStmt = $pdo->prepare("SELECT id FROM students WHERE user_id = ? AND school_id = ? LIMIT 1");
+        $stStmt->execute([(int)$_SESSION['user_id'], (int)$user['school_id']]);
+        $studentId = $stStmt->fetchColumn();
+        if (!$studentId) {
+            $fail('student_id_missing', $isAjax);
+        }
+        $_SESSION['student_id'] = (int)$studentId;
+    }
+
+    // 8. Cache the successful validation for up to 60 seconds
+    $_SESSION['_validated_at'] = $now;
+    $_SESSION['_validated_fp'] = hash('sha256',
+        (string)$_SESSION['user_id'] . '|' .
+        (string)$_SESSION['user_role'] . '|' .
+        (string)($_SESSION['school_id'] ?? '')
+    );
 }
 
 // Password strength validation (H5: rate limiting + security)
@@ -912,6 +1065,37 @@ function validatePasswordStrength(string $password): array
 function generateInviteToken(): string
 {
     return bin2hex(random_bytes(32));
+}
+
+/**
+ * Generate a strong, random, one-time initial password for a newly provisioned
+ * account. Guarantees at least one of each required character class.
+ *
+ * The caller MUST set users.must_change_password = 1 so the password must be
+ * changed on first login. Never log or email this value.
+ */
+function generateTemporaryPassword(int $length = 16): string
+{
+    $upper   = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+    $lower   = 'abcdefghijkmnopqrstuvwxyz';
+    $digits  = '23456789';
+    $symbols = '!@#$%^&*-_=+?';
+
+    $length = max(12, $length);
+    $classes = [$upper, $lower, $digits, $symbols];
+    $chars = [];
+    foreach ($classes as $class) {
+        $chars[] = $class[random_int(0, strlen($class) - 1)];
+    }
+    $all = $upper . $lower . $digits . $symbols;
+    for ($i = count($chars); $i < $length; $i++) {
+        $chars[] = $all[random_int(0, strlen($all) - 1)];
+    }
+    for ($i = count($chars) - 1; $i > 0; $i--) {
+        $j = random_int(0, $i);
+        [$chars[$i], $chars[$j]] = [$chars[$j], $chars[$i]];
+    }
+    return implode('', $chars);
 }
 
 function createUserInvite(PDO $pdo, int $schoolId, string $email, string $role, int $invitedBy): ?string

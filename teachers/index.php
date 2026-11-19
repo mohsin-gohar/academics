@@ -9,16 +9,21 @@ require_once __DIR__ . '/../includes/tenant.php';
 startSecureSession();
 require_once __DIR__ . '/../config/db.php';
 requireAuth();
+// C4 + H6: the teachers directory is internal — require staff and validate the
+// live session; never widen with `OR school_id IS NULL`.
+enforceSession($pdo);
+requireStaff();
 
 $schoolId = currentSchoolId();
+if (!$schoolId) { header('Location: ../dashboard.php'); exit; }
 $canManage = isAdmin();
 
 $search = trim($_GET['search'] ?? '');
 $query = "SELECT u.*,
-            (SELECT COUNT(*) FROM courses c WHERE c.instructor_id = u.id) as course_count
+            (SELECT COUNT(*) FROM courses c WHERE c.instructor_id = u.id AND c.school_id = ?) as course_count
           FROM users u
-          WHERE u.role = 'teacher' AND (u.school_id = ? OR u.school_id IS NULL)";
-$params = [$schoolId];
+          WHERE u.role = 'teacher' AND u.school_id = ?";
+$params = [$schoolId, $schoolId];
 
 if (!empty($search)) {
     $query .= " AND (u.full_name LIKE ? OR u.email LIKE ?)";

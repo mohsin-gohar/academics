@@ -54,10 +54,11 @@ function apply_migration(PDO $pdo, string $version, string $sql): bool
     $checksum = compute_checksum($sql);
     $start = microtime(true);
 
+    // IMPORTANT: MySQL/MariaDB implicitly commit on DDL (CREATE/ALTER/DROP TABLE),
+    // so wrapping migrations in a PDO transaction is invalid — the final commit()
+    // throws "There is no active transaction". Run each migration file in autocommit
+    // mode as its own unit and record success only if every statement succeeded.
     try {
-        $pdo->beginTransaction();
-
-        // Execute the migration SQL (split by semicolon, respecting strings)
         $statements = split_sql_statements($sql);
         foreach ($statements as $stmt) {
             $stmt = trim($stmt);
@@ -66,16 +67,11 @@ function apply_migration(PDO $pdo, string $version, string $sql): bool
             }
         }
 
-        // Record migration
+        // Record migration only after all statements succeeded.
         $ins = $pdo->prepare("INSERT INTO `" . SCHEMA_TABLE . "` (`version`, `checksum`, `execution_time_ms`) VALUES (?, ?, ?)");
         $ins->execute([$version, $checksum, (int)round((microtime(true) - $start) * 1000)]);
-
-        $pdo->commit();
         return true;
     } catch (Throwable $e) {
-        if ($pdo->inTransaction()) {
-            $pdo->rollBack();
-        }
         error_log("Migration $version failed: " . $e->getMessage());
         return false;
     }

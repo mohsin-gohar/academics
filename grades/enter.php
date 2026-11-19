@@ -33,19 +33,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!validateCsrfToken($_POST['csrf_token'] ?? '')) {
         $errors[] = 'Invalid form token.';
     } else {
-        $saved = 0;
+        // H4: validate every mark against the assessment maximum BEFORE saving.
+        $maxMarks = (float)$assessment['max_marks'];
+        $toSave = [];
         foreach ($students as $st) {
             $sid = (int)$st['id'];
             $raw = trim((string)($_POST['marks'][$sid] ?? ''));
-            $marksVal = $raw === '' ? null : (float)$raw;
             $remarks = trim((string)($_POST['remarks'][$sid] ?? ''));
-            if (recordMark($pdo, $schoolId, $assessmentId, $sid, $marksVal, $remarks !== '' ? $remarks : null, (int)($_SESSION['user_id'] ?? 0))) {
-                $saved++;
+            if ($raw === '') {
+                $toSave[$sid] = [null, $remarks !== '' ? $remarks : null];
+                continue;
             }
+            if (!is_numeric($raw)) {
+                $errors[] = $st['full_name'] . ': marks must be a number.';
+                continue;
+            }
+            $val = (float)$raw;
+            if ($val < 0 || $val > $maxMarks) {
+                $errors[] = $st['full_name'] . ': marks must be between 0 and ' . $maxMarks . '.';
+                continue;
+            }
+            $toSave[$sid] = [$val, $remarks !== '' ? $remarks : null];
         }
-        setFlashMessage('success', "Marks saved for {$saved} students.");
-        header('Location: view.php?course_id=' . (int)$assessment['course_id']);
-        exit;
+
+        if (empty($errors)) {
+            $pdo->beginTransaction();
+            $saved = 0;
+            foreach ($toSave as $sid => [$val, $remarks]) {
+                if (recordMark($pdo, $schoolId, $assessmentId, (int)$sid, $val, $remarks, (int)($_SESSION['user_id'] ?? 0))) {
+                    $saved++;
+                }
+            }
+            $pdo->commit();
+            logActivity($pdo, (int)($_SESSION['user_id'] ?? 0), 'enter_marks', 'assessment', $assessmentId, "Saved marks for $saved student(s) in assessment #$assessmentId");
+            setFlashMessage('success', "Marks saved for {$saved} students.");
+            header('Location: view.php?course_id=' . (int)$assessment['course_id']);
+            exit;
+        }
     }
 }
 ?>

@@ -9,18 +9,21 @@ require_once __DIR__ . '/../includes/tenant.php';
 startSecureSession();
 require_once __DIR__ . '/../config/db.php';
 requireStaff();
+// C4: validate live session (account/role/school)
+enforceSession($pdo);
 
 $schoolId = currentSchoolId();
+if (!$schoolId) { header('Location: ../dashboard.php'); exit; }
 $errors = [];
 $success = '';
 
-// Fetch active courses
-$courseStmt = $pdo->prepare("SELECT id, course_code, course_name FROM courses WHERE (school_id = ? OR school_id IS NULL) AND status = 'Active' ORDER BY course_name");
+// Fetch active courses (strictly scoped to this school)
+$courseStmt = $pdo->prepare("SELECT id, course_code, course_name FROM courses WHERE school_id = ? AND status = 'Active' ORDER BY course_name");
 $courseStmt->execute([$schoolId]);
 $courses = $courseStmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Fetch teachers
-$teacherStmt = $pdo->prepare("SELECT id, full_name FROM users WHERE (school_id = ? OR school_id IS NULL) AND role = 'teacher' AND is_active = 1 ORDER BY full_name");
+// Fetch teachers (strictly scoped to this school)
+$teacherStmt = $pdo->prepare("SELECT id, full_name FROM users WHERE school_id = ? AND role = 'teacher' AND is_active = 1 ORDER BY full_name");
 $teacherStmt->execute([$schoolId]);
 $teachers = $teacherStmt->fetchAll(PDO::FETCH_ASSOC);
 

@@ -9,6 +9,8 @@ require_once __DIR__ . '/../includes/tenant.php';
 startSecureSession();
 require_once __DIR__ . '/../config/db.php';
 requireAuth();
+// C4: validate live session (account/role/school)
+enforceSession($pdo);
 
 $userId = $_SESSION['user_id'];
 $schoolId = currentSchoolId();

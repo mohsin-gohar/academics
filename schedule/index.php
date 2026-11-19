@@ -9,20 +9,23 @@ require_once __DIR__ . '/../includes/tenant.php';
 startSecureSession();
 require_once __DIR__ . '/../config/db.php';
 requireAuth();
+// C4: validate live session (account/role/school)
+enforceSession($pdo);
 
 $schoolId = currentSchoolId();
+if (!$schoolId) { header('Location: ../dashboard.php'); exit; }
 $userRole = getUserRole();
 $userId = $_SESSION['user_id'] ?? 0;
 
 // Days of the week
 $days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-// Fetch timetable entries
+// Fetch timetable entries (strictly scoped to this school)
 $sql = "SELECT t.*, c.course_name, c.course_code, u.full_name as teacher_name
         FROM timetables t
         JOIN courses c ON t.course_id = c.id
         JOIN users u ON t.teacher_id = u.id
-        WHERE (t.school_id = ? OR t.school_id IS NULL)
+        WHERE t.school_id = ?
         ORDER BY t.day_of_week, t.start_time";
 $stmt = $pdo->prepare($sql);
 $stmt->execute([$schoolId]);

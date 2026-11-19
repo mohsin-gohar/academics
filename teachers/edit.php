@@ -9,13 +9,16 @@ require_once __DIR__ . '/../includes/tenant.php';
 startSecureSession();
 require_once __DIR__ . '/../config/db.php';
 requireAdmin();
+// C4: validate live session (account/role/school)
+enforceSession($pdo);
 
 $schoolId = currentSchoolId();
+if (!$schoolId) { header('Location: ../dashboard.php'); exit; }
 $teacherId = (int)($_GET['id'] ?? 0);
 $errors = [];
 
-// Fetch teacher
-$stmt = $pdo->prepare("SELECT * FROM users WHERE id = ? AND role = 'teacher' AND (school_id = ? OR school_id IS NULL)");
+// Fetch teacher (strictly scoped to this school)
+$stmt = $pdo->prepare("SELECT * FROM users WHERE id = ? AND role = 'teacher' AND school_id = ?");
 $stmt->execute([$teacherId, $schoolId]);
 $teacher = $stmt->fetch(PDO::FETCH_ASSOC);
 

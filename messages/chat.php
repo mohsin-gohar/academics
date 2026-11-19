@@ -9,10 +9,39 @@ require_once __DIR__ . '/../includes/tenant.php';
 startSecureSession();
 require_once __DIR__ . '/../config/db.php';
 requireAuth();
+// C4: validate the live session (account active, role, school active)
+enforceSession($pdo);
 
 $userId = $_SESSION['user_id'];
 $schoolId = currentSchoolId();
+$isPlatformAdmin = isSuperAdmin();
 $errors = [];
+
+/**
+ * H2: messaging must be confined to a single school. A school-scoped user can
+ * only reach other active users of the SAME school; a platform super admin can
+ * reach school administrators. No `OR school_id IS NULL` widening.
+ */
+function chat_can_message(PDO $pdo, int $fromId, int $toId, bool $isPlatformAdmin): bool
+{
+    if ($fromId === $toId) {
+        return false;
+    }
+    $stmt = $pdo->prepare("SELECT id, is_active, school_id, role FROM users WHERE id = ? LIMIT 1");
+    $stmt->execute([$toId]);
+    $target = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$target || (int)$target['is_active'] !== 1) {
+        return false;
+    }
+    if ($isPlatformAdmin) {
+        return $target['role'] === 'school_admin';
+    }
+    $me = $pdo->prepare("SELECT school_id FROM users WHERE id = ? LIMIT 1");
+    $me->execute([$fromId]);
+    $mySchool = $me->fetchColumn();
+    return $mySchool !== false && $mySchool !== null && (int)$target['school_id'] === (int)$mySchool;
+}
+
 $activeContactId = (int)($_GET['user_id'] ?? 0);
 
 // Handle new message post
@@ -26,19 +55,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($receiver_id <= 0 || empty($content)) {
             $errors[] = 'Message content and recipient are required.';
+        } elseif (!chat_can_message($pdo, $userId, $receiver_id, $isPlatformAdmin)) {
+            http_response_code(403);
+            $errors[] = 'You cannot message that user.';
         } else {
             $stmt = $pdo->prepare("INSERT INTO messages (school_id, sender_id, receiver_id, content, type, read_status)
                                    VALUES (?, ?, ?, ?, ?, 0)");
-            $stmt->execute([$schoolId, $userId, $receiver_id, $content, $type]);
+            $stmt->execute([$isPlatformAdmin ? null : $schoolId, $userId, $receiver_id, $content, $type]);
+            logActivity($pdo, $userId, 'send_message', 'message', null, 'Message sent to user #' . $receiver_id);
             redirect("chat.php?user_id=" . $receiver_id);
         }
     }
 }
 
-// Contacts list (all users in current school or platform)
-$contactsStmt = $pdo->prepare("SELECT id, full_name, role, email FROM users WHERE id != ? AND is_active = 1 AND (school_id = ? OR school_id IS NULL) ORDER BY full_name ASC");
-$contactsStmt->execute([$userId, $schoolId]);
+// Contacts list — always scoped to the caller's reachable set.
+if ($isPlatformAdmin) {
+    $contactsStmt = $pdo->prepare("SELECT id, full_name, role, email FROM users WHERE id != ? AND is_active = 1 AND role = 'school_admin' ORDER BY full_name ASC");
+    $contactsStmt->execute([$userId]);
+} else {
+    $contactsStmt = $pdo->prepare("SELECT id, full_name, role, email FROM users WHERE id != ? AND is_active = 1 AND school_id = ? ORDER BY full_name ASC");
+    $contactsStmt->execute([$userId, $schoolId]);
+}
 $contacts = $contactsStmt->fetchAll(PDO::FETCH_ASSOC);
+
+// H2: a manually supplied ?user_id= must be reachable; otherwise ignore it.
+if ($activeContactId > 0 && !chat_can_message($pdo, $userId, $activeContactId, $isPlatformAdmin)) {
+    $activeContactId = 0;
+}
 
 if ($activeContactId === 0 && !empty($contacts)) {
     $activeContactId = (int)$contacts[0]['id'];

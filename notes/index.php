@@ -9,15 +9,18 @@ require_once __DIR__ . '/../includes/tenant.php';
 startSecureSession();
 require_once __DIR__ . '/../config/db.php';
 requireAuth();
+// C4: validate live session (account/role/school)
+enforceSession($pdo);
 
 $schoolId = currentSchoolId();
+if (!$schoolId) { header('Location: ../dashboard.php'); exit; }
 $userRole = getUserRole();
 
-// Fetch announcements
+// Fetch announcements (strictly scoped to this school)
 $sql = "SELECT a.*, u.full_name as author_name
         FROM announcements a
         LEFT JOIN users u ON a.created_by = u.id
-        WHERE (a.school_id = ? OR a.school_id IS NULL)
+        WHERE a.school_id = ?
         ORDER BY a.created_at DESC";
 $stmt = $pdo->prepare($sql);
 $stmt->execute([$schoolId]);

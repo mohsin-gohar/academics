@@ -16,6 +16,9 @@ if (!isLoggedIn()) {
     exit;
 }
 
+// C4: re-validate the live session (account active, role, school active)
+enforceSession($pdo);
+
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
     echo json_encode(['success' => false, 'message' => 'Method not allowed. Use POST.']);

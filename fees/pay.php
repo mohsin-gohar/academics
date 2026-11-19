@@ -33,11 +33,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         foreach (array_keys($old) as $k) { if (isset($_POST[$k])) $old[$k] = trim((string)$_POST[$k]); }
         if (!is_numeric($old['amount']) || (float)$old['amount'] <= 0) $errors[] = 'Amount must be positive.';
         if ($old['payment_date'] === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $old['payment_date'])) $errors[] = 'Valid date required.';
+
+        // H4: block payments against cancelled invoices or invoices already settled.
+        if ($invoice['status'] === 'cancelled') {
+            $errors[] = 'This invoice is cancelled and cannot accept payments.';
+        } elseif ($invoice['status'] === 'paid' || $balance <= 0) {
+            $errors[] = 'This invoice is already paid in full.';
+        }
+
         if (empty($errors)) {
-            recordPayment($pdo, $schoolId, $invoiceId, (float)$old['amount'], $old['payment_date'], $old['method'] !== '' ? $old['method'] : null, $old['reference'] !== '' ? $old['reference'] : null, (int)($_SESSION['user_id'] ?? 0), $old['notes'] !== '' ? $old['notes'] : null);
-            setFlashMessage('success', 'Payment recorded.');
-            header('Location: invoices.php');
-            exit;
+            if ((float)$old['amount'] > $balance + 0.005) {
+                $errors[] = 'Amount exceeds the outstanding balance of ' . number_format($balance, 2) . '.';
+            }
+        }
+
+        if (empty($errors)) {
+            $ok = recordPayment($pdo, $schoolId, $invoiceId, (float)$old['amount'], $old['payment_date'], $old['method'] !== '' ? $old['method'] : null, $old['reference'] !== '' ? $old['reference'] : null, (int)($_SESSION['user_id'] ?? 0), $old['notes'] !== '' ? $old['notes'] : null);
+            if ($ok) {
+                setFlashMessage('success', 'Payment recorded.');
+                header('Location: invoices.php');
+                exit;
+            }
+            $errors[] = 'Payment could not be recorded. Check the amount, date, and invoice state.';
         }
     }
 }

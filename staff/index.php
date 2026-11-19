@@ -9,12 +9,18 @@ require_once __DIR__ . '/../includes/tenant.php';
 startSecureSession();
 require_once __DIR__ . '/../config/db.php';
 requireAuth();
+// C4 + H6: staff directory is internal data — require staff, and validate the
+// live session against the DB.
+enforceSession($pdo);
+requireStaff();
 
 $schoolId = currentSchoolId();
+if (!$schoolId) { header('Location: ../dashboard.php'); exit; }
+
 $stmt = $pdo->prepare("SELECT id, full_name, email, role, is_active, created_at, last_login
                        FROM users
                        WHERE role IN ('admin', 'school_admin', 'teacher')
-                         AND (school_id = ? OR school_id IS NULL)
+                         AND school_id = ?
                        ORDER BY role, full_name ASC");
 $stmt->execute([$schoolId]);
 $staffMembers = $stmt->fetchAll(PDO::FETCH_ASSOC);

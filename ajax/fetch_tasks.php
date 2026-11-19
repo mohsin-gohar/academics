@@ -16,6 +16,9 @@ if (!isLoggedIn()) {
     exit;
 }
 
+// C4: re-validate the live session (account active, role, school active)
+enforceSession($pdo);
+
 $user_id = $_SESSION['user_id'];
 $role = getUserRole();
 

@@ -8,7 +8,8 @@
 // Minimal .env loader (no external dependency)
 function load_env(string $path = null): void
 {
-    $path = $path ?: __DIR__ . '/../../.env';
+    // __DIR__ is config/, so the project-root .env is one level up.
+    $path = $path ?: __DIR__ . '/../.env';
     if (!is_file($path)) return;
     $lines = file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
     foreach ($lines as $line) {

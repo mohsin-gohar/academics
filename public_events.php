@@ -2,15 +2,78 @@
 /**
  * Public School Calendar & Events Portal
  * Academics School Management Platform
+ *
+ * H1: this page must never mix events across tenants. It resolves exactly one
+ * school and scopes every query to that school's id. If no school can be
+ * resolved (no ?code=, no ?school=, no subdomain context), it renders a school
+ * directory prompt rather than showing everyone's events.
  */
-$page_title = 'Public Academic Calendar & Events';
-require_once 'includes/header.php';
+require_once __DIR__ . '/includes/functions.php';
+require_once __DIR__ . '/includes/tenant.php';
+require_once __DIR__ . '/includes/saas.php';
+startSecureSession();
+require_once __DIR__ . '/config/db.php';
 
-$activeAlert = getActiveEmergencyAlert($pdo);
+// Resolve the school for this request.
+$code = strtoupper(trim($_GET['code'] ?? ($_GET['school'] ?? '')));
+$contextSchool = saas_bootstrap_school_context($pdo);
+$school = $code !== '' ? school_by_code($pdo, $code, false) : $contextSchool;
+
+$page_title = 'Public Academic Calendar & Events';
+
+if (!$school) {
+    // No tenant context: do NOT fall back to an unscoped (cross-school) query.
+    require_once __DIR__ . '/includes/header.php';
+    ?>
+    <div class="container py-5" style="max-width: 720px;">
+        <div class="card shadow-sm border-0 rounded-4">
+            <div class="card-body p-5 text-center">
+                <i class="fas fa-school fa-3x text-primary mb-3"></i>
+                <h2 class="fw-bold mb-2">Choose a school</h2>
+                <p class="text-muted mb-4">
+                    Public academic calendars are published per school. Select a school to view its schedule.
+                </p>
+                <a href="public/school.php" class="btn btn-primary px-4 py-2 rounded-pill">
+                    Open school directory <i class="fas fa-arrow-right ms-1"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+    <?php
+    require_once __DIR__ . '/includes/footer.php';
+    exit;
+}
+
+// Enforce suspended/disabled/expired-trial state, same as the per-school pages.
+$accessState = saas_school_access_state($school);
+if (!$accessState['allowed']) {
+    http_response_code(403);
+    require_once __DIR__ . '/includes/header.php';
+    ?>
+    <div class="container py-5" style="max-width: 720px;">
+        <div class="card shadow-sm border-0 rounded-4">
+            <div class="card-body p-5 text-center">
+                <i class="fas fa-lock fa-3x text-danger mb-3"></i>
+                <h2 class="fw-bold mb-2">School calendar unavailable</h2>
+                <p class="text-muted mb-0"><?php echo e(saas_access_message($accessState['reason'])); ?></p>
+            </div>
+        </div>
+    </div>
+    <?php
+    require_once __DIR__ . '/includes/footer.php';
+    exit;
+}
+
+$page_title = $school['school_name'] . ' — Public Academic Calendar';
+$schoolId = (int)$school['id'];
+
+require_once __DIR__ . '/includes/header.php';
+
+$activeAlert = getActiveEmergencyAlert($pdo, $schoolId);
 $typeFilter = trim($_GET['type'] ?? '');
 
-$where = ["status != 'Cancelled'"];
-$params = [];
+$where = ["school_id = ?", "status != 'Cancelled'"];
+$params = [$schoolId];
 
 if (!empty($typeFilter)) {
     if ($typeFilter === 'Holiday') {
@@ -26,11 +89,25 @@ $stmt = $pdo->prepare("SELECT * FROM school_events WHERE $whereClause ORDER BY e
 $stmt->execute($params);
 $events = $stmt->fetchAll();
 
-// Counts
-$totalCount = $pdo->query("SELECT COUNT(*) FROM school_events WHERE status != 'Cancelled'")->fetchColumn();
-$holidayCount = $pdo->query("SELECT COUNT(*) FROM school_events WHERE is_holiday = 1 AND status != 'Cancelled'")->fetchColumn();
-$functionCount = $pdo->query("SELECT COUNT(*) FROM school_events WHERE event_type = 'Function' AND status != 'Cancelled'")->fetchColumn();
-$examCount = $pdo->query("SELECT COUNT(*) FROM school_events WHERE event_type = 'Exam' AND status != 'Cancelled'")->fetchColumn();
+// Counts (always scoped to this school)
+$countStmt = $pdo->prepare("SELECT COUNT(*) FROM school_events WHERE school_id = ? AND status != 'Cancelled'");
+$countStmt->execute([$schoolId]);
+$totalCount = $countStmt->fetchColumn();
+
+$holidayStmt = $pdo->prepare("SELECT COUNT(*) FROM school_events WHERE school_id = ? AND is_holiday = 1 AND status != 'Cancelled'");
+$holidayStmt->execute([$schoolId]);
+$holidayCount = $holidayStmt->fetchColumn();
+
+$functionStmt = $pdo->prepare("SELECT COUNT(*) FROM school_events WHERE school_id = ? AND event_type = 'Function' AND status != 'Cancelled'");
+$functionStmt->execute([$schoolId]);
+$functionCount = $functionStmt->fetchColumn();
+
+$examStmt = $pdo->prepare("SELECT COUNT(*) FROM school_events WHERE school_id = ? AND event_type = 'Exam' AND status != 'Cancelled'");
+$examStmt->execute([$schoolId]);
+$examCount = $examStmt->fetchColumn();
+
+// Preserve the school code across filter links
+$filterBase = 'public_events.php?code=' . urlencode($school['school_code']);
 ?>
 
 <!-- Public Navigation Bar -->
@@ -87,16 +164,16 @@ $examCount = $pdo->query("SELECT COUNT(*) FROM school_events WHERE event_type = 
         
         <!-- Filter Pills -->
         <div class="d-flex gap-2 justify-content-center flex-wrap mt-4">
-            <a href="public_events.php" class="btn btn-sm <?php echo empty($typeFilter) ? 'btn-primary' : 'btn-light border'; ?> rounded-pill px-3 py-2">
+            <a href="<?php echo $filterBase; ?>" class="btn btn-sm <?php echo empty($typeFilter) ? 'btn-primary' : 'btn-light border'; ?> rounded-pill px-3 py-2">
                 All Scheduled Dates (<?php echo (int)$totalCount; ?>)
             </a>
-            <a href="public_events.php?type=Holiday" class="btn btn-sm <?php echo $typeFilter === 'Holiday' ? 'btn-danger' : 'btn-light border'; ?> rounded-pill px-3 py-2">
+            <a href="<?php echo $filterBase; ?>&type=Holiday" class="btn btn-sm <?php echo $typeFilter === 'Holiday' ? 'btn-danger' : 'btn-light border'; ?> rounded-pill px-3 py-2">
                 <i class="fas fa-sun me-1"></i> Gazetted Holidays & School Off (<?php echo (int)$holidayCount; ?>)
             </a>
-            <a href="public_events.php?type=Function" class="btn btn-sm <?php echo $typeFilter === 'Function' ? 'btn-primary' : 'btn-light border'; ?> rounded-pill px-3 py-2">
+            <a href="<?php echo $filterBase; ?>&type=Function" class="btn btn-sm <?php echo $typeFilter === 'Function' ? 'btn-primary' : 'btn-light border'; ?> rounded-pill px-3 py-2">
                 <i class="fas fa-trophy me-1"></i> Functions & Galas (<?php echo (int)$functionCount; ?>)
             </a>
-            <a href="public_events.php?type=Exam" class="btn btn-sm <?php echo $typeFilter === 'Exam' ? 'btn-warning text-dark' : 'btn-light border'; ?> rounded-pill px-3 py-2">
+            <a href="<?php echo $filterBase; ?>&type=Exam" class="btn btn-sm <?php echo $typeFilter === 'Exam' ? 'btn-warning text-dark' : 'btn-light border'; ?> rounded-pill px-3 py-2">
                 <i class="fas fa-file-alt me-1"></i> Examinations (<?php echo (int)$examCount; ?>)
             </a>
         </div>
