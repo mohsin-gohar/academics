@@ -87,6 +87,10 @@ $csrf_token = generateCsrfToken();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <?php if ($is_public): ?>
+    <meta name="description" content="<?php echo e($page_description ?? 'Academics — modern school management platform for students, teachers, parents and administrators.'); ?>">
+    <link rel="canonical" href="<?php echo e((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https' : 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . ($_SERVER['REQUEST_URI'] ?? '/')); ?>">
+    <?php endif; ?>
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="application-name" content="<?php echo e(APP_NAME); ?>">
     <title><?php echo isset($page_title) ? e($page_title) . ' | ' . APP_NAME : APP_NAME; ?></title>

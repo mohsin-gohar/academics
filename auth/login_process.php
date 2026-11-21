@@ -39,7 +39,7 @@ if (!$contextSchool && $postedContext > 0) {
     $contextSchool = school_by_id($pdo, $postedContext);
 }
 
-$stmt = $pdo->prepare("SELECT id, full_name, email, password, role, is_active, school_id FROM users WHERE email = ?");
+$stmt = $pdo->prepare("SELECT id, full_name, email, password, role, is_active, school_id, must_change_password FROM users WHERE email = ?");
 $stmt->execute([$email]);
 $user = $stmt->fetch();
 

@@ -51,7 +51,7 @@ $pagination = getPagination($total, $perPage, $page);
 // ---- Fetch ----
 $sql = "SELECT e.*, u.full_name AS creator_name, a.full_name AS approver_name
         FROM expenses e
-        JOIN users u ON u.id = e.created_by
+        LEFT JOIN users u ON u.id = e.created_by
         LEFT JOIN users a ON a.id = e.approved_by
         WHERE $whereClause
         ORDER BY e.expense_date DESC, e.created_at DESC

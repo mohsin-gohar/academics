@@ -63,7 +63,14 @@ function apply_migration(PDO $pdo, string $version, string $sql): bool
         foreach ($statements as $stmt) {
             $stmt = trim($stmt);
             if ($stmt !== '') {
-                $pdo->exec($stmt);
+                // Use query() + fetchAll() so statements that return result sets
+                // (e.g. SET @x = (SELECT ...)) are drained instead of leaving an
+                // active unbuffered query that breaks subsequent exec() calls.
+                $res = $pdo->query($stmt);
+                if ($res instanceof PDOStatement) {
+                    $res->fetchAll();
+                    $res->closeCursor();
+                }
             }
         }
 
@@ -94,6 +101,10 @@ function split_sql_statements(string $sql): array
         if (!$inString && ($char === '"' || $char === "'" || $char === '`')) {
             $inString = true;
             $stringChar = $char;
+        } elseif ($inString && $char === $stringChar && $next === $stringChar) {
+            // SQL standard doubled quote inside a string literal ('')
+            $current .= $next;
+            $i++;
         } elseif ($inString && $char === $stringChar && $next !== $stringChar) {
             $inString = false;
             $stringChar = '';
