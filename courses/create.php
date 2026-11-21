@@ -38,8 +38,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($form_data['credits'] < 1) $errors[] = 'Credits must be at least 1.';
 
     if (empty($errors)) {
-        $stmt = $pdo->prepare("SELECT id FROM courses WHERE course_code = ?");
-        $stmt->execute([$form_data['course_code']]);
+        $stmt = $pdo->prepare("SELECT id FROM courses WHERE course_code = ? AND school_id = ?");
+        $stmt->execute([$form_data['course_code'], currentSchoolId()]);
         if ($stmt->fetch()) $errors[] = 'Course code already exists.';
     }
 

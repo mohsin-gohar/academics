@@ -126,7 +126,8 @@ $options = [
     PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
     PDO::ATTR_EMULATE_PREPARES   => false,
-    PDO::ATTR_TIMEOUT            => 2,
+    // Short connect timeout: a wrong port must not stall every page load.
+    PDO::ATTR_TIMEOUT            => 1,
 ];
 
 // Potential targets: XAMPP MariaDB (port 3306) and Oracle MySQL (port 3307)
@@ -154,6 +155,21 @@ $workingHost = '127.0.0.1';
 $workingPort = 3306;
 $workingPass = 'root';
 $connectionErrors = [];
+
+// Remember the working local target across requests. Without this, an install
+// whose MySQL listens on a non-default port (e.g. XAMPP on 3307) pays the
+// connect timeout for every dead candidate on every single page load.
+$dbTargetCache = dirname(__DIR__) . '/storage/cache/db_target.json';
+if ($isLocalDev && !$isTestEnv && is_file($dbTargetCache)) {
+    $cachedTarget = json_decode((string)@file_get_contents($dbTargetCache), true);
+    if (is_array($cachedTarget) && !empty($cachedTarget['host']) && !empty($cachedTarget['port'])) {
+        array_unshift($targets, [
+            'host' => (string)$cachedTarget['host'],
+            'port' => (int)$cachedTarget['port'],
+            'pass' => isset($cachedTarget['pass']) ? (string)$cachedTarget['pass'] : '',
+        ]);
+    }
+}
 
 // Try connection to MySQL server
 foreach ($targets as $target) {
@@ -200,6 +216,15 @@ if (!$serverPdo && $isLocalDev && PHP_SAPI === 'cli' && PHP_OS_FAMILY === 'Windo
             }
         }
     }
+}
+
+if ($serverPdo && $isLocalDev && !$isTestEnv) {
+    // Persist the working local endpoint so the next request connects first-try.
+    @file_put_contents(
+        $dbTargetCache,
+        json_encode(['host' => $workingHost, 'port' => $workingPort, 'pass' => $workingPass], JSON_UNESCAPED_SLASHES),
+        LOCK_EX
+    );
 }
 
 if (!$serverPdo) {

@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/tenant.php';
 require_once __DIR__ . '/../includes/saas.php';
@@ -89,6 +89,7 @@ $_SESSION['user_name'] = $user['full_name'];
 $_SESSION['user_email'] = $user['email'];
 $_SESSION['user_role'] = $user['role'];
 $_SESSION['logged_in'] = true;
+$_SESSION['must_change_password'] = ((int)$user['must_change_password'] === 1);
 if ($schoolId !== null) {
     $_SESSION['school_id'] = $schoolId;
 } else {

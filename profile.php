@@ -48,14 +48,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $hash = $row->fetchColumn();
             if (!password_verify($current, $hash)) {
                 $error = 'Current password is incorrect.';
-            } elseif (strlen($new) < 8) {
-                $error = 'New password must be at least 8 characters.';
             } elseif ($new !== $confirm) {
                 $error = 'New passwords do not match.';
             } else {
-                $pdo->prepare("UPDATE users SET password = ? WHERE id = ?")->execute([password_hash($new, PASSWORD_DEFAULT), $userId]);
-                logActivity($pdo, $userId, 'update', 'user', $userId, 'Password changed');
-                $success = 'Password changed successfully.';
+                $pwErrors = validatePasswordStrength($new);
+                if ($pwErrors) {
+                    $error = implode(' ', $pwErrors);
+                } else {
+                    $pdo->prepare("UPDATE users SET password = ?, must_change_password = 0 WHERE id = ?")
+                        ->execute([password_hash($new, PASSWORD_DEFAULT), $userId]);
+                    // Re-login: clear the forced-change flag and rotate the session.
+                    $_SESSION['must_change_password'] = 0;
+                    session_regenerate_id(true);
+                    logActivity($pdo, $userId, 'update', 'user', $userId, 'Password changed');
+                    $success = 'Password changed successfully.';
+                }
             }
         }
     }
@@ -70,6 +77,11 @@ if (isStudent()) {
 }
 ?>
 <div class="row g-4">
+    <div class="col-12">
+    <?php if (!empty($_GET['must_change'])): ?>
+        <div class="alert alert-warning border-0 shadow-sm"><i class="fas fa-exclamation-triangle me-2"></i>For security reasons, you must change your temporary password before continuing.</div>
+    <?php endif; ?>
+    </div>
     <div class="col-lg-4">
         <div class="card p-4 text-center">
             <img src="https://ui-avatars.com/api/?name=<?php echo urlencode($user['full_name']); ?>&background=4f46e5&color=fff&size=128" alt="Avatar" class="user-profile-avatar mx-auto mb-3" style="width:96px;height:96px;">

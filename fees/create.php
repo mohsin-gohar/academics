@@ -42,6 +42,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (empty($errors)) {
             $fsId = $old['fee_structure_id'] !== '' ? (int)$old['fee_structure_id'] : null;
             $id = createInvoice($pdo, $schoolId, (int)$old['student_id'], $fsId, $old['title'], (float)$old['amount'], $old['due_date'] !== '' ? $old['due_date'] : null, (int)($_SESSION['user_id'] ?? 0));
+
+            // The student (and their parent, if linked) sees the invoice in the feed.
+            $invStmt = $pdo->prepare("SELECT user_id FROM students WHERE id = ? AND school_id = ?");
+            $invStmt->execute([(int)$old['student_id'], $schoolId]);
+            $invUserId = (int)$invStmt->fetchColumn();
+            if ($invUserId) {
+                notifyUser($pdo, $invUserId, 'Fee invoice issued',
+                    'Invoice for ' . $old['title'] . ' (' . number_format((float)$old['amount'], 2) . ') is now due.',
+                    'fees/my.php', 'fa-file-invoice-dollar', 'warning');
+            }
             // notes
             if ($old['notes'] !== '') {
                 $pdo->prepare("UPDATE invoices SET notes = ? WHERE id = ? AND school_id = ?")->execute([$old['notes'], $id, $schoolId]);

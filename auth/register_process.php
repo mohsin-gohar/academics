@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 /**
  * Self-registration handler (H3 hardening)
  *

@@ -76,6 +76,8 @@ if (isLoggedIn()) {
 // Enforce session validation on every request (C4)
 if (isLoggedIn() && !$is_auth && !$is_public) {
     enforceSession();
+    // accounts created by admins / self-registration must set their own password
+    enforcePasswordChange();
 }
 
 $csrf_token = generateCsrfToken();
@@ -130,6 +132,25 @@ $csrf_token = generateCsrfToken();
                     <h1 class="page-title mb-0"><?php echo isset($page_title) ? e($page_title) : 'Dashboard'; ?></h1>
                 </div>
                 <div class="navbar-actions d-flex align-items-center gap-2">
+                    <?php if (isLoggedIn()): ?>
+                    <?php $__unread = getUnreadNotificationCount($pdo); ?>
+                    <div class="dropdown">
+                        <button class="btn btn-sm btn-outline-secondary position-relative" id="notificationBell" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Notifications" aria-label="Notifications">
+                            <i class="fas fa-bell"></i>
+                            <?php if ($__unread > 0): ?>
+                            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" id="notifUnreadBadge"><?php echo (int)$__unread; ?></span>
+                            <?php endif; ?>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="notificationBell" style="min-width:340px;max-height:420px;overflow:auto">
+                            <li class="dropdown-item d-flex justify-content-between align-items-center fw-semibold small">
+                                <span><i class="fas fa-bell me-2 text-primary"></i>Notifications</span>
+                                <button type="button" class="btn btn-sm btn-link p-0 text-decoration-none" id="markAllReadBtn">Mark all read</button>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li id="notifList"><div class="dropdown-item text-muted small">Loading…</div></li>
+                        </ul>
+                    </div>
+                    <?php unset($__unread); endif; ?>
                     <button class="theme-toggle" id="themeToggle" type="button" title="Toggle theme" aria-label="Toggle theme">
                         <i class="fas fa-moon"></i>
                     </button>

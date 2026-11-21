@@ -41,7 +41,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($form_data['full_name'])) $errors[] = 'Full name is required.';
     if (empty($form_data['email'])) $errors[] = 'Email is required.';
     elseif (!isValidEmail($form_data['email'])) $errors[] = 'Invalid email.';
-    if (empty($form_data['password']) || strlen($form_data['password']) < 10) $errors[] = 'Password must be at least 10 characters.';
+    if (empty($form_data['password'])) {
+        $errors[] = 'Password is required.';
+    } else {
+        $pwErrors = validatePasswordStrength($form_data['password']);
+        if ($pwErrors) $errors[] = implode(' ', $pwErrors);
+    }
     if (!in_array($form_data['role'], ['super_admin','school_admin','admin','teacher','student','parent'])) $errors[] = 'Invalid role.';
 
     // Only super_admin can create super_admin users
@@ -80,7 +85,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($errors)) {
         try {
             $hashed = password_hash($form_data['password'], PASSWORD_DEFAULT);
-            $stmt = $pdo->prepare("INSERT INTO users (full_name, email, password, role, is_active, school_id) VALUES (?, ?, ?, ?, ?, ?)");
+            $stmt = $pdo->prepare("INSERT INTO users (full_name, email, password, role, is_active, school_id, must_change_password) VALUES (?, ?, ?, ?, ?, ?, 1)");
             $stmt->execute([
                 $form_data['full_name'],
                 $form_data['email'],

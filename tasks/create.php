@@ -89,6 +89,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ]);
             $task_id = $pdo->lastInsertId();
             logActivity($pdo, $user_id, 'create', 'task', $task_id, 'Created task: ' . $form_data['title']);
+
+            // Tell the assignee about the new task in their notification feed.
+            if ($form_data['student_id']) {
+                $assigneeStmt = $pdo->prepare("SELECT user_id FROM students WHERE id = ? AND school_id = ?");
+                $assigneeStmt->execute([$form_data['student_id'], currentSchoolId()]);
+                $assigneeId = (int)$assigneeStmt->fetchColumn();
+                if ($assigneeId) {
+                    notifyUser($pdo, $assigneeId, 'New task assigned',
+                        'You have been assigned: ' . $form_data['title'],
+                        'tasks/show.php?id=' . (int)$task_id, 'fa-tasks', 'primary');
+                }
+            }
             header('Location: index.php?success=' . urlencode('Task created successfully!'));
             exit;
         } catch (PDOException $e) {

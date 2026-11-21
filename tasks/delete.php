@@ -27,7 +27,7 @@ if (!isSuperAdmin() && (int)$task['school_id'] !== (int)currentSchoolId()) {
 }
 
 // Permission: admin can delete any, staff can delete own
-if (!isAdmin() && (int)$task['created_by_user_id'] !== (int)$user_id && (int)$task['user_id'] !== (int)$user_id) {
+if (!isAdmin() && (int)$task['user_id'] !== (int)$user_id) {
     header('Location: index.php?error=' . urlencode('You do not have permission to delete this task.'));
     exit;
 }

@@ -111,10 +111,17 @@ if ($isSuper) {
     $taskWhere[] = 't.school_id = ?';
     $taskParams[] = $scopeSchoolId;
     if ($isTeacher) {
-        $taskWhere[] = '(t.user_id = ? OR t.assigned_to_user_id = ? OR t.created_by_user_id = ?)';
+        // Tasks the teacher created plus tasks for students enrolled in the
+        // teacher's own courses (the legacy assigned_to/created_by columns do
+        // not exist in the canonical schema).
+        $taskWhere[] = '(t.user_id = ? OR t.student_id IN (
+            SELECT e.student_id FROM enrollments e
+            JOIN courses c ON c.id = e.course_id
+            WHERE c.instructor_id = ? AND e.school_id = ? AND e.status = \'Enrolled\'
+        ))';
         $taskParams[] = $user_id;
         $taskParams[] = $user_id;
-        $taskParams[] = $user_id;
+        $taskParams[] = $scopeSchoolId;
     }
 }
 $taskScopeSql = implode(' AND ', $taskWhere);

@@ -46,8 +46,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($form_data['credits'] < 1) $errors[] = 'Credits must be at least 1.';
 
     if (empty($errors)) {
-        $stmt = $pdo->prepare("SELECT id FROM courses WHERE course_code = ? AND id != ?");
-        $stmt->execute([$form_data['course_code'], $id]);
+        $stmt = $pdo->prepare("SELECT id FROM courses WHERE course_code = ? AND id != ? AND school_id = ?");
+        $stmt->execute([$form_data['course_code'], $id, (int)$course['school_id']]);
         if ($stmt->fetch()) $errors[] = 'Course code already in use.';
     }
 

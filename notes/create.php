@@ -29,6 +29,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                    VALUES (?, ?, ?, ?, 1, ?)");
             $stmt->execute([$schoolId, $title, $message, $target_roles, $userId]);
             recordActivity($pdo, $userId, 'create_announcement', 'announcement', (int)$pdo->lastInsertId(), "Created announcement: {$title}");
+
+            // Push the announcement into the notification feed of the targeted roles.
+            $targetRoles = in_array($target_roles, ['all', 'staff', 'students', 'parents'], true) ? $target_roles : 'all';
+            $rolesToNotify = $target_roles === 'all'
+                ? ['school_admin', 'admin', 'teacher', 'student', 'parent']
+                : ($target_roles === 'staff' ? ['school_admin', 'admin', 'teacher'] : ($target_roles === 'students' ? ['student'] : ['parent']));
+            foreach ($rolesToNotify as $notifyRole) {
+                notifyRole($pdo, $schoolId, $notifyRole, 'Announcement: ' . $title, mb_substr((string)$message, 0, 200), 'notes/index.php', 'fa-bullhorn', 'info');
+            }
             redirect('index.php', 'success', 'Announcement posted successfully.');
         }
     }

@@ -211,6 +211,60 @@ function getActiveAnnouncements($pdo, $limit = 5) {
 // Compute relative path from current script to project root
 
 /* =========================================================================
+   In-app notifications
+   ========================================================================= */
+
+/**
+ * Create an in-app notification for a user.
+ *
+ * The notifications table existed but nothing ever wrote to it, leaving the
+ * bell/AJAX reader with an empty feed. This is the single write path so every
+ * module (tasks, fees, messages, leave, announcements) notifies consistently.
+ */
+function notifyUser(PDO $pdo, int $userId, string $title, string $message, string $link = '', string $icon = 'fa-bell', string $color = 'primary'): bool
+{
+    try {
+        $schoolId = null;
+        $uStmt = $pdo->prepare("SELECT school_id FROM users WHERE id = ? LIMIT 1");
+        $uStmt->execute([$userId]);
+        $schoolId = $uStmt->fetchColumn();
+        $schoolId = $schoolId === false || $schoolId === null ? currentSchoolId() : (int)$schoolId;
+
+        $stmt = $pdo->prepare("INSERT INTO notifications (school_id, user_id, title, message, icon, color, link)
+                               VALUES (?, ?, ?, ?, ?, ?, ?)");
+        return (bool)$stmt->execute([
+            $schoolId !== null ? (int)$schoolId : null,
+            $userId,
+            mb_substr($title, 0, 200),
+            mb_substr($message, 0, 1000),
+            $icon !== '' ? $icon : 'fa-bell',
+            in_array($color, ['primary', 'secondary', 'success', 'danger', 'warning', 'info', 'light', 'dark'], true) ? $color : 'primary',
+            $link !== '' ? $link : null,
+        ]);
+    } catch (Throwable $e) {
+        // A notification must never break the action that produced it.
+        error_log('notifyUser failed: ' . $e->getMessage());
+        return false;
+    }
+}
+
+/** Notify every user of a role inside a school (announcements, alerts). */
+function notifyRole(PDO $pdo, int $schoolId, string $role, string $title, string $message, string $link = '', string $icon = 'fa-bell', string $color = 'primary'): int
+{
+    $count = 0;
+    try {
+        $stmt = $pdo->prepare("SELECT id FROM users WHERE school_id = ? AND role = ? AND is_active = 1");
+        $stmt->execute([$schoolId, $role]);
+        foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $uid) {
+            if (notifyUser($pdo, (int)$uid, $title, $message, $link, $icon, $color)) $count++;
+        }
+    } catch (Throwable $e) {
+        error_log('notifyRole failed: ' . $e->getMessage());
+    }
+    return $count;
+}
+
+/* =========================================================================
    Attendance helpers
    ========================================================================= */
 function getAttendanceStatuses(): array
@@ -518,10 +572,27 @@ function getInvoiceStatuses(): array
 
 function generateInvoiceNumber(PDO $pdo, int $schoolId): string
 {
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM invoices WHERE school_id = ?");
-    $stmt->execute([$schoolId]);
-    $n = (int)$stmt->fetchColumn() + 1;
-    return 'INV-' . str_pad((string)$schoolId, 3, '0', STR_PAD_LEFT) . '-' . str_pad((string)$n, 5, '0', STR_PAD_LEFT);
+    $prefix = 'INV-' . str_pad((string)$schoolId, 3, '0', STR_PAD_LEFT) . '-';
+
+    // Derive from the highest issued number, not COUNT(*): cancelled invoices
+    // make the count drift and produce duplicates of a live number.
+    $next = 1;
+    $stmt = $pdo->prepare("SELECT MAX(CAST(SUBSTRING_INDEX(invoice_number, '-', -1) AS UNSIGNED)) FROM invoices WHERE school_id = ? AND invoice_number LIKE ?");
+    $stmt->execute([$schoolId, $prefix . '%']);
+    $next = max(1, (int)$stmt->fetchColumn() + 1);
+
+    // Unique key uq_invoice_number guards the race; step over collisions so a
+    // concurrent request can never fail the whole invoice creation.
+    for ($attempt = 0; $attempt < 50; $attempt++) {
+        $candidate = $prefix . str_pad((string)$next, 5, '0', STR_PAD_LEFT);
+        $chk = $pdo->prepare("SELECT 1 FROM invoices WHERE invoice_number = ? LIMIT 1");
+        $chk->execute([$candidate]);
+        if (!$chk->fetchColumn()) {
+            return $candidate;
+        }
+        $next++;
+    }
+    return $prefix . str_pad((string)($next + random_int(1, 999)), 5, '0', STR_PAD_LEFT);
 }
 
 function createInvoice(PDO $pdo, int $schoolId, int $studentId, ?int $feeStructureId, string $title, float $amount, ?string $dueDate, ?int $createdBy): int
@@ -831,23 +902,37 @@ function isValidEmail($email) {
     return filter_var($email, FILTER_VALIDATE_EMAIL) !== false;
 }
 
-// Generate unique student number
-function generateStudentNumber($pdo) {
-    $year = date('Y');
-    try {
-        $stmt = $pdo->prepare("SELECT student_number FROM students WHERE student_number LIKE ? ORDER BY id DESC LIMIT 1");
-        $stmt->execute(['STU-' . $year . '-%']);
-        $last = $stmt->fetchColumn();
-        if ($last && preg_match('/STU-\d{4}-(\d+)/', $last, $matches)) {
-            $next = intval($matches[1]) + 1;
-        } else {
-            $stmtCount = $pdo->query("SELECT COUNT(*) as count FROM students WHERE YEAR(created_at) = $year");
-            $next = ($stmtCount->fetch()['count'] ?? 0) + 1;
-        }
-    } catch (Exception $e) {
-        $next = rand(100, 999);
+// Generate a unique student number scoped to the school (uq_students_number_school
+// is per-school, so global numbering would collide across tenants and leak size).
+function generateStudentNumber($pdo, ?int $schoolId = null) {
+    if ($schoolId === null && function_exists('currentSchoolId')) {
+        $schoolId = (int)(currentSchoolId() ?? 0);
     }
-    return 'STU-' . $year . '-' . str_pad($next, 4, '0', STR_PAD_LEFT);
+    $schoolId = max(0, (int)$schoolId);
+    $year = (int)date('Y');
+    $prefix = 'STU-' . $year . '-';
+
+    $next = 1;
+    try {
+        $stmt = $pdo->prepare("SELECT MAX(CAST(SUBSTRING_INDEX(student_number, '-', -1) AS UNSIGNED)) FROM students WHERE school_id = ? AND student_number LIKE ?");
+        $stmt->execute([$schoolId, $prefix . '%']);
+        $next = max(1, (int)$stmt->fetchColumn() + 1);
+    } catch (Exception $e) {
+        $next = random_int(100, 999);
+    }
+
+    // Collision-safe: a concurrent request or a deleted record can otherwise
+    // produce a duplicate number and fail the whole INSERT.
+    for ($attempt = 0; $attempt < 50; $attempt++) {
+        $candidate = $prefix . str_pad((string)$next, 4, '0', STR_PAD_LEFT);
+        $chk = $pdo->prepare("SELECT 1 FROM students WHERE school_id = ? AND student_number = ? LIMIT 1");
+        $chk->execute([$schoolId, $candidate]);
+        if (!$chk->fetchColumn()) {
+            return $candidate;
+        }
+        $next++;
+    }
+    return $prefix . str_pad((string)($next + random_int(1, 999)), 4, '0', STR_PAD_LEFT);
 }
 
 // Get active emergency closure alert (if any)
@@ -878,11 +963,18 @@ function getActiveEmergencyAlert($pdo, $schoolId = null) {
 }
 
 // Get upcoming school events and holidays
-function getSchoolEventsList($pdo, $limit = 6, $onlyUpcoming = true) {
+// $schoolId null = platform-wide feed (super admin); otherwise tenant-scoped.
+function getSchoolEventsList($pdo, $limit = 6, $onlyUpcoming = true, ?int $schoolId = null) {
     try {
-        $where = $onlyUpcoming ? "WHERE event_date >= CURDATE() AND status != 'Cancelled'" : "";
-        $stmt = $pdo->prepare("SELECT e.*, u.full_name as author_name FROM school_events e LEFT JOIN users u ON e.created_by = u.id $where ORDER BY e.event_date ASC LIMIT ?");
-        $stmt->bindValue(1, (int)$limit, PDO::PARAM_INT);
+        $where = $onlyUpcoming ? "event_date >= CURDATE() AND status != 'Cancelled'" : "1=1";
+        $params = [];
+        if ($schoolId !== null) {
+            $where .= " AND e.school_id = ?";
+            $params[] = (int)$schoolId;
+        }
+        $stmt = $pdo->prepare("SELECT e.*, u.full_name as author_name FROM school_events e LEFT JOIN users u ON e.created_by = u.id WHERE $where ORDER BY e.event_date ASC LIMIT ?");
+        foreach ($params as $i => $p) $stmt->bindValue($i + 1, $p, PDO::PARAM_INT);
+        $stmt->bindValue(count($params) + 1, (int)$limit, PDO::PARAM_INT);
         $stmt->execute();
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     } catch (PDOException $e) {
@@ -1037,6 +1129,24 @@ function enforceSession(?PDO $pdo = null): void
         (string)$_SESSION['user_role'] . '|' .
         (string)($_SESSION['school_id'] ?? '')
     );
+}
+
+// Force a first-login password change when users.must_change_password is set.
+// Called from includes/header.php on every internal page. Pages that must stay
+// reachable during the change (profile, logout, lightweight AJAX) are allowed.
+function enforcePasswordChange(): void
+{
+    if (!isLoggedIn() || empty($_SESSION['must_change_password'])) {
+        return;
+    }
+    $here = basename((string)($_SERVER['SCRIPT_NAME'] ?? ''));
+    $allowed = ['profile.php', 'logout.php', 'notifications.php', 'save_push_subscription.php'];
+    if (!in_array($here, $allowed, true)) {
+        if (!headers_sent()) {
+            header('Location: ' . getBasePath() . 'profile.php?must_change=1');
+        }
+        exit;
+    }
 }
 
 // Password strength validation (H5: rate limiting + security)
