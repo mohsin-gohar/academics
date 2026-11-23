@@ -108,7 +108,7 @@ try {
             exit;
         }
         // Students' tasks must have valid school context
-        if ($taskSchoolId !== null && $userSchoolId !== $taskSchoolId) {
+        if ($taskSchoolId !== null && $userSchoolId !== (int)$taskSchoolId) {
             http_response_code(403);
             echo json_encode(['success' => false, 'message' => 'Cross-tenant access denied.']);
             exit;
@@ -117,7 +117,7 @@ try {
         // Non-admin: must have matching school_id
         if ($taskSchoolId !== null) {
             // Task has school context - verify user's school matches
-            if ($userSchoolId === null || $userSchoolId !== $taskSchoolId) {
+            if ($userSchoolId === null || $userSchoolId !== (int)$taskSchoolId) {
                 http_response_code(403);
                 echo json_encode(['success' => false, 'message' => 'You do not have permission to update this task.']);
                 exit;
@@ -136,7 +136,7 @@ try {
         }
     } elseif (isAdmin()) {
         // Admin: can update any task, but still verify school context if set
-        if ($taskSchoolId !== null && $userSchoolId !== $taskSchoolId && !isSuperAdmin()) {
+        if ($taskSchoolId !== null && $userSchoolId !== (int)$taskSchoolId && !isSuperAdmin()) {
             // School admin trying to access a different school's task
             http_response_code(403);
             echo json_encode(['success' => false, 'message' => 'You do not have permission to update this task.']);
@@ -154,11 +154,11 @@ try {
         // If task has school_id, filter by it; if NULL, omit school filter
         $where = "id = ? AND (school_id IS NULL OR school_id = ?)";
         $upd = $pdo->prepare("UPDATE tasks SET status = ?, completed_at = NOW(), updated_at = NOW() WHERE $where");
-        $upd->execute([$task_id, $schoolIdParam, $new_status]);
+        $upd->execute([$new_status, $task_id, $schoolIdParam]);
     } else {
         $where = "id = ? AND (school_id IS NULL OR school_id = ?)";
         $upd = $pdo->prepare("UPDATE tasks SET status = ?, completed_at = NULL, updated_at = NOW() WHERE $where");
-        $upd->execute([$task_id, $schoolIdParam, $new_status]);
+        $upd->execute([$new_status, $task_id, $schoolIdParam]);
     }
 
     logActivity($pdo, $user_id, 'ajax_update_status', 'task', $task_id, 'Quick status changed to: ' . $new_status);

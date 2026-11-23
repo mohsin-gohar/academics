@@ -1,67 +1,31 @@
 <?php
 /**
  * Academics Database & Hosting Configuration
- * 
- * This file allows seamless switching between Localhost (XAMPP)
- * and Production Hosting (InfinityFree, cPanel, ByetHost, etc.).
+ *
+ * Credentials must come from the .env file or server environment variables
+ * (see config/db.php). No database secrets belong in version control.
  */
 
-// Auto-detect environment: InfinityFree hostnames usually contain infinityfree, epizy, rf.gd, etc.
-$httpHost = $_SERVER['HTTP_HOST'] ?? $_SERVER['SERVER_NAME'] ?? '';
-$isInfinityFree = false;
-$ifDomains = ['infinityfreeapp.com', 'epizy.com', 'rf.gd', 'great-site.net', 'freecluster.eu', 'infinityfree.me'];
-foreach ($ifDomains as $d) {
-    if (stripos($httpHost, $d) !== false) {
-        $isInfinityFree = true;
-        break;
-    }
+$appEnv = strtolower(trim((string)(getenv('APP_ENV') ?: 'local')));
+
+if (!defined('IS_PRODUCTION')) {
+    define('IS_PRODUCTION', in_array($appEnv, ['production', 'prod', 'live'], true));
 }
 
-// Set this to true manually if you want to FORCE production credentials:
-// NEVER set FORCE_PRODUCTION=true in this file for local development.
-// Use APP_ENV=production via .env or server environment instead.
-$forceProduction = false; // Do not hardcode - use APP_ENV environment variable
-
-// Do NOT evaluate $isInfinityFree || $forceProduction here.
-// The actual environment check is done in config/db.php after .env loading.
-    /**
-     * ========================================================================
-     * INFINITYFREE / PRODUCTION DATABASE CREDENTIALS
-     * ========================================================================
-     * In your InfinityFree Control Panel (vPanel) / Client Area, find:
-     * 1. MySQL Hostname (e.g. sql105.infinityfree.com or sql200.epizy.com)
-     * 2. MySQL Database Name (e.g. if0_12345678_edusphere)
-     * 3. MySQL Username (e.g. if0_12345678)
-     * 4. MySQL Password (Your InfinityFree account / vPanel password)
-     */
-    if (!defined('DB_HOST')) define('DB_HOST', 'sqlxxx.infinityfree.com'); // <-- Replace with your MySQL Hostname
-    if (!defined('DB_NAME')) define('DB_NAME', 'if0_xxxxxxxx_edusphere');  // <-- Replace with your MySQL DB Name
-    if (!defined('DB_USER')) define('DB_USER', 'if0_xxxxxxxx');            // <-- Replace with your MySQL Username
-    if (!defined('DB_PASS')) define('DB_PASS', 'YOUR_INFINITYFREE_PASS');  // <-- Replace with your MySQL Password
-    /**
-     * SECURITY NOTICE:
-     * - Never commit real DB_PASS values to version control
-     * - Set actual credentials via .env file or server environment variables
-     * - For production (INFINITYFREE): Use your vPanel MySQL credentials
-     * - For local development: Export DB_USER, DB_PASS, DB_HOST, DB_NAME in your shell
-     * - Rotate passwords regularly and never reuse credentials
-     */
-    /**
-     * SECURITY NOTICE:
-     * - Never commit real DB_PASS values to version control
-     * - Set actual credentials via .env file or server environment variables
-     * - For production (INFINITYFREE): Use your vPanel MySQL credentials
-     * - For local development: Export DB_USER, DB_PASS, DB_HOST, DB_NAME in your shell
-     * - Rotate passwords regularly and never reuse credentials
-     */
-    if (!defined('DB_PORT')) define('DB_PORT', 3306);
-    if (!defined('IS_PRODUCTION')) define('IS_PRODUCTION', true);
-} else {
-    /**
-     * ========================================================================
-     * LOCALHOST (XAMPP / LOCAL MYSQL)
-     * ========================================================================
-     * Leave untouched for automatic local database detection
-     */
-    if (!defined('IS_PRODUCTION')) define('IS_PRODUCTION', false);
+if (IS_PRODUCTION) {
+    if (!defined('DB_HOST')) {
+        define('DB_HOST', getenv('DB_HOST') !== false ? trim((string)getenv('DB_HOST')) : 'localhost');
+    }
+    if (!defined('DB_PORT')) {
+        define('DB_PORT', (int)(getenv('DB_PORT') !== false ? getenv('DB_PORT') : 3306));
+    }
+    if (!defined('DB_NAME')) {
+        define('DB_NAME', getenv('DB_NAME') !== false ? trim((string)getenv('DB_NAME')) : 'edusphere');
+    }
+    if (!defined('DB_USER')) {
+        define('DB_USER', getenv('DB_USER') !== false ? trim((string)getenv('DB_USER')) : 'root');
+    }
+    if (!defined('DB_PASS')) {
+        define('DB_PASS', getenv('DB_PASS') !== false ? (string)getenv('DB_PASS') : '');
+    }
 }
