@@ -11,6 +11,8 @@ require_once __DIR__ . '/../includes/tenant.php';
 startSecureSession();
 require_once __DIR__ . '/../config/db.php';
 
+$token = $_GET['token'] ?? '';
+
 // Rate limiting for auto-login attempts
 if (!isset($_SESSION['auto_login_attempts'])) {
     $_SESSION['auto_login_attempts'] = 0;
@@ -26,6 +28,9 @@ if (!preg_match('/^[a-f0-9]{64}$/', $token)) {
     header('Location: login.php?error=' . urlencode('Invalid auto-login token format.'));
     exit;
 }
+
+// Consume the single-use token only after the format check.
+$row = consume_auto_login_token($pdo, $token);
 
 if (!$row) {
     header('Location: login.php?error=' . urlencode('This auto-login link is invalid or has expired. Please sign in.'));
