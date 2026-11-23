@@ -27,6 +27,27 @@ if (!preg_match('/^[a-f0-9]{64}$/', $token)) {
     exit;
 }
 
+// --- Consume token with atomic race-safe operation ---
+$hash = hash('sha256', $token);
+$pdo->beginTransaction();
+try {
+    $st = $pdo->prepare("
+        SELECT c.*, u.is_active, u.must_change_password, u.school_id, u.role, u.email
+        FROM user_redis_cache c
+        JOIN users u ON u.id = c.user_id
+        WHERE c.token_hash = ?
+        AND c.token_expires_at > NOW()
+        FOR UPDATE
+    ");
+    $st->execute([$hash]);
+    $row = $st->fetch();
+} catch (Throwable $e) {
+    $pdo->rollBack();
+    header('Location: login.php?error=' . urlencode('Auto-login service temporarily unavailable.'));
+    exit;
+}
+
+// Single-use token: hash immediately invalidated after first successful consumption
 if (!$row) {
     header('Location: login.php?error=' . urlencode('This auto-login link is invalid or has expired. Please sign in.'));
     exit;
