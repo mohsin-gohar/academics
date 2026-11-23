@@ -71,7 +71,33 @@ try {
         exit;
     }
 
-    // Authorization
+    // Authorization with school_id tenant isolation
+    // - Students can only update their own assigned tasks (same student_id)
+    // - Non-admin users can update tasks only within their school context
+    // - NULL school_id (legacy/global tasks) are restricted to admins only
+    // - Cross-tenant updates are prevented by school_id filtering
+
+    // Get current user's school context
+    $userSchoolId = null;
+    if (isLoggedIn()) {
+        // Check session school_id first
+        if (isset($_SESSION['school_id']) && is_numeric($_SESSION['school_id'])) {
+            $userSchoolId = (int)$_SESSION['school_id'];
+        }
+        // Fall back to user record school_id
+        if ($userSchoolId === null) {
+            $userSchoolStmt = $pdo->prepare("SELECT school_id FROM users WHERE id = ? LIMIT 1");
+            $userSchoolStmt->execute([$user_id]);
+            $userSchoolRow = $userSchoolStmt->fetch();
+            if ($userSchoolRow && $userSchoolRow['school_id'] !== null) {
+                $userSchoolId = $userSchoolRow['school_id'];
+            }
+        }
+    }
+
+    // Check task school_id for tenant isolation
+    $taskSchoolId = $task['school_id'] ?? null;
+
     if (isStudent()) {
         $stStmt = $pdo->prepare("SELECT id FROM students WHERE user_id = ?");
         $stStmt->execute([$user_id]);
@@ -81,10 +107,41 @@ try {
             echo json_encode(['success' => false, 'message' => 'You can only update tasks assigned to you.']);
             exit;
         }
-    } elseif (!isAdmin() && (int)$task['user_id'] !== (int)$user_id) {
-        http_response_code(403);
-        echo json_encode(['success' => false, 'message' => 'You do not have permission to update this task.']);
-        exit;
+        // Students' tasks must have valid school context
+        if ($taskSchoolId !== null && $userSchoolId !== $taskSchoolId) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'message' => 'Cross-tenant access denied.']);
+            exit;
+        }
+    } elseif (!isAdmin()) {
+        // Non-admin: must have matching school_id
+        if ($taskSchoolId !== null) {
+            // Task has school context - verify user's school matches
+            if ($userSchoolId === null || $userSchoolId !== $taskSchoolId) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'message' => 'You do not have permission to update this task.']);
+                exit;
+            }
+        } else {
+            // Task has NULL school_id (legacy/global) - restrict to admins only
+            http_response_code(403);
+            echo json_encode(['success' => false, 'message' => 'You do not have permission to update this task.']);
+            exit;
+        }
+        // Also check user_id ownership for non-admin, non-student roles
+        if ((int)$task['user_id'] !== (int)$user_id) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'message' => 'You do not have permission to update this task.']);
+            exit;
+        }
+    } elseif (isAdmin()) {
+        // Admin: can update any task, but still verify school context if set
+        if ($taskSchoolId !== null && $userSchoolId !== $taskSchoolId && !isSuperAdmin()) {
+            // School admin trying to access a different school's task
+            http_response_code(403);
+            echo json_encode(['success' => false, 'message' => 'You do not have permission to update this task.']);
+            exit;
+        }
     }
 
     // Update status and completion timestamp

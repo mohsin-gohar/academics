@@ -29,7 +29,12 @@ $priority = trim($_GET['priority'] ?? '');
 $student_filter = (int)($_GET['student'] ?? 0);
 $page = max(1, (int)($_GET['page'] ?? 1));
 $perPage = max(5, min(50, (int)($_GET['per_page'] ?? 10)));
-$offset = ($page - 1) * $perPage;
+
+// Offset calculated AFTER page clamping to ensure consistency
+// $currentPage is clamped to totalPages before offset is computed
+// $offset will be computed after $currentPage is determined
+
+// Determine base scope according to role and school tenant
 
 // Determine base scope according to role and school tenant
 $stId = null;
@@ -88,6 +93,7 @@ try {
 
     $totalPages = max(1, (int)ceil($total / $perPage));
     $currentPage = min($page, $totalPages);
+    $offset = ($currentPage - 1) * $perPage;
 
     // Fetch tasks
     $sql = "SELECT t.*, s.full_name as student_name, s.student_number, c.course_name, c.course_code 
