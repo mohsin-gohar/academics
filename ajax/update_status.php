@@ -145,12 +145,21 @@ try {
     }
 
     // Update status and completion timestamp
+    // Build WHERE clause: only filter by school_id if it is not NULL
+    // This prevents the bug where NULL school_id gets converted to 0, matching
+    // legacy/global tasks incorrectly
+    $schoolIdParam = $task['school_id'] !== null ? (int)$task['school_id'] : null;
+    
     if ($new_status === 'Completed') {
-        $upd = $pdo->prepare("UPDATE tasks SET status = ?, completed_at = NOW(), updated_at = NOW() WHERE id = ? AND school_id = ?");
+        // If task has school_id, filter by it; if NULL, omit school filter
+        $where = "id = ? AND (school_id IS NULL OR school_id = ?)";
+        $upd = $pdo->prepare("UPDATE tasks SET status = ?, completed_at = NOW(), updated_at = NOW() WHERE $where");
+        $upd->execute([$task_id, $schoolIdParam, $new_status]);
     } else {
-        $upd = $pdo->prepare("UPDATE tasks SET status = ?, completed_at = NULL, updated_at = NOW() WHERE id = ? AND school_id = ?");
+        $where = "id = ? AND (school_id IS NULL OR school_id = ?)";
+        $upd = $pdo->prepare("UPDATE tasks SET status = ?, completed_at = NULL, updated_at = NOW() WHERE $where");
+        $upd->execute([$task_id, $schoolIdParam, $new_status]);
     }
-    $upd->execute([$new_status, $task_id, (int)($task['school_id'] ?? 0)]);
 
     logActivity($pdo, $user_id, 'ajax_update_status', 'task', $task_id, 'Quick status changed to: ' . $new_status);
 

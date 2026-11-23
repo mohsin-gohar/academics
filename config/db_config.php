@@ -22,7 +22,8 @@ foreach ($ifDomains as $d) {
 // Use APP_ENV=production via .env or server environment instead.
 $forceProduction = false; // Do not hardcode - use APP_ENV environment variable
 
-if ($isInfinityFree || $forceProduction) {
+// Do NOT evaluate $isInfinityFree || $forceProduction here.
+// The actual environment check is done in config/db.php after .env loading.
     /**
      * ========================================================================
      * INFINITYFREE / PRODUCTION DATABASE CREDENTIALS
@@ -37,6 +38,14 @@ if ($isInfinityFree || $forceProduction) {
     if (!defined('DB_NAME')) define('DB_NAME', 'if0_xxxxxxxx_edusphere');  // <-- Replace with your MySQL DB Name
     if (!defined('DB_USER')) define('DB_USER', 'if0_xxxxxxxx');            // <-- Replace with your MySQL Username
     if (!defined('DB_PASS')) define('DB_PASS', 'YOUR_INFINITYFREE_PASS');  // <-- Replace with your MySQL Password
+    /**
+     * SECURITY NOTICE:
+     * - Never commit real DB_PASS values to version control
+     * - Set actual credentials via .env file or server environment variables
+     * - For production (INFINITYFREE): Use your vPanel MySQL credentials
+     * - For local development: Export DB_USER, DB_PASS, DB_HOST, DB_NAME in your shell
+     * - Rotate passwords regularly and never reuse credentials
+     */
     /**
      * SECURITY NOTICE:
      * - Never commit real DB_PASS values to version control
