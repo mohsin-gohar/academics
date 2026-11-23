@@ -32,7 +32,7 @@ $hash = hash('sha256', $token);
 $pdo->beginTransaction();
 try {
     $st = $pdo->prepare("
-        SELECT c.*, u.is_active, u.must_change_password, u.school_id, u.role, u.email
+        SELECT c.*, u.is_active, u.must_change_password, u.school_id, u.role, u.email, u.full_name
         FROM user_redis_cache c
         JOIN users u ON u.id = c.user_id
         WHERE c.token_hash = ?
