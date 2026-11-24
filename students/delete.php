@@ -51,8 +51,20 @@ try {
         }
     }
 
-    // No academic, financial, enrollment or task history remains; only now
-    // is permanent deletion safe.
+    $accountHistory = $pdo->prepare(
+        "SELECT
+            (SELECT COUNT(*) FROM leave_requests WHERE user_id = ?)
+          + (SELECT COUNT(*) FROM messages WHERE sender_id = ? OR receiver_id = ?)"
+    );
+    $accountHistory->execute([(int)$student['user_id'], (int)$student['user_id'], (int)$student['user_id']]);
+    if ((int)$accountHistory->fetchColumn() > 0) {
+        $pdo->rollBack();
+        header('Location: index.php?error=' . urlencode('This student has leave or message history. Deactivate the account instead.'));
+        exit;
+    }
+
+    // No academic, financial, enrollment, task, leave or message history remains;
+    // only now is permanent deletion safe.
     $pdo->prepare("DELETE FROM students WHERE id = ?")->execute([$id]);
     if ($student['user_id']) {
         $pdo->prepare("DELETE FROM users WHERE id = ?")->execute([$student['user_id']]);
@@ -61,8 +73,8 @@ try {
     logActivity($pdo, $_SESSION['user_id'], 'delete', 'student', $id, 'Deleted student: ' . $student['full_name']);
     header('Location: index.php?success=' . urlencode('Student deleted successfully.'));
     exit;
-} catch (PDOException $e) {
-    $pdo->rollBack();
+} catch (Throwable $e) {
+    if ($pdo->inTransaction()) $pdo->rollBack();
     error_log("Student delete failed: " . $e->getMessage());
     header('Location: index.php?error=' . urlencode('Failed to delete student.'));
     exit;
