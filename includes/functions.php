@@ -823,6 +823,16 @@ function getFlashMessage() {
     return null;
 }
 
+/**
+ * Consume the current one-time flash message.
+ * Kept as a named alias for the shared page header.
+ */
+function consumeFlashMessage(): ?array
+{
+    $message = getFlashMessage();
+    return is_array($message) ? $message : null;
+}
+
 // Set flash message
 function setFlashMessage($type, $message) {
     startSecureSession();
