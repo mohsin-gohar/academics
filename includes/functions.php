@@ -442,6 +442,10 @@ function consumePasswordResetToken(PDO $pdo, string $raw, string $newPassword): 
  */
 function sendPasswordResetEmail(string $email, string $token): bool
 {
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL) || !preg_match('/^[a-f0-9]{64}$/', $token)) {
+        return false;
+    }
+
     // Reset links sent by email must be absolute and point to /auth/reset_password.php.
     // Prefer an explicitly configured canonical URL; never trust an arbitrary Host
     // header when constructing production password-reset links.
@@ -452,7 +456,7 @@ function sendPasswordResetEmail(string $email, string $token): bool
     }
     if ($appUrl === '' && (!defined('IS_PRODUCTION') || !IS_PRODUCTION)) {
         $host = (string)($_SERVER['HTTP_HOST'] ?? 'localhost');
-        if (!preg_match('/^[a-z0-9.-]+(?:[0-9]{1,5})?$/i', $host)) return false;
+        if (!preg_match('/^[a-z0-9.-]+(?::[0-9]{1,5})?$/i', $host)) return false;
         $https = (!empty($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off');
         $scheme = $https ? 'https' : 'http';
         $scriptDir = str_replace('\\', '/', dirname((string)($_SERVER['SCRIPT_NAME'] ?? '/auth/forgot_password.php')));
@@ -591,7 +595,7 @@ function sendPasswordResetEmail(string $email, string $token): bool
     // Fallback for hosts that expose PHP's configured mail transport.
     if (function_exists('mail') && filter_var($mailFrom, FILTER_VALIDATE_EMAIL)) {
         try {
-            $safeName = str_replace(["\\r", "\\n"], '', $mailFromName);
+            $safeName = str_replace(["\r", "\n"], '', $mailFromName);
             $headers = "From: {$safeName} <{$mailFrom}>\r\n";
             $headers .= "MIME-Version: 1.0\r\n";
             $headers .= "Content-Type: text/plain; charset=UTF-8\r\n";
