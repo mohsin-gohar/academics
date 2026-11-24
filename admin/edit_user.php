@@ -108,6 +108,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     throw new InvalidArgumentException('Cannot demote or deactivate the last active super administrator.');
                 }
             }
+            if ($lockedUser['role'] === 'school_admin' && (int)$lockedUser['is_active'] === 1
+                && ($form_data['role'] !== 'school_admin' || $form_data['is_active'] !== 1)
+                && $lockedUser['school_id'] !== null) {
+                $schoolAdmins = $pdo->prepare(
+                    "SELECT id FROM users WHERE role = 'school_admin' AND is_active = 1 AND school_id = ? FOR UPDATE"
+                );
+                $schoolAdmins->execute([(int)$lockedUser['school_id']]);
+                if (count($schoolAdmins->fetchAll(PDO::FETCH_COLUMN)) <= 1) {
+                    throw new InvalidArgumentException('Cannot demote or deactivate the last active school administrator.');
+                }
+            }
 
             $studentLock = $pdo->prepare("SELECT id, school_id FROM students WHERE user_id = ? LIMIT 1 FOR UPDATE");
             $studentLock->execute([$id]);
