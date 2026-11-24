@@ -156,17 +156,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $studentNumber = generateStudentNumber($pdo, (int)$form_data['school_id']);
                     $createStudent = $pdo->prepare(
                         "INSERT INTO students (school_id, user_id, student_number, full_name, email, enrollment_date, status)
-                         VALUES (?, ?, ?, ?, ?, CURDATE(), 'Active')"
+                         VALUES (?, ?, ?, ?, ?, CURDATE(), ?)"
                     );
                     $createStudent->execute([
                         (int)$form_data['school_id'], $id, $studentNumber,
-                        $form_data['full_name'], $form_data['email']
+                        $form_data['full_name'], $form_data['email'],
+                        $form_data['is_active'] === 1 ? 'Active' : 'Inactive'
                     ]);
                 } else {
                     $syncStudent = $pdo->prepare(
-                        "UPDATE students SET full_name = ?, email = ?, updated_at = NOW() WHERE id = ?"
+                        "UPDATE students
+                         SET full_name = ?, email = ?,
+                             status = CASE WHEN status = 'Inactive' AND ? = 1 THEN 'Active' ELSE status END,
+                             updated_at = NOW()
+                         WHERE id = ?"
                     );
-                    $syncStudent->execute([$form_data['full_name'], $form_data['email'], (int)$studentProfile['id']]);
+                    $syncStudent->execute([
+                        $form_data['full_name'], $form_data['email'],
+                        $form_data['is_active'], (int)$studentProfile['id']
+                    ]);
                 }
             } elseif ($studentProfile) {
                 // Preserve academic history while removing the profile from
