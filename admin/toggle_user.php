@@ -46,6 +46,23 @@ try {
 
     $update = $pdo->prepare("UPDATE users SET is_active = ?, updated_at = NOW() WHERE id = ?");
     $update->execute([$newStatus, $id]);
+
+    // Keep student profile visibility aligned with account approval/activation.
+    if ($target['role'] === 'student') {
+        $studentProfile = $pdo->prepare("SELECT id, status FROM students WHERE user_id = ? LIMIT 1 FOR UPDATE");
+        $studentProfile->execute([$id]);
+        $student = $studentProfile->fetch(PDO::FETCH_ASSOC);
+        if ($student) {
+            if ($newStatus === 0 && $student['status'] === 'Active') {
+                $pdo->prepare("UPDATE students SET status = 'Inactive', updated_at = NOW() WHERE id = ?")
+                    ->execute([(int)$student['id']]);
+            } elseif ($newStatus === 1 && $student['status'] === 'Inactive') {
+                $pdo->prepare("UPDATE students SET status = 'Active', updated_at = NOW() WHERE id = ?")
+                    ->execute([(int)$student['id']]);
+            }
+        }
+    }
+
     $pdo->commit();
 
     logActivity($pdo, (int)$_SESSION['user_id'], 'toggle', 'user', $id, 'Toggled user status');
