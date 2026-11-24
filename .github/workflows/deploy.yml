@@ -106,5 +106,7 @@ jobs:
             **/storage/cache/**
             **/storage/logs/**
             **/storage/tmp/**
-            **/*.sql
+            **/database.sql
+            **/database/schema.sql
+            **/database/seed.sql
             **/*.md
