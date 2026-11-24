@@ -56,12 +56,11 @@ jobs:
         env:
           MYSQL_PWD: root
         run: |
-          mysql --host=127.0.0.1 --user=root -e "CREATE DATABASE edusphere_legacy_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
-          mysql --host=127.0.0.1 --user=root edusphere_legacy_test < database/schema.sql
-          APP_ENV=test DB_NAME_TEST=edusphere_legacy_test DB_NAME=edusphere_legacy_test DB_HOST=127.0.0.1 DB_PORT=3306 DB_USER=root DB_PASS=root php database/migrate.php up
-          legacy_school_count=$(mysql --host=127.0.0.1 --user=root --batch --skip-column-names -e "SELECT COUNT(*) FROM edusphere_legacy_test.schools WHERE school_code='LEGACY001'")
+          mysql --host=127.0.0.1 --user=root < database/schema.sql
+          APP_ENV=test DB_NAME_TEST=edusphere DB_NAME=edusphere DB_HOST=127.0.0.1 DB_PORT=3306 DB_USER=root DB_PASS=root php database/migrate.php up
+          legacy_school_count=$(mysql --host=127.0.0.1 --user=root --batch --skip-column-names -e "SELECT COUNT(*) FROM edusphere.schools WHERE school_code='LEGACY001'")
           test "$legacy_school_count" -eq 1
-          tenant_columns=$(mysql --host=127.0.0.1 --user=root --batch --skip-column-names -e "SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='edusphere_legacy_test' AND ((TABLE_NAME='users' AND COLUMN_NAME IN ('school_id','must_change_password')) OR (TABLE_NAME IN ('students','courses','enrollments','tasks','school_events','emergency_alerts','activity_logs','notifications') AND COLUMN_NAME='school_id'))")
+          tenant_columns=$(mysql --host=127.0.0.1 --user=root --batch --skip-column-names -e "SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='edusphere' AND ((TABLE_NAME='users' AND COLUMN_NAME IN ('school_id','must_change_password')) OR (TABLE_NAME IN ('students','courses','enrollments','tasks','school_events','emergency_alerts','activity_logs','notifications') AND COLUMN_NAME='school_id'))")
           test "$tenant_columns" -ge 10
       - name: PHP syntax check
         run: find . -type f -name '*.php' -not -path './storage/cache/*' -exec php -l {} \;
