@@ -38,6 +38,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($form_data['event_date'])) {
         $errors[] = 'Event date is required.';
     }
+    if (currentSchoolId() === null) {
+        $errors[] = 'A school context is required to create a school event.';
+    }
     if (!in_array($form_data['event_type'], ['Function', 'Holiday', 'Exam', 'Meeting', 'Other'])) {
         $errors[] = 'Invalid event type selected.';
     }
