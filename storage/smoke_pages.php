@@ -29,6 +29,19 @@ function http(string $url, ?string $jar = null, array $post = null): array {
     return ['code' => $code, 'body' => $body, 'url' => $final];
 }
 
+function studentCannotOpenOtherProfile(string $label, int $targetStudentId, int $ownStudentId, string $jar): void {
+    global $base, $pass, $fail, $rows;
+    $r = http($base . '/students/show.php?id=' . $targetStudentId, $jar);
+    $path = (string)(parse_url($r['url'], PHP_URL_PATH) ?? '');
+    $query = [];
+    parse_str((string)(parse_url($r['url'], PHP_URL_QUERY) ?? ''), $query);
+    $ok = $r['code'] === 200 && $path === '/students/show.php'
+        && (int)($query['id'] ?? 0) === $ownStudentId;
+    if ($ok) $pass++; else $fail++;
+    $rows[] = ($ok ? 'PASS ' : 'FAIL ') . str_pad($label, 42)
+        . ' HTTP ' . $r['code'] . '  ' . $r['url'];
+}
+
 function login(string $email, string $pw): string {
     global $base, $tmp;
     $jar = tempnam($tmp, 'smoke_');
@@ -127,7 +140,7 @@ foreach ([
     'student own profile' => '/students/show.php?id=' . $sch1Student,
     'student profile page' => '/profile.php',
 ] as $label => $path) page($label, $path, $student);
-page('student cross-school student denied', '/students/show.php?id=' . $otherStudent, $student, 403);
+studentCannotOpenOtherProfile('student cross-school profile redirects to own', $otherStudent, $sch1Student, $student);
 
 $parent = login('parent@sch001.com', 'Parent@123');
 foreach ([
