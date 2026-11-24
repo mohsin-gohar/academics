@@ -73,6 +73,9 @@ jobs:
         env:
           ACADEMICS_BASE: http://127.0.0.1:8090
         run: php storage/smoke_pages.php
+      - name: Show PHP server diagnostics on failure
+        if: failure()
+        run: cat /tmp/academics-php-server.log
 
   web-deploy:
     name: 🚀 Auto Deploy to InfinityFree via FTP
