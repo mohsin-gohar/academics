@@ -274,9 +274,17 @@ function getAttendanceStatuses(): array
 
 function markAttendance(PDO $pdo, int $schoolId, int $studentId, string $date, string $status, ?string $remarks, ?int $markedBy): bool
 {
-    if (!array_key_exists($status, getAttendanceStatuses())) {
+    if (!array_key_exists($status, getAttendanceStatuses())
+        || !preg_match('/^\\d{4}-\\d{2}-\\d{2}$/', $date)
+        || !checkdate((int)substr($date, 5, 2), (int)substr($date, 8, 2), (int)substr($date, 0, 4))) {
         return false;
     }
+    $studentCheck = $pdo->prepare("SELECT id FROM students WHERE id = ? AND school_id = ? LIMIT 1");
+    $studentCheck->execute([$studentId, $schoolId]);
+    if (!$studentCheck->fetchColumn()) {
+        return false;
+    }
+
     $stmt = $pdo->prepare("INSERT INTO attendance (school_id, student_id, attendance_date, status, remarks, marked_by)
         VALUES (?,?,?,?,?,?)
         ON DUPLICATE KEY UPDATE status=VALUES(status), remarks=VALUES(remarks), marked_by=VALUES(marked_by), updated_at=NOW()");
@@ -534,6 +542,12 @@ function getAssessmentTypes(): array
 
 function createAssessment(PDO $pdo, int $schoolId, int $courseId, string $title, string $type, float $maxMarks, float $weight, ?string $dueDate, ?string $description, ?int $createdBy): int
 {
+    $courseCheck = $pdo->prepare("SELECT id FROM courses WHERE id = ? AND school_id = ? LIMIT 1");
+    $courseCheck->execute([$courseId, $schoolId]);
+    if (!$courseCheck->fetchColumn() || $maxMarks <= 0 || $weight <= 0 || trim($title) === '') {
+        return 0;
+    }
+
     $stmt = $pdo->prepare("INSERT INTO assessments (school_id, course_id, title, assessment_type, max_marks, weight, due_date, description, created_by)
         VALUES (?,?,?,?,?,?,?,?,?)");
     $stmt->execute([$schoolId, $courseId, $title, $type, $maxMarks, $weight, $dueDate, $description, $createdBy]);
@@ -558,9 +572,12 @@ function recordMark(PDO $pdo, int $schoolId, int $assessmentId, int $studentId, 
         return false;
     }
 
-    $enrStmt = $pdo->prepare("SELECT st.id FROM students st JOIN enrollments e ON e.student_id = st.id
-        WHERE st.id = ? AND st.school_id = ? AND e.course_id = ? AND e.status = 'Enrolled' LIMIT 1");
-    $enrStmt->execute([$studentId, $schoolId, (int)$assessment['course_id']]);
+    $enrStmt = $pdo->prepare("SELECT st.id FROM students st
+        JOIN enrollments e ON e.student_id = st.id AND e.school_id = st.school_id
+        JOIN courses c ON c.id = e.course_id AND c.school_id = e.school_id
+        WHERE st.id = ? AND st.school_id = ? AND e.school_id = ?
+          AND e.course_id = ? AND e.status = 'Enrolled' LIMIT 1");
+    $enrStmt->execute([$studentId, $schoolId, $schoolId, (int)$assessment['course_id']]);
     if (!$enrStmt->fetchColumn()) {
         return false;
     }
@@ -656,6 +673,22 @@ function generateInvoiceNumber(PDO $pdo, int $schoolId): string
 
 function createInvoice(PDO $pdo, int $schoolId, int $studentId, ?int $feeStructureId, string $title, float $amount, ?string $dueDate, ?int $createdBy): int
 {
+    if ($amount <= 0 || trim($title) === '') {
+        return 0;
+    }
+    $studentCheck = $pdo->prepare("SELECT id FROM students WHERE id = ? AND school_id = ? LIMIT 1");
+    $studentCheck->execute([$studentId, $schoolId]);
+    if (!$studentCheck->fetchColumn()) {
+        return 0;
+    }
+    if ($feeStructureId !== null) {
+        $feeCheck = $pdo->prepare("SELECT id FROM fee_structures WHERE id = ? AND school_id = ? LIMIT 1");
+        $feeCheck->execute([$feeStructureId, $schoolId]);
+        if (!$feeCheck->fetchColumn()) {
+            return 0;
+        }
+    }
+
     $num = generateInvoiceNumber($pdo, $schoolId);
     $stmt = $pdo->prepare("INSERT INTO invoices (school_id, student_id, fee_structure_id, invoice_number, title, amount, due_date, created_by) VALUES (?,?,?,?,?,?,?,?)");
     $stmt->execute([$schoolId, $studentId, $feeStructureId, $num, $title, $amount, $dueDate, $createdBy]);
