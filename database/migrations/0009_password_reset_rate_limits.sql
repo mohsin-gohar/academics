@@ -8,5 +8,6 @@ CREATE TABLE IF NOT EXISTS password_reset_attempts (
     ip_address VARCHAR(45) NOT NULL,
     requested_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     KEY idx_pra_email_time (email_hash, requested_at),
-    KEY idx_pra_ip_time (ip_address, requested_at)
+    KEY idx_pra_ip_time (ip_address, requested_at),
+    KEY idx_pra_requested_at (requested_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
