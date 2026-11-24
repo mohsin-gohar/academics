@@ -1,9 +1,7 @@
 <?php
 /**
  * Deterministic fixtures for the isolated CI/test database.
- *
- * This file is intentionally invoked only when APP_ENV=test/testing. It must
- * never seed demo accounts or mutate a development/production database.
+ * Invoked only when APP_ENV=test/testing; never seed demo users in production.
  */
 if (!defined('APP_ENV') || !in_array(APP_ENV, ['test', 'testing'], true)) {
     return;
@@ -16,48 +14,60 @@ function ensureTestFixture(PDO $pdo): void
         $pdo->prepare(
             "INSERT INTO schools
                 (id, school_name, school_code, school_email, owner_name, status, plan, is_active)
-             VALUES (1, 'Academics Test School', 'TEST001', 'test-school@academics.invalid',
+             VALUES (1, 'Academics International School', 'SCH001', 'school@sch001.invalid',
                      'Academics Test Owner', 'active', 'pro', 1)
              ON DUPLICATE KEY UPDATE
                 school_name = VALUES(school_name),
+                school_code = VALUES(school_code),
                 status = 'active',
                 plan = 'pro',
                 is_active = 1"
         )->execute();
 
         $users = [
-            [1, 'Test Platform Admin', 'admin@edusphere.com', 'Admin@123', 'admin'],
-            [2, 'Test Teacher', 'teacher@edusphere.com', 'Teacher@123', 'teacher'],
-            [3, 'Test Student', 'student@edusphere.com', 'Student@123', 'student'],
+            [1, 'Test Platform Admin', 'admin@edusphere.com', 'Admin@123', 'super_admin', null],
+            [2, 'Legacy Test Teacher', 'teacher@edusphere.com', 'Teacher@123', 'teacher', 1],
+            [3, 'Legacy Test Student', 'student@edusphere.com', 'Student@123', 'student', 1],
+            [4, 'Test School Admin', 'schooladmin@sch001.com', 'School@123', 'school_admin', 1],
+            [5, 'Test Teacher', 'teacher@sch001.com', 'Teacher@123', 'teacher', 1],
+            [6, 'Test Student', 'student@sch001.com', 'Student@123', 'student', 1],
+            [7, 'Test Parent', 'parent@sch001.com', 'Parent@123', 'parent', 1],
         ];
         $userStmt = $pdo->prepare(
             "INSERT INTO users
                 (id, full_name, email, password, role, is_active, school_id, must_change_password)
-             VALUES (?, ?, ?, ?, ?, 1, 1, 0)
+             VALUES (?, ?, ?, ?, ?, 1, ?, 0)
              ON DUPLICATE KEY UPDATE
                 full_name = VALUES(full_name),
                 email = VALUES(email),
                 password = VALUES(password),
                 role = VALUES(role),
                 is_active = 1,
-                school_id = 1,
+                school_id = VALUES(school_id),
                 must_change_password = 0"
         );
-        foreach ($users as [$id, $name, $email, $password, $role]) {
-            $userStmt->execute([$id, $name, $email, password_hash($password, PASSWORD_DEFAULT), $role]);
+        foreach ($users as [$id, $name, $email, $password, $role, $schoolId]) {
+            $userStmt->execute([$id, $name, $email, password_hash($password, PASSWORD_DEFAULT), $role, $schoolId]);
         }
 
-        $pdo->prepare(
+        $studentStmt = $pdo->prepare(
             "INSERT INTO students
                 (id, school_id, user_id, student_number, full_name, email, enrollment_date, status)
-             VALUES (1, 1, 3, 'STU-TEST-0001', 'Test Student', 'student@edusphere.com', CURDATE(), 'Active')
+             VALUES (?, 1, ?, ?, ?, ?, CURDATE(), 'Active')
              ON DUPLICATE KEY UPDATE
                 school_id = 1,
-                user_id = 3,
-                student_number = 'STU-TEST-0001',
-                full_name = 'Test Student',
-                email = 'student@edusphere.com',
+                user_id = VALUES(user_id),
+                student_number = VALUES(student_number),
+                full_name = VALUES(full_name),
+                email = VALUES(email),
                 status = 'Active'"
+        );
+        $studentStmt->execute([1, 3, 'STU-TEST-0001', 'Legacy Test Student', 'student@edusphere.com']);
+        $studentStmt->execute([2, 6, 'STU-TEST-0002', 'Test Student', 'student@sch001.com']);
+
+        $pdo->prepare(
+            "INSERT INTO school_settings (school_id) VALUES (1)
+             ON DUPLICATE KEY UPDATE school_id = VALUES(school_id)"
         )->execute();
 
         $pdo->prepare(
@@ -72,11 +82,43 @@ function ensureTestFixture(PDO $pdo): void
                 created_by = 1"
         )->execute();
 
-        $pdo->prepare(
-            "INSERT INTO enrollments
-                (school_id, student_id, course_id, enrollment_date, status)
-             VALUES (1, 1, 1, CURDATE(), 'Enrolled')
+        $enrollmentStmt = $pdo->prepare(
+            "INSERT INTO enrollments (school_id, student_id, course_id, enrollment_date, status)
+             VALUES (1, ?, 1, CURDATE(), 'Enrolled')
              ON DUPLICATE KEY UPDATE status = 'Enrolled'"
+        );
+        $enrollmentStmt->execute([1]);
+        $enrollmentStmt->execute([2]);
+
+        $pdo->prepare(
+            "INSERT INTO parent_student (school_id, parent_id, student_id, relationship, is_primary)
+             VALUES (1, 7, 2, 'Parent', 1)
+             ON DUPLICATE KEY UPDATE school_id = 1, relationship = 'Parent', is_primary = 1"
+        )->execute();
+
+        $pdo->prepare(
+            "INSERT INTO school_events (id, school_id, title, event_type, description, event_date, status, created_by)
+             VALUES (1, 1, 'Test School Event', 'Function', 'CI route fixture', DATE_ADD(CURDATE(), INTERVAL 7 DAY), 'Upcoming', 1)
+             ON DUPLICATE KEY UPDATE school_id = 1, title = 'Test School Event', status = 'Upcoming'"
+        )->execute();
+
+        $pdo->prepare(
+            "INSERT INTO tasks (id, school_id, user_id, student_id, course_id, title, description, priority, status, due_date)
+             VALUES (1, 1, 5, 2, 1, 'Test Assigned Task', 'CI route fixture', 'Medium', 'Pending', DATE_ADD(CURDATE(), INTERVAL 7 DAY))
+             ON DUPLICATE KEY UPDATE school_id = 1, user_id = 5, student_id = 2, course_id = 1, status = 'Pending'"
+        )->execute();
+
+        $pdo->prepare(
+            "INSERT INTO assessments (id, school_id, course_id, title, assessment_type, max_marks, weight, due_date, created_by)
+             VALUES (1, 1, 1, 'Test Assessment', 'exam', 100, 1, DATE_ADD(CURDATE(), INTERVAL 7 DAY), 1)
+             ON DUPLICATE KEY UPDATE school_id = 1, course_id = 1, title = 'Test Assessment'"
+        )->execute();
+
+        $pdo->prepare(
+            "INSERT INTO invoices
+                (id, school_id, student_id, fee_structure_id, invoice_number, title, amount, due_date, status, created_by)
+             VALUES (1, 1, 2, NULL, 'INV-TEST-00001', 'Test Tuition Invoice', 500, DATE_ADD(CURDATE(), INTERVAL 30 DAY), 'unpaid', 1)
+             ON DUPLICATE KEY UPDATE school_id = 1, student_id = 2, amount = 500, status = 'unpaid'"
         )->execute();
 
         $pdo->commit();
