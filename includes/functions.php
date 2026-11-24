@@ -790,6 +790,9 @@ function createInvoice(PDO $pdo, int $schoolId, int $studentId, ?int $feeStructu
 function recordPayment(PDO $pdo, int $schoolId, int $invoiceId, float $amount, string $date, ?string $method, ?string $reference, ?int $receivedBy, ?string $notes): bool
 {
     // Validate all values at the shared write boundary, not only in the form.
+    $method = $method === null ? null : strtolower(trim($method));
+    $methodAliases = ['bank transfer' => 'bank', 'bank_transfer' => 'bank', 'credit card' => 'card'];
+    if ($method !== null) $method = $methodAliases[$method] ?? $method;
     $validMethods = ['cash', 'bank', 'card', 'online', 'cheque'];
     if ($amount <= 0 || abs($amount - round($amount, 2)) > 0.00001
         || !preg_match('/^\\d{4}-\\d{2}-\\d{2}$/', $date)
