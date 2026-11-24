@@ -70,18 +70,31 @@ PREPARE academics_stmt FROM @academics_sql;
 EXECUTE academics_stmt;
 DEALLOCATE PREPARE academics_stmt;
 
-SET @academics_sql = (
-    SELECT IF(
-        EXISTS (
-            SELECT 1 FROM information_schema.COLUMNS
-            WHERE TABLE_SCHEMA = DATABASE()
-              AND TABLE_NAME = 'tasks'
-              AND COLUMN_NAME = 'status'
-              AND COLUMN_TYPE NOT LIKE '%Cancelled%'
-        ),
-        'ALTER TABLE tasks MODIFY COLUMN status ENUM(''Pending'',''In Progress'',''Completed'',''Cancelled'') NOT NULL DEFAULT ''Pending''',
-        'SELECT 1'
-    )
+-- Preserve every legacy enum value when adding Cancelled. Replacing an
+-- existing enum with a hard-coded list could silently destroy custom states.
+SET @academics_status_type = NULL;
+SET @academics_status_nullable = NULL;
+SET @academics_status_default = NULL;
+SELECT COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT
+INTO @academics_status_type, @academics_status_nullable, @academics_status_default
+FROM information_schema.COLUMNS
+WHERE TABLE_SCHEMA = DATABASE()
+  AND TABLE_NAME = 'tasks'
+  AND COLUMN_NAME = 'status'
+LIMIT 1;
+
+SET @academics_sql = IF(
+    @academics_status_type IS NOT NULL
+      AND LOWER(@academics_status_type) LIKE 'enum(%'
+      AND @academics_status_type NOT LIKE '%Cancelled%',
+    CONCAT(
+        'ALTER TABLE tasks MODIFY COLUMN status ',
+        LEFT(@academics_status_type, CHAR_LENGTH(@academics_status_type) - 1),
+        ',''Cancelled'')',
+        IF(@academics_status_nullable = 'YES', ' NULL', ' NOT NULL'),
+        IF(@academics_status_default IS NULL, '', CONCAT(' DEFAULT ', QUOTE(@academics_status_default)))
+    ),
+    'SELECT 1'
 );
 PREPARE academics_stmt FROM @academics_sql;
 EXECUTE academics_stmt;
