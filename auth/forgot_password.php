@@ -23,33 +23,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = 'Invalid or expired form token. Please try again.';
     } else {
         $email = strtolower(trim((string)($_POST['email'] ?? '')));
-        $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
 
-        // Rate limit per IP + email (max 3 requests per 15 minutes)
-        $rateLimitStmt = $pdo->prepare("SELECT COUNT(*) FROM password_resets WHERE email = ? AND created_at > DATE_SUB(NOW(), INTERVAL 15 MINUTE)");
-        $rateLimitStmt->execute([$email]);
-        $recentRequests = (int)$rateLimitStmt->fetchColumn();
-
-        if ($recentRequests >= 3) {
-            http_response_code(429);
-            $error = 'Too many reset requests for this email. Please try again later.';
-        } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $error = 'Please enter a valid email address.';
         } else {
-            // Keep the response generic for both existing and unknown accounts.
-            // A missing account produces no token and must never reach the mailer.
-            $token = createPasswordResetToken($pdo, $email);
+            // Rate-limit by a one-way email digest and IP, regardless of whether
+            // the account exists. This prevents reset throttling from becoming
+            // an account-enumeration oracle.
+            $emailHash = hash('sha256', $email);
+            $ip = (string)($_SERVER['REMOTE_ADDR'] ?? 'unknown');
+            $pdo->prepare(
+                "DELETE FROM password_reset_attempts
+                 WHERE requested_at < DATE_SUB(NOW(), INTERVAL 30 DAY)"
+            )->execute();
 
-            logActivity($pdo, null, 'password_reset_requested', 'user', null, 'Password reset requested');
+            $emailRate = $pdo->prepare(
+                "SELECT COUNT(*) FROM password_reset_attempts
+                 WHERE email_hash = ? AND requested_at > DATE_SUB(NOW(), INTERVAL 15 MINUTE)"
+            );
+            $emailRate->execute([$emailHash]);
+            $ipRate = $pdo->prepare(
+                "SELECT COUNT(*) FROM password_reset_attempts
+                 WHERE ip_address = ? AND requested_at > DATE_SUB(NOW(), INTERVAL 15 MINUTE)"
+            );
+            $ipRate->execute([$ip]);
 
-            if ($token !== null) {
-                $delivered = sendPasswordResetEmail($email, $token);
-                if (!$delivered) {
+            if ((int)$emailRate->fetchColumn() >= 3 || (int)$ipRate->fetchColumn() >= 15) {
+                http_response_code(429);
+                $error = 'Too many reset requests. Please try again later.';
+            } else {
+                $pdo->prepare(
+                    "INSERT INTO password_reset_attempts (email_hash, ip_address) VALUES (?, ?)"
+                )->execute([$emailHash, $ip]);
+
+                // A missing account produces no token and never reaches the mailer.
+                $token = createPasswordResetToken($pdo, $email);
+                logActivity($pdo, null, 'password_reset_requested', 'user', null, 'Password reset requested');
+
+                if ($token !== null && !sendPasswordResetEmail($email, $token)) {
                     error_log('Password reset email delivery failed.');
                 }
-            }
 
-            $success = 'If an account exists for that email, a password reset link has been sent.';
+                $success = 'If an account exists for that email, a password reset link has been sent.';
+            }
         }
     }
 }
