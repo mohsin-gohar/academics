@@ -682,6 +682,58 @@ CREATE TABLE IF NOT EXISTS `user_invites` (
 
 SET FOREIGN_KEY_CHECKS = 1;
 
+-- Existing schema.sql installations may already have a users table from the
+-- single-school release. CREATE TABLE IF NOT EXISTS does not add new columns,
+-- so prepare the two columns and role values required by the seed below.
+SET @academics_sql = (
+    SELECT IF(COUNT(*) = 0,
+        'ALTER TABLE users ADD COLUMN school_id INT NULL AFTER id',
+        'SELECT 1')
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'school_id'
+);
+PREPARE academics_stmt FROM @academics_sql;
+EXECUTE academics_stmt;
+DEALLOCATE PREPARE academics_stmt;
+
+SET @academics_sql = (
+    SELECT IF(COUNT(*) = 0,
+        'ALTER TABLE users ADD COLUMN must_change_password TINYINT(1) NOT NULL DEFAULT 0',
+        'SELECT 1')
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'must_change_password'
+);
+PREPARE academics_stmt FROM @academics_sql;
+EXECUTE academics_stmt;
+DEALLOCATE PREPARE academics_stmt;
+
+SET @academics_role_type = NULL;
+SET @academics_role_nullable = NULL;
+SET @academics_role_default = NULL;
+SELECT COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT
+INTO @academics_role_type, @academics_role_nullable, @academics_role_default
+FROM information_schema.COLUMNS
+WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'role'
+LIMIT 1;
+
+SET @academics_sql = IF(
+    @academics_role_type IS NOT NULL AND LOWER(@academics_role_type) LIKE 'enum(%',
+    CONCAT(
+        'ALTER TABLE users MODIFY COLUMN role ',
+        LEFT(@academics_role_type, CHAR_LENGTH(@academics_role_type) - 1),
+        IF(@academics_role_type LIKE '%super_admin%', '', ',''super_admin'''),
+        IF(@academics_role_type LIKE '%school_admin%', '', ',''school_admin'''),
+        IF(@academics_role_type LIKE '%parent%', '', ',''parent'''),
+        ')',
+        IF(@academics_role_nullable = 'YES', ' NULL', ' NOT NULL'),
+        IF(@academics_role_default IS NULL, '', CONCAT(' DEFAULT ', QUOTE(@academics_role_default)))
+    ),
+    'SELECT 1'
+);
+PREPARE academics_stmt FROM @academics_sql;
+EXECUTE academics_stmt;
+DEALLOCATE PREPARE academics_stmt;
+
 -- ============================================================================
 -- SEED DATA: Default Super Admin (only for fresh installs)
 -- ============================================================================
