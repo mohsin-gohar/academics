@@ -124,7 +124,7 @@ function split_sql_statements(string $sql): array
             } elseif ($char === $stringChar) {
                 $inString = false;
                 $stringChar = '';
-            } elseif ($char === '\\\\' && $next === $stringChar) {
+            } elseif ($char === '\\' && $next === $stringChar) {
                 $current .= $next;
                 $i++;
             }
