@@ -452,12 +452,10 @@ function sendPasswordResetEmail(string $email, string $token): bool
     }
     if ($appUrl === '' && (!defined('IS_PRODUCTION') || !IS_PRODUCTION)) {
         $host = (string)($_SERVER['HTTP_HOST'] ?? 'localhost');
-        if (!preg_match('/^[a-z0-9.\\-]+(?::[0-9]{1,5})?$/i', $host)) {
-            return false;
-        }
+        if (!preg_match('/^[a-z0-9.\\-]+(?::[0-9]{1,5})?$/i', $host)) return false;
         $https = (!empty($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off');
         $scheme = $https ? 'https' : 'http';
-        $scriptDir = str_replace('\\', '/', dirname((string)($_SERVER['SCRIPT_NAME'] ?? '/auth/forgot_password.php')));
+        $scriptDir = str_replace('\\\\', '/', dirname((string)($_SERVER['SCRIPT_NAME'] ?? '/auth/forgot_password.php')));
         $basePath = rtrim(dirname($scriptDir), '/.');
         $appUrl = $scheme . '://' . $host . $basePath;
     }
@@ -467,65 +465,155 @@ function sendPasswordResetEmail(string $email, string $token): bool
     }
     $resetLink = rtrim($appUrl, '/') . '/auth/reset_password.php?token=' . urlencode($token);
 
-    // PHP mail() is used when the host provides a configured mail transport.
-    $mailHost = getenv('MAIL_HOST');
+    $mailHost = trim((string)(getenv('MAIL_HOST') ?: ''));
     $mailPort = (int)(getenv('MAIL_PORT') ?: 587);
-    $mailUser = getenv('MAIL_USERNAME');
-    $mailPass = getenv('MAIL_PASSWORD');
-    $mailFrom = getenv('MAIL_FROM_ADDRESS') ?: 'noreply@academics.app';
-    $mailFromName = getenv('MAIL_FROM_NAME') ?: 'Academics';
-    $mailEncrypt = getenv('MAIL_ENCRYPTION') ?: 'tls';
+    $mailUser = (string)(getenv('MAIL_USERNAME') ?: '');
+    $mailPass = (string)(getenv('MAIL_PASSWORD') ?: '');
+    $mailFrom = trim((string)(getenv('MAIL_FROM_ADDRESS') ?: 'noreply@academics.app'));
+    $mailFromName = trim((string)(getenv('MAIL_FROM_NAME') ?: 'Academics'));
+    $mailEncrypt = strtolower(trim((string)(getenv('MAIL_ENCRYPTION') ?: 'tls')));
+    $subject = 'Password Reset - Academics';
+    $body = "Click the link below to reset your password:\n\n{$resetLink}\n\nThis link expires in 1 hour and can be used once.";
 
-    if ($mailHost && $mailUser && $mailPass) {
+    // Use configured SMTP credentials when present. This is a real SMTP
+    // transport (STARTTLS/SMTPS + AUTH LOGIN), not PHP mail() masquerading as SMTP.
+    if ($mailHost !== '' && $mailPort > 0 && $mailPort <= 65535
+        && filter_var($mailFrom, FILTER_VALIDATE_EMAIL)
+        && !preg_match('/[\\r\\n]/', $mailHost)
+        && in_array($mailEncrypt, ['tls', 'ssl', 'none'], true)) {
+        $socket = null;
         try {
-            $subject = 'Password Reset - Academics';
-            $body = "Click the link below to reset your password:\n\n$resetLink\n\nThis link expires in 1 hour and can be used once.";
-            $headers = "From: $mailFromName <$mailFrom>\r\n";
-            $headers .= "Reply-To: $mailFrom\r\n";
-            $headers .= "MIME-Version: 1.0\r\n";
-            $headers .= "Content-Type: text/plain; charset=UTF-8\r\n";
-
-            $smtpSuccess = @mail($email, $subject, $body, $headers, "-f $mailFrom");
-            if ($smtpSuccess) {
-                return true;
+            $scheme = $mailEncrypt === 'ssl' ? 'ssl://' : 'tcp://';
+            $sslContext = stream_context_create([
+                'ssl' => [
+                    'verify_peer' => true,
+                    'verify_peer_name' => true,
+                    'peer_name' => $mailHost,
+                    'SNI_enabled' => true,
+                ],
+            ]);
+            $errno = 0;
+            $errstr = '';
+            $socket = @stream_socket_client(
+                $scheme . $mailHost . ':' . $mailPort,
+                $errno,
+                $errstr,
+                15,
+                STREAM_CLIENT_CONNECT,
+                $sslContext
+            );
+            if (!is_resource($socket)) {
+                throw new RuntimeException('SMTP connection failed (' . $errno . ').');
             }
+            stream_set_timeout($socket, 15);
+
+            $readResponse = static function () use ($socket): array {
+                $response = '';
+                $line = '';
+                do {
+                    $line = fgets($socket, 515);
+                    if ($line === false) throw new RuntimeException('SMTP server closed the connection.');
+                    $response .= $line;
+                } while (isset($line[3]) && $line[3] === '-');
+                return [(int)substr($line, 0, 3), trim($response)];
+            };
+            $command = static function (string $command, array $expected) use ($socket, $readResponse): string {
+                $written = fwrite($socket, $command . "\r\n");
+                if ($written === false) throw new RuntimeException('Could not write SMTP command.');
+                [$code, $response] = $readResponse();
+                if (!in_array($code, $expected, true)) {
+                    throw new RuntimeException('SMTP command rejected with code ' . $code . '.');
+                }
+                return $response;
+            };
+
+            [$greetingCode] = $readResponse();
+            if ($greetingCode !== 220) throw new RuntimeException('SMTP server greeting was rejected.');
+
+            $hello = preg_replace('/[^a-zA-Z0-9.\\-]/', '', (string)(gethostname() ?: 'localhost'));
+            if ($hello === '') $hello = 'localhost';
+            $command('EHLO ' . $hello, [250]);
+
+            if ($mailEncrypt === 'tls') {
+                $command('STARTTLS', [220]);
+                $crypto = @stream_socket_enable_crypto($socket, true, STREAM_CRYPTO_METHOD_TLS_CLIENT);
+                if ($crypto !== true) throw new RuntimeException('SMTP STARTTLS negotiation failed.');
+                $command('EHLO ' . $hello, [250]);
+            }
+
+            if ($mailUser !== '' || $mailPass !== '') {
+                if ($mailUser === '' || $mailPass === '') {
+                    throw new RuntimeException('Both SMTP username and password are required.');
+                }
+                $command('AUTH LOGIN', [334]);
+                $command(base64_encode($mailUser), [334]);
+                $command(base64_encode($mailPass), [235]);
+            }
+
+            $command('MAIL FROM:<' . $mailFrom . '>', [250]);
+            $command('RCPT TO:<' . $email . '>', [250, 251]);
+            $command('DATA', [354]);
+
+            $safeName = str_replace(["\\r", "\\n"], '', $mailFromName);
+            $encodedName = '=?UTF-8?B?' . base64_encode($safeName) . '?=';
+            $fromDomain = substr(strrchr($mailFrom, '@') ?: '@localhost', 1);
+            $headers = [
+                'Date: ' . date(DATE_RFC2822),
+                'From: ' . $encodedName . ' <' . $mailFrom . '>',
+                'To: <' . $email . '>',
+                'Reply-To: ' . $mailFrom,
+                'Subject: =?UTF-8?B?' . base64_encode($subject) . '?=',
+                'Message-ID: <' . bin2hex(random_bytes(12)) . '@' . $fromDomain . '>',
+                'MIME-Version: 1.0',
+                'Content-Type: text/plain; charset=UTF-8',
+                'Content-Transfer-Encoding: 8bit',
+                'X-Mailer: Academics',
+            ];
+            $message = implode("\r\n", $headers) . "\r\n\r\n";
+            $bodyLines = preg_split('/\\r\\n|\\r|\\n/', $body) ?: [];
+            foreach ($bodyLines as $line) {
+                $message .= (str_starts_with($line, '.') ? '.' : '') . $line . "\r\n";
+            }
+            $written = fwrite($socket, $message . ".\r\n");
+            if ($written === false) throw new RuntimeException('Could not write SMTP message.');
+            [$dataCode] = $readResponse();
+            if ($dataCode !== 250) throw new RuntimeException('SMTP server did not accept the message.');
+
+            try { $command('QUIT', [221]); } catch (Throwable $ignored) {}
+            fclose($socket);
+            return true;
         } catch (Throwable $e) {
-            error_log("SMTP email failed for $email: " . $e->getMessage());
+            if (is_resource($socket)) fclose($socket);
+            error_log('SMTP password reset delivery failed: ' . $e->getMessage());
         }
     }
 
-    // Fallback: PHP mail()
-    if (function_exists('mail')) {
+    // Fallback for hosts that expose PHP's configured mail transport.
+    if (function_exists('mail') && filter_var($mailFrom, FILTER_VALIDATE_EMAIL)) {
         try {
-            $subject = 'Password Reset - Academics';
-            $body = "Click the link below to reset your password:\n\n$resetLink\n\nThis link expires in 1 hour and can be used once.";
-            $headers = "From: $mailFromName <$mailFrom>\r\n";
+            $safeName = str_replace(["\\r", "\\n"], '', $mailFromName);
+            $headers = "From: {$safeName} <{$mailFrom}>\r\n";
             $headers .= "MIME-Version: 1.0\r\n";
             $headers .= "Content-Type: text/plain; charset=UTF-8\r\n";
-
-            if (@mail($email, $subject, $body, $headers)) {
-                return true;
-            }
+            if (@mail($email, $subject, $body, $headers, '-f' . $mailFrom)) return true;
         } catch (Throwable $e) {
-            error_log("PHP mail() failed for $email: " . $e->getMessage());
+            error_log('PHP mail() password reset delivery failed: ' . $e->getMessage());
         }
     }
 
-    // Local dev fallback: log to file (only in local dev)
+    // Local development fallback: the log directory is blocked by .htaccess.
     $isLocalDev = (getenv('APP_ENV') ?? 'local') === 'local'
         && in_array($_SERVER['HTTP_HOST'] ?? 'localhost', ['localhost', '127.0.0.1', '::1'], true);
     if ($isLocalDev) {
         try {
             $logDir = dirname(__DIR__) . '/storage/logs';
-            if (!is_dir($logDir)) {
-                @mkdir($logDir, 0700, true);
-            }
+            if (!is_dir($logDir)) @mkdir($logDir, 0700, true);
             $logFile = $logDir . '/reset-links.log';
             $entry = date('Y-m-d H:i:s') . ' | ' . $email . ' | ' . $resetLink . "\n";
             file_put_contents($logFile, $entry, FILE_APPEND | LOCK_EX);
             return true;
         } catch (Throwable $e) {
-            error_log("Local reset link logging failed: " . $e->getMessage());
+            error_log('Local reset link logging failed: ' . $e->getMessage());
         }
     }
 
