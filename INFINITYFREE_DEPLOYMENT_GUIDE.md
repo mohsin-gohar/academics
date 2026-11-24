@@ -54,7 +54,7 @@ MAIL_FROM_NAME="Academics"
 php database/migrate.php up
 ```
 
-3. Migration output میں ہر migration کے successful ہونے کی تصدیق کریں۔ Runner `schema_migrations` میں applied version اور checksum محفوظ کرتا ہے۔
+3. Migration output میں ہر migration کے successful ہونے کی تصدیق کریں۔ Runner `schema_migrations` میں applied version اور checksum محفوظ کرتا ہے۔ FTP workflow versioned `database/migrations/*.sql` files اور runner کو deploy کرتا ہے، اس لیے hosting Terminal دستیاب ہو تو یہ command server پر بھی چل سکتی ہے۔
 
 **اگر hosting پر CLI دستیاب نہیں اور صرف phpMyAdmin ہے:**
 
@@ -71,7 +71,8 @@ GitHub Actions workflow:
 
 - Pull requests پر MySQL migrations، PHP syntax checks، automated tests اور role-based portal smoke tests چلاتا ہے۔
 - FTP deployment صرف `main` branch پر push ہونے کے بعد چلتا ہے؛ repair branch یا pull request خود production deploy نہیں کرتی۔
-- FTP deployment SQL migrations خود execute نہیں کرتا۔ Production database migrations کو اوپر والے مرحلے کے مطابق الگ سے apply کرنا ضروری ہے۔
+- FTP deployment SQL migrations خود execute نہیں کرتا۔ یہ صرف versioned migration files کو server پر رکھتا ہے؛ database changes اوپر والے مرحلے کے مطابق CLI یا phpMyAdmin سے الگ apply کرنا ضروری ہے۔
+- Legacy `database.sql`, `database/schema.sql` اور demo `database/seed.sql` deployment سے exclude ہیں؛ انہیں production پر upload/import نہ کریں۔
 
 GitHub repository میں یہ Actions secrets configure کریں:
 
