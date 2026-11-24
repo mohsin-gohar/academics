@@ -170,9 +170,12 @@ $csrf_token = generateCsrfToken();
                     <a href="<?php echo $base; ?>index.php" target="_blank" class="btn btn-sm btn-outline-primary" title="View Public School Website">
                         <i class="fas fa-globe me-1"></i> Public Site
                     </a>
-                    <a href="<?php echo $base; ?>auth/logout.php" class="btn btn-sm btn-outline-danger">
-                        <i class="fas fa-sign-out-alt me-1"></i> Logout
-                    </a>
+                    <form action="<?php echo $base; ?>auth/logout.php" method="POST" class="d-inline">
+                        <input type="hidden" name="csrf_token" value="<?php echo e($csrf_token); ?>">
+                        <button type="submit" class="btn btn-sm btn-outline-danger">
+                            <i class="fas fa-sign-out-alt me-1"></i> Logout
+                        </button>
+                    </form>
                 </div>
             </nav>
             <?php endif; ?>
