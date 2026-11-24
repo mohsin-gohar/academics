@@ -50,6 +50,10 @@ function page(string $label, string $path, string $jar, int $expectedCode = 200)
 $sch1Student = (int)$pdo->query("SELECT st.id FROM students st JOIN users u ON u.id=st.user_id WHERE u.email='student@sch001.com' LIMIT 1")->fetchColumn();
 $sch1Event = (int)$pdo->query("SELECT id FROM school_events WHERE school_id=(SELECT id FROM schools WHERE school_code='SCH001') LIMIT 1")->fetchColumn();
 $sch1User = (int)$pdo->query("SELECT id FROM users WHERE email='teacher@sch001.com' LIMIT 1")->fetchColumn();
+$otherStudent = (int)$pdo->query("SELECT id FROM students WHERE school_id = 2 ORDER BY id LIMIT 1")->fetchColumn();
+$otherCourse = (int)$pdo->query("SELECT id FROM courses WHERE school_id = 2 ORDER BY id LIMIT 1")->fetchColumn();
+$otherTask = (int)$pdo->query("SELECT id FROM tasks WHERE school_id = 2 ORDER BY id LIMIT 1")->fetchColumn();
+$otherEvent = (int)$pdo->query("SELECT id FROM school_events WHERE school_id = 2 ORDER BY id LIMIT 1")->fetchColumn();
 
 $super = login('admin@edusphere.com', 'Admin@123');
 foreach ([
@@ -91,6 +95,10 @@ foreach ([
     'school admin edit user' => '/admin/edit_user.php?id=' . $sch1User,
     'school admin messages' => '/admin/messages.php',
 ] as $label => $path) page($label, $path, $schoolAdmin);
+page('school admin cross-school student denied', '/students/show.php?id=' . $otherStudent, $schoolAdmin, 403);
+page('school admin cross-school course denied', '/courses/show.php?id=' . $otherCourse, $schoolAdmin, 403);
+page('school admin cross-school task denied', '/tasks/show.php?id=' . $otherTask, $schoolAdmin, 403);
+page('school admin cross-school event denied', '/events/edit.php?id=' . $otherEvent, $schoolAdmin, 403);
 
 $teacher = login('teacher@sch001.com', 'Teacher@123');
 foreach ([
@@ -105,6 +113,9 @@ foreach ([
     // Teachers must not access school-administration emergency controls.
 ] as $label => $path) page($label, $path, $teacher);
 page('teacher emergency denied', '/admin/emergency_alert.php', $teacher, 403);
+page('teacher cross-school student denied', '/students/show.php?id=' . $otherStudent, $teacher, 403);
+page('teacher cross-school course denied', '/courses/show.php?id=' . $otherCourse, $teacher, 403);
+page('teacher cross-school task denied', '/tasks/show.php?id=' . $otherTask, $teacher, 403);
 
 $student = login('student@sch001.com', 'Student@123');
 foreach ([
@@ -116,6 +127,7 @@ foreach ([
     'student own profile' => '/students/show.php?id=' . $sch1Student,
     'student profile page' => '/profile.php',
 ] as $label => $path) page($label, $path, $student);
+page('student cross-school student denied', '/students/show.php?id=' . $otherStudent, $student, 403);
 
 $parent = login('parent@sch001.com', 'Parent@123');
 foreach ([
