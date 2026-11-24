@@ -45,6 +45,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($form_data['course_name'])) $errors[] = 'Course name is required.';
     if ($form_data['credits'] < 1) $errors[] = 'Credits must be at least 1.';
 
+    // Never accept an instructor ID from another school, even if a crafted
+    // POST bypasses the school-filtered dropdown.
+    if ($form_data['instructor_id'] !== null) {
+        $instructorCheck = $pdo->prepare(
+            "SELECT id FROM users
+             WHERE id = ? AND school_id = ? AND role IN ('teacher', 'admin') AND is_active = 1"
+        );
+        $instructorCheck->execute([$form_data['instructor_id'], (int)$course['school_id']]);
+        if (!$instructorCheck->fetchColumn()) {
+            $errors[] = 'Selected instructor is not active in this school.';
+        }
+    }
+
     if (empty($errors)) {
         $stmt = $pdo->prepare("SELECT id FROM courses WHERE course_code = ? AND id != ? AND school_id = ?");
         $stmt->execute([$form_data['course_code'], $id, (int)$course['school_id']]);
