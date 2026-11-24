@@ -47,17 +47,45 @@ function login(string $email, string $pw): string {
     $jar = tempnam($tmp, 'smoke_');
     $p = http("$base/auth/login.php", $jar);
     preg_match('/name="csrf_token"\s+value="([a-f0-9]{64})"/', $p['body'], $m);
-    http("$base/auth/login_process.php", $jar, ['csrf_token' => $m[1] ?? '', 'email' => $email, 'password' => $pw]);
+    if (empty($m[1])) {
+        @unlink($jar);
+        throw new RuntimeException("Login page did not provide a CSRF token for {$email}.");
+    }
+
+    $result = http("$base/auth/login_process.php", $jar, [
+        'csrf_token' => $m[1],
+        'email' => $email,
+        'password' => $pw,
+    ]);
+    $path = (string)(parse_url($result['url'], PHP_URL_PATH) ?? '');
+    if ($result['code'] >= 400 || preg_match('#/auth/login\.php$#', $path)) {
+        @unlink($jar);
+        throw new RuntimeException("Authentication failed for fixture account {$email}; final URL: {$result['url']} (HTTP {$result['code']}).");
+    }
+
+    // Confirm the cookie jar actually carries the authenticated session.
+    $probe = http("$base/dashboard.php", $jar);
+    $probePath = (string)(parse_url($probe['url'], PHP_URL_PATH) ?? '');
+    if ($probe['code'] >= 400 || preg_match('#/auth/login\.php$#', $probePath)) {
+        @unlink($jar);
+        throw new RuntimeException("Authenticated session was not retained for fixture account {$email}.");
+    }
     return $jar;
 }
 
 function page(string $label, string $path, string $jar, int $expectedCode = 200): void {
     global $base, $pass, $fail, $rows;
     $r = http($base . $path, $jar);
+    $finalPath = (string)(parse_url($r['url'], PHP_URL_PATH) ?? '');
+    $isAuthenticatedRequest = $jar !== '';
+    $unexpectedLoginRedirect = $isAuthenticatedRequest
+        && $expectedCode === 200
+        && preg_match('#/auth/login\.php$#', $finalPath);
     $bad = preg_match('/(<b>(Fatal error|Warning|Notice|Deprecated)<\/b>|Uncaught (Error|Exception)|(Fatal error|Warning|Notice|Deprecated):\s+.*\s+in\s+.*\s+on line)/i', $r['body']);
-    $ok = $r['code'] === $expectedCode && !$bad;
+    $ok = $r['code'] === $expectedCode && !$bad && !$unexpectedLoginRedirect;
     if ($ok) $pass++; else $fail++;
-    $rows[] = ($ok ? 'PASS ' : 'FAIL ') . str_pad($label, 42) . ' HTTP ' . $r['code'] . ' (expected ' . $expectedCode . ')' . ($bad ? '  PHP-ERROR-IN-BODY' : '') . '  ' . $r['url'];
+    $reason = $unexpectedLoginRedirect ? '  UNAUTHENTICATED-REDIRECT' : '';
+    $rows[] = ($ok ? 'PASS ' : 'FAIL ') . str_pad($label, 42) . ' HTTP ' . $r['code'] . ' (expected ' . $expectedCode . ')' . ($bad ? '  PHP-ERROR-IN-BODY' : '') . $reason . '  ' . $r['url'];
 }
 
 $sch1Student = (int)$pdo->query("SELECT st.id FROM students st JOIN users u ON u.id=st.user_id WHERE u.email='student@sch001.com' LIMIT 1")->fetchColumn();
