@@ -146,6 +146,21 @@ foreach ([
 ] as $label => $path) page($label, $path, $student);
 studentCannotOpenOtherProfile('student cross-school profile redirects to own', $otherStudent, $sch1Student, $student);
 
+// Logout is state-changing: GET must be rejected and a valid CSRF POST must end the session.
+$logoutJar = login('admin@edusphere.com', 'Admin@123');
+$logoutDashboard = http($base . '/dashboard.php', $logoutJar);
+preg_match('/name="csrf_token"\\s+value="([a-f0-9]{64})"/', $logoutDashboard['body'], $logoutToken);
+$logoutGet = http($base . '/auth/logout.php', $logoutJar);
+$logoutPost = http($base . '/auth/logout.php', $logoutJar, ['csrf_token' => $logoutToken[1] ?? '']);
+$afterLogout = http($base . '/dashboard.php', $logoutJar);
+$logoutOk = $logoutGet['code'] === 405
+    && $logoutPost['code'] === 200
+    && strpos($logoutPost['url'], '/auth/login.php') !== false
+    && strpos($afterLogout['url'], '/auth/login.php') !== false;
+if ($logoutOk) $pass++; else $fail++;
+$rows[] = ($logoutOk ? 'PASS ' : 'FAIL ') . str_pad('logout requires CSRF POST', 42)
+    . ' GET=' . $logoutGet['code'] . ' POST=' . $logoutPost['code'] . ' AFTER=' . $afterLogout['url'];
+
 $parent = login('parent@sch001.com', 'Parent@123');
 foreach ([
     'parent dashboard' => '/parent/dashboard.php',
