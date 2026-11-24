@@ -434,9 +434,32 @@ function consumePasswordResetToken(PDO $pdo, string $raw, string $newPassword): 
  */
 function sendPasswordResetEmail(string $email, string $token): bool
 {
-    $resetLink = 'reset_password.php?token=' . urlencode($token);
+    // Reset links sent by email must be absolute and point to /auth/reset_password.php.
+    // Prefer an explicitly configured canonical URL; never trust an arbitrary Host
+    // header when constructing production password-reset links.
+    $appUrl = trim((string)(getenv('APP_URL') ?: ''));
+    if ($appUrl === '' && defined('APP_DOMAIN') && trim((string)APP_DOMAIN) !== '') {
+        $domain = trim((string)APP_DOMAIN);
+        $appUrl = preg_match('#^https?://#i', $domain) ? $domain : 'https://' . $domain;
+    }
+    if ($appUrl === '' && (!defined('IS_PRODUCTION') || !IS_PRODUCTION)) {
+        $host = (string)($_SERVER['HTTP_HOST'] ?? 'localhost');
+        if (!preg_match('/^[a-z0-9.\\-]+(?::[0-9]{1,5})?$/i', $host)) {
+            return false;
+        }
+        $https = (!empty($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off');
+        $scheme = $https ? 'https' : 'http';
+        $scriptDir = str_replace('\\\\', '/', dirname((string)($_SERVER['SCRIPT_NAME'] ?? '/auth/forgot_password.php')));
+        $basePath = rtrim(dirname($scriptDir), '/.');
+        $appUrl = $scheme . '://' . $host . $basePath;
+    }
+    if ($appUrl === '' || !preg_match('#^https?://#i', $appUrl)) {
+        error_log('Password reset delivery skipped: canonical APP_URL/APP_DOMAIN is not configured.');
+        return false;
+    }
+    $resetLink = rtrim($appUrl, '/') . '/auth/reset_password.php?token=' . urlencode($token);
 
-    // Try SMTP if configured
+    // PHP mail() is used when the host provides a configured mail transport.
     $mailHost = getenv('MAIL_HOST');
     $mailPort = (int)(getenv('MAIL_PORT') ?: 587);
     $mailUser = getenv('MAIL_USERNAME');
