@@ -38,13 +38,13 @@ function login(string $email, string $pw): string {
     return $jar;
 }
 
-function page(string $label, string $path, string $jar): void {
+function page(string $label, string $path, string $jar, int $expectedCode = 200): void {
     global $base, $pass, $fail, $rows;
     $r = http($base . $path, $jar);
     $bad = preg_match('/(<b>(Fatal error|Warning|Notice|Deprecated)<\/b>|Uncaught (Error|Exception)|(Fatal error|Warning|Notice|Deprecated):\s+.*\s+in\s+.*\s+on line)/i', $r['body']);
-    $ok = $r['code'] === 200 && !$bad;
+    $ok = $r['code'] === $expectedCode && !$bad;
     if ($ok) $pass++; else $fail++;
-    $rows[] = ($ok ? 'PASS ' : 'FAIL ') . str_pad($label, 42) . ' HTTP ' . $r['code'] . ($bad ? '  PHP-ERROR-IN-BODY' : '') . '  ' . $r['url'];
+    $rows[] = ($ok ? 'PASS ' : 'FAIL ') . str_pad($label, 42) . ' HTTP ' . $r['code'] . ' (expected ' . $expectedCode . ')' . ($bad ? '  PHP-ERROR-IN-BODY' : '') . '  ' . $r['url'];
 }
 
 $sch1Student = (int)$pdo->query("SELECT st.id FROM students st JOIN users u ON u.id=st.user_id WHERE u.email='student@sch001.com' LIMIT 1")->fetchColumn();
@@ -102,8 +102,9 @@ foreach ([
     'teacher event create' => '/events/create.php',
     'teacher courses' => '/courses/index.php',
     'teacher reports' => '/reports/index.php?type=students',
-    'teacher emergency' => '/admin/emergency_alert.php',
+    // Teachers must not access school-administration emergency controls.
 ] as $label => $path) page($label, $path, $teacher);
+page('teacher emergency denied', '/admin/emergency_alert.php', $teacher, 403);
 
 $student = login('student@sch001.com', 'Student@123');
 foreach ([
