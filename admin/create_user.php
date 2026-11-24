@@ -101,7 +101,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (empty($form_data['school_id'])) {
                     throw new RuntimeException('A student must belong to a school.');
                 }
-                $stuNum = generateStudentNumber($pdo);
+                $stuNum = generateStudentNumber($pdo, (int)$form_data['school_id']);
                 $stmt = $pdo->prepare("INSERT INTO students (school_id, user_id, student_number, full_name, email, enrollment_date, status) VALUES (?, ?, ?, ?, ?, CURDATE(), 'Active')");
                 $stmt->execute([$form_data['school_id'], $uid, $stuNum, $form_data['full_name'], $form_data['email']]);
             }
