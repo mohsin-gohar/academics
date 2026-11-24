@@ -1,5 +1,5 @@
 -- 0011_disable_public_default_super_admin.sql
--- Retire the legacy bootstrap account only while its publicly documented
+-- Retire legacy bootstrap accounts only while their publicly documented
 -- default password is still present. Preserve the user row so historical
 -- courses, expenses, invites and audit references are not cascaded away.
 UPDATE users
