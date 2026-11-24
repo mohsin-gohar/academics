@@ -49,9 +49,40 @@ try {
     $student = $stmt->fetch(PDO::FETCH_ASSOC);
     if ($student) {
         $studentId = (int)$student['id'];
+        foreach ([
+            "SELECT COUNT(*) FROM attendance WHERE student_id = ?",
+            "SELECT COUNT(*) FROM student_marks WHERE student_id = ?",
+            "SELECT COUNT(*) FROM invoices WHERE student_id = ?"
+        ] as $historySql) {
+            $historyStmt = $pdo->prepare($historySql);
+            $historyStmt->execute([$studentId]);
+            if ((int)$historyStmt->fetchColumn() > 0) {
+                $pdo->rollBack();
+                header('Location: users.php?error=' . urlencode('This student has academic or fee history. Deactivate the account instead of permanently deleting it.'));
+                exit;
+            }
+        }
         $pdo->prepare("DELETE FROM tasks WHERE student_id = ?")->execute([$studentId]);
         $pdo->prepare("DELETE FROM enrollments WHERE student_id = ?")->execute([$studentId]);
         $pdo->prepare("DELETE FROM students WHERE id = ?")->execute([$studentId]);
+    } else {
+        // Deleting staff with owned work would cascade-delete courses, tasks,
+        // leave history or conversations. Require deactivation instead.
+        $ownedHistory = [
+            ["SELECT COUNT(*) FROM courses WHERE created_by = ?", [$id]],
+            ["SELECT COUNT(*) FROM tasks WHERE user_id = ?", [$id]],
+            ["SELECT COUNT(*) FROM leave_requests WHERE user_id = ?", [$id]],
+            ["SELECT COUNT(*) FROM messages WHERE sender_id = ? OR receiver_id = ?", [$id, $id]],
+        ];
+        foreach ($ownedHistory as [$historySql, $params]) {
+            $historyStmt = $pdo->prepare($historySql);
+            $historyStmt->execute($params);
+            if ((int)$historyStmt->fetchColumn() > 0) {
+                $pdo->rollBack();
+                header('Location: users.php?error=' . urlencode('This account owns historical records. Deactivate it instead of permanently deleting it.'));
+                exit;
+            }
+        }
     }
 
     $pdo->prepare("DELETE FROM users WHERE id = ?")->execute([$id]);
