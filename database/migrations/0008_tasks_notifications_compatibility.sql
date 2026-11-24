@@ -37,6 +37,30 @@ PREPARE academics_stmt FROM @academics_sql;
 EXECUTE academics_stmt;
 DEALLOCATE PREPARE academics_stmt;
 
+-- Backfill historical tasks from their creator and linked student where the
+-- tenant IDs agree. Conflicting or unassigned legacy records remain NULL for
+-- explicit administrative reconciliation rather than being assigned to the
+-- wrong school.
+SET @academics_sql = (
+    SELECT IF(
+        EXISTS (SELECT 1 FROM information_schema.COLUMNS
+                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tasks' AND COLUMN_NAME = 'school_id')
+        AND EXISTS (SELECT 1 FROM information_schema.COLUMNS
+                    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tasks' AND COLUMN_NAME = 'user_id')
+        AND EXISTS (SELECT 1 FROM information_schema.COLUMNS
+                    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tasks' AND COLUMN_NAME = 'student_id')
+        AND EXISTS (SELECT 1 FROM information_schema.COLUMNS
+                    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'school_id')
+        AND EXISTS (SELECT 1 FROM information_schema.COLUMNS
+                    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'students' AND COLUMN_NAME = 'school_id'),
+        'UPDATE tasks t LEFT JOIN users u ON u.id = t.user_id LEFT JOIN students s ON s.id = t.student_id SET t.school_id = COALESCE(u.school_id, s.school_id) WHERE t.school_id IS NULL AND COALESCE(u.school_id, s.school_id) IS NOT NULL AND (u.school_id IS NULL OR s.school_id IS NULL OR u.school_id = s.school_id)',
+        'SELECT 1'
+    )
+);
+PREPARE academics_stmt FROM @academics_sql;
+EXECUTE academics_stmt;
+DEALLOCATE PREPARE academics_stmt;
+
 -- Ensure tenant filtering remains indexed on old schemas too.
 SET @academics_sql = (
     SELECT IF(
