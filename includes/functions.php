@@ -789,8 +789,13 @@ function createInvoice(PDO $pdo, int $schoolId, int $studentId, ?int $feeStructu
 
 function recordPayment(PDO $pdo, int $schoolId, int $invoiceId, float $amount, string $date, ?string $method, ?string $reference, ?int $receivedBy, ?string $notes): bool
 {
-    // H4: validate invoice, amount, and outstanding balance inside a transaction.
-    if ($amount <= 0) {
+    // Validate all values at the shared write boundary, not only in the form.
+    $validMethods = ['cash', 'bank', 'card', 'online', 'cheque'];
+    if ($amount <= 0 || abs($amount - round($amount, 2)) > 0.00001
+        || !preg_match('/^\\d{4}-\\d{2}-\\d{2}$/', $date)
+        || !checkdate((int)substr($date, 5, 2), (int)substr($date, 8, 2), (int)substr($date, 0, 4))
+        || ($method !== null && !in_array($method, $validMethods, true))
+        || ($reference !== null && mb_strlen($reference) > 100)) {
         return false;
     }
 
@@ -800,7 +805,7 @@ function recordPayment(PDO $pdo, int $schoolId, int $invoiceId, float $amount, s
         $stmt = $pdo->prepare("SELECT amount, status FROM invoices WHERE id = ? AND school_id = ? FOR UPDATE");
         $stmt->execute([$invoiceId, $schoolId]);
         $invoice = $stmt->fetch(PDO::FETCH_ASSOC);
-        if (!$invoice || $invoice['status'] === 'cancelled') {
+        if (!$invoice || in_array($invoice['status'], ['cancelled', 'paid'], true)) {
             $pdo->rollBack();
             return false;
         }
