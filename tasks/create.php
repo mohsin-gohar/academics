@@ -56,8 +56,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (empty($form_data['title'])) $errors[] = 'Task title is required.';
     if (strlen($form_data['title']) < 3) $errors[] = 'Title must be at least 3 characters.';
+    if (strlen($form_data['title']) > 200) $errors[] = 'Title cannot exceed 200 characters.';
     if (!in_array($form_data['priority'], ['Low','Medium','High','Urgent'])) $errors[] = 'Invalid priority.';
     if (!in_array($form_data['status'], ['Pending','In Progress','Completed','Cancelled'])) $errors[] = 'Invalid status.';
+    if ($form_data['due_date'] && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $form_data['due_date'])) $errors[] = 'Due date must be in YYYY-MM-DD format.';
+    if ($form_data['due_date'] && !checkdate((int)substr($form_data['due_date'], 5, 2), (int)substr($form_data['due_date'], 8, 2), (int)substr($form_data['due_date'], 0, 4))) {
+        $errors[] = 'Due date is not a valid calendar date.';
+    }
 
     // Tenant guard: linked records must belong to the actor's school.
     if (!isSuperAdmin()) {
@@ -171,6 +176,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <option value="Pending" <?php echo ($form_data['status'] ?? 'Pending') === 'Pending' ? 'selected' : ''; ?>>Pending</option>
                                 <option value="In Progress" <?php echo ($form_data['status'] ?? '') === 'In Progress' ? 'selected' : ''; ?>>In Progress</option>
                                 <option value="Completed" <?php echo ($form_data['status'] ?? '') === 'Completed' ? 'selected' : ''; ?>>Completed</option>
+                                <option value="Cancelled" <?php echo ($form_data['status'] ?? '') === 'Cancelled' ? 'selected' : ''; ?>>Cancelled</option>
                             </select>
                         </div>
                         <div class="col-md-4">

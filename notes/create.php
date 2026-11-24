@@ -21,24 +21,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $title = trim($_POST['title'] ?? '');
         $message = trim($_POST['message'] ?? '');
         $target_roles = trim($_POST['target_roles'] ?? 'all');
+        if (!in_array($target_roles, ['all', 'student', 'parent', 'teacher'], true)) {
+            $target_roles = 'all';
+        }
 
-        if (empty($title) || empty($message)) {
+        if ($title === '' || $message === '') {
             $errors[] = 'Title and message are required.';
+        } elseif (mb_strlen($title) > 200) {
+            $errors[] = 'Title cannot exceed 200 characters.';
+        } elseif (mb_strlen($message) > 10000) {
+            $errors[] = 'Message is too long (maximum 10,000 characters).';
         } else {
-            $stmt = $pdo->prepare("INSERT INTO announcements (school_id, title, message, target_roles, is_active, created_by)
+            $stmt = $pdo->prepare("INSERT INTO announcements (school_id, title, content, target_roles, is_active, created_by)
                                    VALUES (?, ?, ?, ?, 1, ?)");
             $stmt->execute([$schoolId, $title, $message, $target_roles, $userId]);
             recordActivity($pdo, $userId, 'create_announcement', 'announcement', (int)$pdo->lastInsertId(), "Created announcement: {$title}");
 
             // Push the announcement into the notification feed of the targeted roles.
-            $targetRoles = in_array($target_roles, ['all', 'staff', 'students', 'parents'], true) ? $target_roles : 'all';
             $rolesToNotify = $target_roles === 'all'
                 ? ['school_admin', 'admin', 'teacher', 'student', 'parent']
-                : ($target_roles === 'staff' ? ['school_admin', 'admin', 'teacher'] : ($target_roles === 'students' ? ['student'] : ['parent']));
+                : ($target_roles === 'teacher' ? ['school_admin', 'admin', 'teacher'] : ($target_roles === 'student' ? ['student'] : ['parent']));
             foreach ($rolesToNotify as $notifyRole) {
                 notifyRole($pdo, $schoolId, $notifyRole, 'Announcement: ' . $title, mb_substr((string)$message, 0, 200), 'notes/index.php', 'fa-bullhorn', 'info');
             }
-            redirect('index.php', 'success', 'Announcement posted successfully.');
+            setFlashMessage('success', 'Announcement posted successfully.');
+            redirect('index.php');
         }
     }
 }

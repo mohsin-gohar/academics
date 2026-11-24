@@ -45,7 +45,7 @@ echo "====================================================================\n";
 
 $failures = [];
 $totalTested = 0;
-$baseUrl = 'http://localhost/student-task-manager/';
+$baseUrl = rtrim(getenv('APP_BASE_URL') ?: 'http://localhost/student-task-manager/', '/') . '/';
 
 foreach ($roles as $roleKey => $creds) {
     echo "\nTesting as Role: [{$roleKey}]\n";

@@ -57,7 +57,7 @@ require_once __DIR__ . '/../includes/header.php';
                                 <h5 class="card-title text-white mb-0"><?php echo e($n['title']); ?></h5>
                                 <span class="badge bg-primary"><?php echo e(ucfirst($n['target_roles'] ?? 'all')); ?></span>
                             </div>
-                            <p class="card-text text-secondary small mb-3"><?php echo nl2br(e($n['message'])); ?></p>
+                            <p class="card-text text-secondary small mb-3"><?php echo nl2br(e($n['content'])); ?></p>
                             <div class="d-flex justify-content-between align-items-center text-secondary small border-top border-secondary pt-2">
                                 <span><i class="fas fa-user-edit me-1"></i><?php echo e($n['author_name'] ?? 'Staff'); ?></span>
                                 <span><i class="fas fa-clock me-1"></i><?php echo e(date('M d, Y', strtotime($n['created_at']))); ?></span>

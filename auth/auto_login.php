@@ -66,13 +66,6 @@ try {
         }
     }
 
-    if ((int)($row['must_change_password'] ?? 0) === 1) {
-        $pdo->rollBack();
-        session_regenerate_id(true);
-        header('Location: ' . getBasePath() . 'profile.php?must_change=1');
-        exit;
-    }
-
     $pdo->prepare("UPDATE user_redis_cache SET token_hash = NULL, token_expires_at = NULL WHERE user_id = ?")
         ->execute([(int)$row['user_id']]);
     $pdo->commit();
@@ -93,6 +86,8 @@ $_SESSION['school_id']  = $row['school_id'] !== null ? (int)$row['school_id'] : 
 $_SESSION['logged_in']  = true;
 $_SESSION['last_activity'] = time();
 $_SESSION['remember_me'] = true;
+$_SESSION['must_change_password'] = ((int)($row['must_change_password'] ?? 0) === 1);
+$_SESSION['auto_login_attempts'] = 0;
 
 $pdo->prepare("UPDATE users SET last_login = NOW() WHERE id = ?")->execute([(int)$row['user_id']]);
 tenant_log($pdo, 'auto_login', 'user', (int)$row['user_id'], 'Signed in with a single-use auto-login token');

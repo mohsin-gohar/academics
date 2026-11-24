@@ -168,4 +168,16 @@ $csrf_token = generateCsrfToken();
             </nav>
             <?php endif; ?>
             <div class="content-area">
+                <?php $__flash = consumeFlashMessage(); ?>
+                <?php if ($__flash !== null): ?>
+                <div class="row mb-3">
+                    <div class="col-12">
+                        <div class="alert alert-<?php echo $__flash['type'] === 'success' ? 'success' : 'danger'; ?> alert-dismissible fade show" role="alert">
+                            <i class="fas fa-<?php echo $__flash['type'] === 'success' ? 'check-circle' : 'exclamation-circle'; ?> me-2"></i>
+                            <span><?php echo e($__flash['text']); ?></span>
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                    </div>
+                </div>
+                <?php unset($__flash); endif; ?>
     <?php endif; ?>
