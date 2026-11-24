@@ -56,7 +56,8 @@ try {
     logActivity($pdo, $user_id, 'update_status', 'task', $id, 'Status changed to ' . $status);
     header('Location: show.php?id=' . $id . '&success=' . urlencode('Status updated successfully!'));
     exit;
-} catch (PDOException $e) {
+} catch (Throwable $e) {
+    error_log('Task status update failed: ' . $e->getMessage());
     header('Location: show.php?id=' . $id . '&error=' . urlencode('Failed to update status.'));
     exit;
 }
