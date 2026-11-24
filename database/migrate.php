@@ -88,6 +88,7 @@ function split_sql_statements(string $sql): array
 {
     $statements = [];
     $current = '';
+    $hasCode = false;
     $inString = false;
     $stringChar = '';
     $lineComment = false;
@@ -101,9 +102,7 @@ function split_sql_statements(string $sql): array
 
         if ($lineComment) {
             $current .= $char;
-            if ($char === "\n" || $char === "\r") {
-                $lineComment = false;
-            }
+            if ($char === "\n" || $char === "\r") $lineComment = false;
             continue;
         }
 
@@ -132,8 +131,7 @@ function split_sql_statements(string $sql): array
             continue;
         }
 
-        // MySQL line comments: -- must be followed by whitespace/control;
-        // # comments and /* ... */ comments may also contain semicolons.
+        // MySQL line comments: -- must be followed by whitespace/control.
         if ($char === '-' && $next === '-' && ($afterNext === '' || ctype_space($afterNext))) {
             $current .= '--';
             $i++;
@@ -155,22 +153,24 @@ function split_sql_statements(string $sql): array
         if ($char === '"' || $char === "'" || $char === '`') {
             $inString = true;
             $stringChar = $char;
+            $hasCode = true;
             $current .= $char;
             continue;
         }
 
         if ($char === ';') {
-            $statements[] = $current;
+            if ($hasCode) $statements[] = $current;
             $current = '';
+            $hasCode = false;
             continue;
         }
 
+        if (!ctype_space($char)) $hasCode = true;
         $current .= $char;
     }
 
-    if (trim($current) !== '') {
-        $statements[] = $current;
-    }
+    // Ignore trailing comment-only text; PDO rejects an empty query.
+    if ($hasCode) $statements[] = $current;
 
     return $statements;
 }
