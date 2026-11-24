@@ -1,81 +1,97 @@
-# 🚀 Academics — InfinityFree Deployment & GitHub CI/CD Guide
+# Academics — InfinityFree / cPanel Deployment Guide
 
-یہ گائیڈ آپ کو بتائے گی کہ کس طرح آپ اپنے پروجیکٹ کو **InfinityFree** پر آسانی سے اپلوڈ کر سکتے ہیں اور **GitHub Actions** کے ذریعے خودکار (Automatic) کنیکٹ کر سکتے ہیں تاکہ جب بھی آپ GitHub پر کوڈ پش (push) کریں، آپ کی ویب سائٹ خود بخود InfinityFree پر اپڈیٹ ہو جائے۔
+یہ guide موجودہ Laravel نہیں بلکہ **PHP + PDO + MySQL** Academics application کے لیے ہے۔ Production deployment سے پہلے database backup اور migrations لازمی ہیں۔
 
----
+## 1. Hosting اور database تیار کریں
 
-## 📋 مرحلہ 1: ڈیٹا بیس اپلوڈ کرنا (Database Setup)
+1. Hosting panel میں domain اور MySQL database بنائیں۔
+2. MySQL host، database name، username اور password محفوظ رکھیں۔
+3. اگر database پہلے سے استعمال ہو رہا ہے تو phpMyAdmin سے مکمل SQL backup لیں۔
+4. Existing database پر `database.sql` کو دوبارہ import نہ کریں: یہ legacy full dump ہے اور اس میں `DROP TABLE` statements موجود ہیں۔
 
-آپ کے پروجیکٹ کے فولڈر میں ہم نے ایک تیار شدہ ڈیٹا بیس فائل بنا دی ہے:
-📁 **`edusphere_infinityfree_database.sql`**
+## 2. Production environment configure کریں
 
-1. سب سے پہلے اپنے **InfinityFree Client Area** یا **vPanel (Control Panel)** میں لاگ ان کریں۔
-2. **"MySQL Databases"** والے آپشن پر کلک کریں۔
-3. نیا ڈیٹا بیس بنائیں (مثلاً `edusphere` لکھ کر Create پر کلک کریں)۔ آپ کے ڈیٹا بیس کا پورا نام کچھ اس طرح بن جائے گا:
-   `if0_38472918_edusphere`
-4. اب واپس آ کر **"phpMyAdmin"** پر کلک کریں اور اپنے بنائے ہوئے ڈیٹا بیس کو سلیکٹ کریں۔
-5. اوپر مینیو میں **"Import"** ٹیب پر کلک کریں۔
-6. **"Choose File"** پر کلک کر کے اپنے کمپیوٹر سے **`edusphere_infinityfree_database.sql`** فائل منتخب کریں۔
-7. نیچے **"Go"** بٹن پر کلک کریں۔ پورا ڈیٹا بیس تمام ٹیبلز اور ڈیمو ڈیٹا کے ساتھ اپلوڈ ہو جائے گا!
+Project root میں `.env.example` کی copy بنا کر اسے `.env` نام دیں۔ اصل credentials صرف server کے `.env` میں رکھیں؛ GitHub پر commit نہ کریں۔
 
----
+کم از کم یہ values درست کریں:
 
-## ⚙️ مرحلہ 2: ڈیٹا بیس کی کنکشن سیٹنگز (Database Config)
+```dotenv
+APP_ENV=production
+APP_DEBUG=false
+APP_DOMAIN=your-domain.example
+APP_URL=https://your-domain.example
 
-پروجیکٹ کی فائل **`config/db_config.php`** کو اوپن کریں:
+DB_HOST=your-hosting-mysql-host
+DB_PORT=3306
+DB_NAME=your_database_name
+DB_USER=your_database_user
+DB_PASS=your_database_password
 
-```php
-// InfinityFree / Live Hosting پر چلانے کے لیے $FORCE_PRODUCTION کو true کریں:
-$FORCE_PRODUCTION = true;
-
-if ($isInfinityFree || $FORCE_PRODUCTION) {
-    define('DB_HOST', 'sqlxxx.infinityfree.com'); // اپنا MySQL Hostname لکھیں
-    define('DB_NAME', 'if0_xxxxxxxx_edusphere');  // اپنا Database Name لکھیں
-    define('DB_USER', 'if0_xxxxxxxx');            // اپنا MySQL Username لکھیں
-    define('DB_PASS', 'YOUR_INFINITYFREE_PASS');  // اپنا vPanel والا پاس ورڈ لکھیں
-    define('DB_PORT', 3306);
-    define('IS_PRODUCTION', true);
-}
+MAIL_HOST=smtp.your-email-provider.example
+MAIL_PORT=587
+MAIL_USERNAME=your_smtp_username
+MAIL_PASSWORD=your_smtp_password
+MAIL_ENCRYPTION=tls
+MAIL_FROM_ADDRESS=no-reply@your-domain.example
+MAIL_FROM_NAME="Academics"
 ```
 
-> **نوٹ:** جب آپ لوکل XAMPP پر چلا رہے ہوں تو `$FORCE_PRODUCTION = false;` ہی رہنے دیں، سسٹم خود بخود لوکل ڈیٹا بیس سے جڑ جائے گا۔
+- `APP_URL` مکمل canonical URL ہو، آخر میں slash نہ بھی ہو تو ٹھیک ہے۔
+- Production میں `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASS` خالی نہ چھوڑیں۔ Configuration غائب ہونے پر application محفوظ طریقے سے 503 دے گی، localhost/root پر fallback نہیں کرے گی۔
+- SMTP settings password-reset email کے لیے استعمال ہوتی ہیں۔ SMTP credentials نہ ہوں تو صرف hosting کا PHP `mail()` transport fallback کے طور پر آزمایا جائے گا۔
+- `.htaccess` میں `.env`, `config/`, `includes/`, `database/`, `storage/` اور `tests/` کی direct web access block ہے۔ اسے remove نہ کریں۔
 
----
+## 3. Database migrations چلائیں
 
-## 🔄 مرحلہ 3: GitHub کو InfinityFree سے خودکار کنیکٹ کرنا (GitHub Actions Auto-Deploy)
+موجودہ schema version کے لیے migrations `database/migrations/` میں ترتیب وار `0001` سے `0009` تک ہیں۔
 
-ہم نے آپ کے لیے **GitHub Actions Workflow** فائل **`.github/workflows/deploy.yml`** بنا دی ہے۔
-اب جب بھی آپ `git push origin main` کریں گے، GitHub خود بخود آپ کی فائلز InfinityFree پر بھیج دے گا۔
+**اگر hosting پر PHP CLI/Terminal دستیاب ہے:**
 
-اسے چالو کرنے کے لیے صرف یہ 3 چیزیں GitHub میں شامل کرنی ہیں:
+1. پہلے database backup لیں۔
+2. Project root سے یہ command چلائیں:
 
-1. اپنے **GitHub Repository** پر جائیں۔
-2. **Settings** ➔ **Secrets and variables** ➔ **Actions** پر کلک کریں۔
-3. **"New repository secret"** بٹن پر کلک کر کے یہ 3 سیکرٹس ایڈ کریں:
+```bash
+php database/migrate.php up
+```
 
-| Secret Name | کہاں سے ملے گا؟ (Value) | مثال |
-|---|---|---|
-| **`FTP_SERVER`** | InfinityFree اکاؤنٹ کی FTP Details میں "FTP Hostname" | `ftpupload.net` |
-| **`FTP_USERNAME`** | InfinityFree کا "FTP User Name" | `if0_38472918` |
-| **`FTP_PASSWORD`** | آپ کے InfinityFree اکاؤنٹ کا پاس ورڈ | `vPanel Password` |
+3. Migration output میں ہر migration کے successful ہونے کی تصدیق کریں۔ Runner `schema_migrations` میں applied version اور checksum محفوظ کرتا ہے۔
 
-### ✅ ٹیسٹ کرنا:
-جیسے ہی آپ سیکرٹس ایڈ کر کے کوڈ گٹ ہب پر پش کریں گے:
-- GitHub میں **"Actions"** ٹیب پر جائیں۔
-- آپ دیکھیں گے کہ **"Deploy Academics to InfinityFree"** کا ایکشن چل پڑے گا اور 1 منٹ کے اندر آپ کی ویب سائٹ InfinityFree پر لائیو ہو جائے گی!
+**اگر hosting پر CLI دستیاب نہیں اور صرف phpMyAdmin ہے:**
 
----
+1. Database select کریں۔
+2. `database/migrations/` کی SQL files کو filename order میں ایک ایک کر کے import کریں: `0001`, `0002` ... `0009`۔
+3. کسی migration میں error آئے تو آگے والی files import نہ کریں؛ پہلے error resolve کریں۔
+4. Manual import کے بعد CLI migration runner خود سے نہ چلائیں جب تک `schema_migrations` میں applied versions/checksums درست طور پر record نہ کر دیے جائیں؛ ورنہ runner پرانی migrations دوبارہ چلانے کی کوشش کر سکتا ہے۔
 
-## 🔑 ڈیمو لاگ ان اکاؤنٹس (Demo Login Credentials)
+`database/seed.sql` صرف local/demo data کے لیے ہے۔ Production میں demo users/passwords seed نہ کریں؛ اپنے platform administrator کو محفوظ طریقے سے provision کریں۔
 
-ڈیٹا بیس اپلوڈ ہونے کے بعد آپ ان اکاؤنٹس سے لاگ ان کر سکتے ہیں:
+## 4. Files deploy کریں
 
-- **Super Admin:**
-  - Email: `admin@edusphere.com`
-  - Password: `Admin@123`
-- **Teacher:**
-  - Email: `teacher@edusphere.com`
-  - Password: `Teacher@123`
-- **Student:**
-  - Email: `student@edusphere.com`
-  - Password: `Student@123`
+GitHub Actions workflow:
+
+- Pull requests پر MySQL migrations، PHP syntax checks، automated tests اور role-based portal smoke tests چلاتا ہے۔
+- FTP deployment صرف `main` branch پر push ہونے کے بعد چلتا ہے؛ repair branch یا pull request خود production deploy نہیں کرتی۔
+- FTP deployment SQL migrations خود execute نہیں کرتا۔ Production database migrations کو اوپر والے مرحلے کے مطابق الگ سے apply کرنا ضروری ہے۔
+
+GitHub repository میں یہ Actions secrets configure کریں:
+
+| Secret | Value |
+|---|---|
+| `FTP_SERVER` | Hosting کا FTP hostname |
+| `FTP_USERNAME` | FTP username |
+| `FTP_PASSWORD` | FTP password |
+
+Deployment سے پہلے confirm کریں کہ FTP server directory درست ہے، مثلاً `htdocs/` یا hosting کی طرف سے دیا گیا document-root path۔ `dangerous-clean-slate` disabled ہے تاکہ server پر موجود غیر متعلقہ files delete نہ ہوں۔
+
+## 5. Post-deployment verification
+
+- `https://your-domain.example/auth/login.php` کھولیں۔
+- Super Admin، School Admin، Teacher، Student اور Parent accounts سے login اور allowed pages چیک کریں۔
+- ایک school کے account سے دوسرے school کے student/course/task/event IDs کھول کر دیکھیں؛ access block ہونا چاہیے۔
+- Student creation، course enrollment، task status، attendance، grade entry، fee invoice/payment، leave approval اور notifications کے actual create/update flows test کریں۔
+- Password reset request کریں اور SMTP inbox میں absolute `/auth/reset_password.php` link verify کریں۔
+- Production میں demo credentials، `APP_DEBUG=true` یا temporary debug scripts استعمال نہ کریں۔
+
+## 6. Current repository checks
+
+CI میں automated test suite اور browser-style authenticated portal smoke checks چلتے ہیں۔ یہ checks hosting کے حقیقی SMTP delivery، FTP credentials، production database permissions یا production browser session کی جگہ نہیں لیتے؛ ان چیزوں کی الگ live verification ضروری ہے۔
