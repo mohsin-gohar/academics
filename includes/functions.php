@@ -840,6 +840,7 @@ function recordPayment(PDO $pdo, int $schoolId, int $invoiceId, float $amount, s
         if ($pdo->inTransaction()) {
             $pdo->rollBack();
         }
+        error_log('recordPayment failed: ' . $e->getMessage());
         return false;
     }
 }
