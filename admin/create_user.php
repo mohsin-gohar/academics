@@ -84,6 +84,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (empty($errors)) {
         try {
+            $pdo->beginTransaction();
             $hashed = password_hash($form_data['password'], PASSWORD_DEFAULT);
             $stmt = $pdo->prepare("INSERT INTO users (full_name, email, password, role, is_active, school_id, must_change_password) VALUES (?, ?, ?, ?, ?, ?, 1)");
             $stmt->execute([
@@ -92,20 +93,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $hashed,
                 $form_data['role'],
                 $form_data['is_active'],
-                $form_data['school_id'] !== null ? $form_data['school_id'] : null,
+                $form_data['school_id'],
             ]);
-            $uid = $pdo->lastInsertId();
+            $uid = (int)$pdo->lastInsertId();
 
             if ($form_data['role'] === 'student') {
+                if (empty($form_data['school_id'])) {
+                    throw new RuntimeException('A student must belong to a school.');
+                }
                 $stuNum = generateStudentNumber($pdo);
                 $stmt = $pdo->prepare("INSERT INTO students (school_id, user_id, student_number, full_name, email, enrollment_date, status) VALUES (?, ?, ?, ?, ?, CURDATE(), 'Active')");
                 $stmt->execute([$form_data['school_id'], $uid, $stuNum, $form_data['full_name'], $form_data['email']]);
             }
 
-            logActivity($pdo, $_SESSION['user_id'], 'create', 'user', $uid, 'Created user: ' . $form_data['full_name'] . ' (' . $form_data['role'] . ')');
+            $pdo->commit();
+            logActivity($pdo, (int)$_SESSION['user_id'], 'create', 'user', $uid, 'Created user: ' . $form_data['full_name'] . ' (' . $form_data['role'] . ')');
             header('Location: users.php?success=' . urlencode('User created successfully!'));
             exit;
-        } catch (PDOException $e) {
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
             error_log("User create failed: " . $e->getMessage());
             $errors[] = 'Failed to create user.';
         }
