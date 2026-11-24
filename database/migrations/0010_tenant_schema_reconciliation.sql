@@ -45,6 +45,19 @@ SET @academics_sql = (
 );
 PREPARE academics_stmt FROM @academics_sql; EXECUTE academics_stmt; DEALLOCATE PREPARE academics_stmt;
 
+-- A pre-multitenant schema has no schools table data. If this is a
+-- single-school upgrade, create one explicit legacy tenant rather than
+-- leaving every existing user and record orphaned.
+INSERT INTO schools (school_name, school_code, school_email, owner_name, status, plan, is_active)
+SELECT 'Legacy School', 'LEGACY001', 'legacy@academics.local', 'Legacy Administrator', 'active', 'basic', 1
+WHERE NOT EXISTS (SELECT 1 FROM schools)
+  AND EXISTS (SELECT 1 FROM users WHERE role <> 'super_admin');
+
+SET @academics_single_school = (SELECT IF(COUNT(*) = 1, MIN(id), NULL) FROM schools);
+UPDATE users
+SET school_id = @academics_single_school
+WHERE school_id IS NULL AND role <> 'super_admin' AND @academics_single_school IS NOT NULL;
+
 -- Backfill students from their owning account.
 UPDATE students s
 JOIN users u ON u.id = s.user_id
@@ -97,7 +110,6 @@ WHERE l.school_id IS NULL AND u.school_id IS NOT NULL;
 
 -- On a true single-school legacy installation, unowned historical records can
 -- safely inherit that sole school. Never guess when multiple schools exist.
-SET @academics_single_school = (SELECT IF(COUNT(*) = 1, MIN(id), NULL) FROM schools);
 UPDATE students SET school_id = @academics_single_school WHERE school_id IS NULL AND @academics_single_school IS NOT NULL;
 UPDATE courses SET school_id = @academics_single_school WHERE school_id IS NULL AND @academics_single_school IS NOT NULL;
 UPDATE enrollments SET school_id = @academics_single_school WHERE school_id IS NULL AND @academics_single_school IS NOT NULL;
@@ -105,6 +117,34 @@ UPDATE tasks SET school_id = @academics_single_school WHERE school_id IS NULL AN
 UPDATE school_events SET school_id = @academics_single_school WHERE school_id IS NULL AND @academics_single_school IS NOT NULL;
 UPDATE emergency_alerts SET school_id = @academics_single_school WHERE school_id IS NULL AND @academics_single_school IS NOT NULL;
 UPDATE activity_logs SET school_id = @academics_single_school WHERE school_id IS NULL AND @academics_single_school IS NOT NULL;
+
+-- Replace legacy globally-unique course/student numbers with tenant-scoped
+-- uniqueness. Existing canonical composite indexes are left untouched.
+SET @academics_old_index = (
+    SELECT index_name FROM information_schema.STATISTICS
+    WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='students' AND NON_UNIQUE=0
+    GROUP BY index_name
+    HAVING COUNT(*)=1 AND MAX(COLUMN_NAME='student_number')=1
+    LIMIT 1
+);
+SET @academics_sql = IF(@academics_old_index IS NULL, 'SELECT 1',
+    CONCAT('ALTER TABLE students DROP INDEX `', REPLACE(@academics_old_index, '`', '``'), '`'));
+PREPARE academics_stmt FROM @academics_sql; EXECUTE academics_stmt; DEALLOCATE PREPARE academics_stmt;
+SET @academics_sql = (SELECT IF(COUNT(*)=0,'ALTER TABLE students ADD UNIQUE KEY uq_students_number_school (school_id, student_number)','SELECT 1') FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='students' AND INDEX_NAME='uq_students_number_school');
+PREPARE academics_stmt FROM @academics_sql; EXECUTE academics_stmt; DEALLOCATE PREPARE academics_stmt;
+
+SET @academics_old_index = (
+    SELECT index_name FROM information_schema.STATISTICS
+    WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='courses' AND NON_UNIQUE=0
+    GROUP BY index_name
+    HAVING COUNT(*)=1 AND MAX(COLUMN_NAME='course_code')=1
+    LIMIT 1
+);
+SET @academics_sql = IF(@academics_old_index IS NULL, 'SELECT 1',
+    CONCAT('ALTER TABLE courses DROP INDEX `', REPLACE(@academics_old_index, '`', '``'), '`'));
+PREPARE academics_stmt FROM @academics_sql; EXECUTE academics_stmt; DEALLOCATE PREPARE academics_stmt;
+SET @academics_sql = (SELECT IF(COUNT(*)=0,'ALTER TABLE courses ADD UNIQUE KEY uq_courses_code_school (school_id, course_code)','SELECT 1') FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='courses' AND INDEX_NAME='uq_courses_code_school');
+PREPARE academics_stmt FROM @academics_sql; EXECUTE academics_stmt; DEALLOCATE PREPARE academics_stmt;
 
 -- Add tenant indexes only when no index already starts with school_id.
 SET @academics_sql = (SELECT IF(COUNT(*)=0,'ALTER TABLE students ADD INDEX idx_students_school (school_id)','SELECT 1') FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='students' AND COLUMN_NAME='school_id');
