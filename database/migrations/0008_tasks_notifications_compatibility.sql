@@ -61,13 +61,6 @@ PREPARE academics_stmt FROM @academics_sql;
 EXECUTE academics_stmt;
 DEALLOCATE PREPARE academics_stmt;
 
--- Assign legacy unscoped tasks to the school of their creator where known.
--- Rows owned by platform-level users remain NULL and are platform-scoped.
-UPDATE tasks t
-INNER JOIN users u ON u.id = t.user_id
-SET t.school_id = u.school_id
-WHERE t.school_id IS NULL AND u.school_id IS NOT NULL;
-
 -- Ensure tenant filtering remains indexed on old schemas too.
 SET @academics_sql = (
     SELECT IF(
