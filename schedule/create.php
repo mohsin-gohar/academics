@@ -8,7 +8,7 @@ require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/tenant.php';
 startSecureSession();
 require_once __DIR__ . '/../config/db.php';
-requireStaff();
+requireSchoolManagement();
 // C4: validate live session (account/role/school)
 enforceSession($pdo);
 
