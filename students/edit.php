@@ -43,6 +43,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (empty($errors)) {
         try {
+            $pdo->beginTransaction();
+
             $stmt = $pdo->prepare("UPDATE students SET full_name=?, email=?, phone=?, date_of_birth=?, gender=?, address=?, enrollment_date=?, status=?, updated_at=NOW() WHERE id=?");
             $stmt->execute([
                 $form_data['full_name'], $form_data['email'], $form_data['phone'] ?: null,
@@ -53,10 +55,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt = $pdo->prepare("UPDATE users SET full_name=?, email=?, updated_at=NOW() WHERE id=?");
             $stmt->execute([$form_data['full_name'], $form_data['email'], $student['user_id']]);
 
+            $pdo->commit();
             logActivity($pdo, $_SESSION['user_id'], 'update', 'student', $id, 'Updated student: ' . $form_data['full_name']);
             header('Location: show.php?id=' . $id . '&success=' . urlencode('Student updated successfully!'));
             exit;
         } catch (PDOException $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
             error_log("Student update failed: " . $e->getMessage());
             $errors[] = 'Failed to update student.';
         }

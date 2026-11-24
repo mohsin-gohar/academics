@@ -8,8 +8,55 @@ on:
   workflow_dispatch:
 
 jobs:
+  quality:
+    name: Quality checks (PHP lint + tests)
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: edusphere_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      APP_ENV: test
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_NAME: edusphere_test
+      DB_USER: root
+      DB_PASS: root
+      DB_NAME_TEST: edusphere_test
+    steps:
+      - name: Checkout latest code
+        uses: actions/checkout@v4
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, pdo, pdo_mysql, openssl, json, curl
+          coverage: none
+      - name: Wait for MySQL
+        run: |
+          until mysqladmin ping --host=127.0.0.1 --user=root --password=root --silent; do
+            sleep 1
+          done
+      - name: Run migrations
+        run: php database/migrate.php up
+      - name: PHP syntax check
+        run: find . -type f -name '*.php' -not -path './storage/*' -exec php -l {} \;
+      - name: Run automated tests
+        run: php tests/run_tests.php
+
   web-deploy:
     name: 🚀 Auto Deploy to InfinityFree via FTP
+    needs: quality
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - name: 🚚 Checkout latest code

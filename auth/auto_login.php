@@ -8,8 +8,11 @@
  */
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/tenant.php';
+require_once __DIR__ . '/../includes/saas.php';
 startSecureSession();
 require_once __DIR__ . '/../config/db.php';
+
+$token = $_GET['token'] ?? '';
 
 // Rate limiting for auto-login attempts
 if (!isset($_SESSION['auto_login_attempts'])) {
@@ -41,15 +44,43 @@ try {
     ");
     $st->execute([$hash]);
     $row = $st->fetch();
-} catch (Throwable $e) {
-    $pdo->rollBack();
-    header('Location: login.php?error=' . urlencode('Auto-login service temporarily unavailable.'));
-    exit;
-}
+    if (!$row) {
+        $pdo->rollBack();
+        header('Location: login.php?error=' . urlencode('This auto-login link is invalid or has expired. Please sign in.'));
+        exit;
+    }
 
-// Single-use token: hash immediately invalidated after first successful consumption
-if (!$row) {
-    header('Location: login.php?error=' . urlencode('This auto-login link is invalid or has expired. Please sign in.'));
+    if (!($row['is_active'] ?? 1)) {
+        $pdo->rollBack();
+        header('Location: login.php?error=' . urlencode('This account has been deactivated. Please contact administrator.'));
+        exit;
+    }
+
+    $schoolId = $row['school_id'] !== null ? (int)$row['school_id'] : null;
+    if ($schoolId !== null) {
+        $school = school_by_id($pdo, $schoolId);
+        if (!$school || !saas_school_is_accessible($school)) {
+            $pdo->rollBack();
+            header('Location: login.php?error=' . urlencode('This school portal is not available right now.'));
+            exit;
+        }
+    }
+
+    if ((int)($row['must_change_password'] ?? 0) === 1) {
+        $pdo->rollBack();
+        session_regenerate_id(true);
+        header('Location: ' . getBasePath() . 'profile.php?must_change=1');
+        exit;
+    }
+
+    $pdo->prepare("UPDATE user_redis_cache SET token_hash = NULL, token_expires_at = NULL WHERE user_id = ?")
+        ->execute([(int)$row['user_id']]);
+    $pdo->commit();
+} catch (Throwable $e) {
+    if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
+    header('Location: login.php?error=' . urlencode('Auto-login service temporarily unavailable.'));
     exit;
 }
 
