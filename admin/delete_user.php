@@ -32,6 +32,17 @@ try {
             exit;
         }
     }
+    if ($target['role'] === 'school_admin' && (int)$target['is_active'] === 1 && $target['school_id'] !== null) {
+        $schoolAdmins = $pdo->prepare(
+            "SELECT id FROM users WHERE role = 'school_admin' AND is_active = 1 AND school_id = ? FOR UPDATE"
+        );
+        $schoolAdmins->execute([(int)$target['school_id']]);
+        if (count($schoolAdmins->fetchAll(PDO::FETCH_COLUMN)) <= 1) {
+            $pdo->rollBack();
+            header('Location: users.php?error=' . urlencode('Cannot delete the last active school administrator.'));
+            exit;
+        }
+    }
 
     $stmt = $pdo->prepare("SELECT id FROM students WHERE user_id = ? FOR UPDATE");
     $stmt->execute([$id]);
