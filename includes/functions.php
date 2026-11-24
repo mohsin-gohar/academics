@@ -449,7 +449,7 @@ function sendPasswordResetEmail(string $email, string $token): bool
         }
         $https = (!empty($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off');
         $scheme = $https ? 'https' : 'http';
-        $scriptDir = str_replace('\\\\', '/', dirname((string)($_SERVER['SCRIPT_NAME'] ?? '/auth/forgot_password.php')));
+        $scriptDir = str_replace('\\', '/', dirname((string)($_SERVER['SCRIPT_NAME'] ?? '/auth/forgot_password.php')));
         $basePath = rtrim(dirname($scriptDir), '/.');
         $appUrl = $scheme . '://' . $host . $basePath;
     }
