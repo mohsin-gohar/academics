@@ -90,32 +90,82 @@ function split_sql_statements(string $sql): array
     $current = '';
     $inString = false;
     $stringChar = '';
+    $lineComment = false;
+    $blockComment = false;
     $len = strlen($sql);
 
     for ($i = 0; $i < $len; $i++) {
         $char = $sql[$i];
         $next = ($i + 1 < $len) ? $sql[$i + 1] : '';
+        $afterNext = ($i + 2 < $len) ? $sql[$i + 2] : '';
 
-        $current .= $char;
+        if ($lineComment) {
+            $current .= $char;
+            if ($char === "\n" || $char === "\r") {
+                $lineComment = false;
+            }
+            continue;
+        }
 
-        if (!$inString && ($char === '"' || $char === "'" || $char === '`')) {
+        if ($blockComment) {
+            $current .= $char;
+            if ($char === '*' && $next === '/') {
+                $current .= $next;
+                $i++;
+                $blockComment = false;
+            }
+            continue;
+        }
+
+        if ($inString) {
+            $current .= $char;
+            if ($char === $stringChar && $next === $stringChar) {
+                $current .= $next;
+                $i++;
+            } elseif ($char === $stringChar) {
+                $inString = false;
+                $stringChar = '';
+            } elseif ($char === '\\\\' && $next === $stringChar) {
+                $current .= $next;
+                $i++;
+            }
+            continue;
+        }
+
+        // MySQL line comments: -- must be followed by whitespace/control;
+        // # comments and /* ... */ comments may also contain semicolons.
+        if ($char === '-' && $next === '-' && ($afterNext === '' || ctype_space($afterNext))) {
+            $current .= '--';
+            $i++;
+            $lineComment = true;
+            continue;
+        }
+        if ($char === '#') {
+            $current .= $char;
+            $lineComment = true;
+            continue;
+        }
+        if ($char === '/' && $next === '*') {
+            $current .= '/*';
+            $i++;
+            $blockComment = true;
+            continue;
+        }
+
+        if ($char === '"' || $char === "'" || $char === '`') {
             $inString = true;
             $stringChar = $char;
-        } elseif ($inString && $char === $stringChar && $next === $stringChar) {
-            // SQL standard doubled quote inside a string literal ('')
-            $current .= $next;
-            $i++;
-        } elseif ($inString && $char === $stringChar && $next !== $stringChar) {
-            $inString = false;
-            $stringChar = '';
-        } elseif ($inString && $char === '\\' && $next === $stringChar) {
-            // Escaped quote inside string
-            $current .= $next;
-            $i++;
-        } elseif (!$inString && $char === ';') {
+            $current .= $char;
+            continue;
+        }
+
+        if ($char === ';') {
             $statements[] = $current;
             $current = '';
+            continue;
         }
+
+        $current .= $char;
     }
 
     if (trim($current) !== '') {
