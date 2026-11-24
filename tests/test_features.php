@@ -29,6 +29,10 @@ class TestFeaturesSuite {
             'name' => 'Attendance: Retrieve student attendance summary and percentage',
             'pass' => isset($summary['total']) && $summary['total'] > 0 && isset($summary['percentage'])
         ];
+        $results[] = [
+            'name' => 'Attendance: Reject marking a student from another school',
+            'pass' => markAttendance($this->pdo, $schoolId, 3, $today, 'present', null, 1) === false
+        ];
 
         // 2. Gradebook & Assessments
         $assessmentId = createAssessment($this->pdo, $schoolId, 1, 'Unit 1 Examination', 'exam', 100.0, 1.0, $today, 'Midterm exam', 1);
@@ -36,11 +40,19 @@ class TestFeaturesSuite {
             'name' => 'Gradebook: Create course assessment successfully',
             'pass' => $assessmentId > 0
         ];
+        $results[] = [
+            'name' => 'Gradebook: Reject assessment creation for another school course',
+            'pass' => createAssessment($this->pdo, $schoolId, 2, 'Cross Tenant Assessment', 'exam', 100.0, 1.0, $today, null, 1) === 0
+        ];
 
         $markRecorded = recordMark($this->pdo, $schoolId, $assessmentId, $studentId, 95.0, 'Excellent performance', 1);
         $results[] = [
             'name' => 'Gradebook: Record student assessment score',
             'pass' => $markRecorded === true
+        ];
+        $results[] = [
+            'name' => 'Gradebook: Reject recording marks for another school student',
+            'pass' => recordMark($this->pdo, $schoolId, $assessmentId, 3, 50.0, null, 1) === false
         ];
 
         $gradeSummary = getStudentGradeSummary($this->pdo, $schoolId, $studentId);
@@ -60,6 +72,10 @@ class TestFeaturesSuite {
         $results[] = [
             'name' => 'Fees: Create tuition invoice for student',
             'pass' => $invoiceId > 0
+        ];
+        $results[] = [
+            'name' => 'Fees: Reject invoice creation for another school student',
+            'pass' => createInvoice($this->pdo, $schoolId, 3, null, 'Cross Tenant Invoice', 100.0, null, 1) === 0
         ];
 
         $payRecorded = recordPayment($this->pdo, $schoolId, $invoiceId, 500.00, $today, 'Bank Transfer', 'TXN-998877', 1, 'Paid in full');
