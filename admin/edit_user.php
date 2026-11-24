@@ -48,12 +48,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($form_data['role'] === 'super_admin' && !$isSuperAdmin) {
         $errors[] = 'Only platform super administrators can assign super admin role.';
     }
-    // Prevent demoting the last super_admin
-    if ($user['role'] === 'super_admin' && $form_data['role'] !== 'super_admin') {
-        $stmt = $pdo->prepare("SELECT COUNT(*) FROM users WHERE role = 'super_admin' AND is_active = 1");
-        $stmt->execute();
-        if ((int)$stmt->fetchColumn() <= 1) {
-            $errors[] = 'Cannot demote the last active super administrator.';
+    // Preserve at least one active platform super administrator.
+    if ($user['role'] === 'super_admin' && (int)$user['is_active'] === 1
+        && ($form_data['role'] !== 'super_admin' || (int)$form_data['is_active'] !== 1)) {
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM users WHERE role = 'super_admin' AND is_active = 1 AND id <> ?");
+        $stmt->execute([$id]);
+        if ((int)$stmt->fetchColumn() < 1) {
+            $errors[] = 'Cannot demote or deactivate the last active super administrator.';
         }
     }
 
