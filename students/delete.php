@@ -37,7 +37,9 @@ try {
     $historyChecks = [
         "SELECT COUNT(*) FROM attendance WHERE student_id = ?",
         "SELECT COUNT(*) FROM student_marks WHERE student_id = ?",
-        "SELECT COUNT(*) FROM invoices WHERE student_id = ?"
+        "SELECT COUNT(*) FROM invoices WHERE student_id = ?",
+        "SELECT COUNT(*) FROM enrollments WHERE student_id = ?",
+        "SELECT COUNT(*) FROM tasks WHERE student_id = ?"
     ];
     foreach ($historyChecks as $sql) {
         $historyStmt = $pdo->prepare($sql);
@@ -49,9 +51,8 @@ try {
         }
     }
 
-    // Delete related tasks/enrollments
-    $pdo->prepare("DELETE FROM tasks WHERE student_id = ?")->execute([$id]);
-    $pdo->prepare("DELETE FROM enrollments WHERE student_id = ?")->execute([$id]);
+    // No academic, financial, enrollment or task history remains; only now
+    // is permanent deletion safe.
     $pdo->prepare("DELETE FROM students WHERE id = ?")->execute([$id]);
     if ($student['user_id']) {
         $pdo->prepare("DELETE FROM users WHERE id = ?")->execute([$student['user_id']]);
