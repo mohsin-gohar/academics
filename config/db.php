@@ -54,6 +54,17 @@ if (!defined('APP_ENV')) {
     $appEnv = getenv('APP_ENV');
     define('APP_ENV', $appEnv !== false && trim((string)$appEnv) !== '' ? strtolower(trim((string)$appEnv)) : 'local');
 }
+
+if (!defined('APP_DEBUG')) {
+    $debugEnv = getenv('APP_DEBUG');
+    $debugDefault = in_array(APP_ENV, ['local', 'development'], true);
+    define('APP_DEBUG', $debugEnv !== false
+        ? filter_var($debugEnv, FILTER_VALIDATE_BOOLEAN)
+        : $debugDefault);
+}
+error_reporting(E_ALL);
+ini_set('log_errors', '1');
+ini_set('display_errors', APP_DEBUG ? '1' : '0');
 $requestHost = strtolower((string)parse_url('http://' . ($_SERVER['HTTP_HOST'] ?? 'localhost'), PHP_URL_HOST));
 $isLocalDev = (APP_ENV === 'local' || APP_ENV === 'development')
     && (PHP_SAPI === 'cli' || in_array($requestHost, ['localhost', '127.0.0.1', '::1'], true));
