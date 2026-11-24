@@ -74,10 +74,20 @@ class TestAuthSuite {
             'pass' => isValidEmail('user@school.edu') && !isValidEmail('invalid-email') && !isValidEmail('@missinguser.com')
         ];
 
-        // 8. Session helper
+        // 8. Session and one-time flash-message helpers
         $results[] = [
             'name' => 'getRole returns valid role string',
             'pass' => is_string(getRole())
+        ];
+        setFlashMessage('success', 'Flash helper test');
+        $flash = consumeFlashMessage();
+        $results[] = [
+            'name' => 'consumeFlashMessage returns the one-time session message',
+            'pass' => is_array($flash) && ($flash['type'] ?? '') === 'success' && ($flash['text'] ?? '') === 'Flash helper test'
+        ];
+        $results[] = [
+            'name' => 'consumeFlashMessage clears the message after first read',
+            'pass' => consumeFlashMessage() === null
         ];
 
         // 9. Password reset token creation and consumption
