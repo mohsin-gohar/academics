@@ -36,23 +36,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $error = 'Please enter a valid email address.';
         } else {
-            // Token creation is identical for existing/non-existing emails
-            // to prevent account enumeration (response time is the same).
+            // Keep the response generic for both existing and unknown accounts.
+            // A missing account produces no token and must never reach the mailer.
             $token = createPasswordResetToken($pdo, $email);
 
-            // Log the request for audit
-            logActivity($pdo, null, 'password_reset_requested', 'user', null, 'Reset requested for ' . $email);
+            logActivity($pdo, null, 'password_reset_requested', 'user', null, 'Password reset requested');
 
-            // Attempt delivery (never exposes token in response)
-            $delivered = sendPasswordResetEmail($email, $token);
-
-            if ($delivered) {
-                $success = 'If an account exists for that email, a password reset link has been sent.';
-            } else {
-                // Delivery failed — still return generic success to avoid enumeration
-                $success = 'If an account exists for that email, a password reset link has been generated.';
-                error_log("Password reset email delivery failed for: $email");
+            if ($token !== null) {
+                $delivered = sendPasswordResetEmail($email, $token);
+                if (!$delivered) {
+                    error_log('Password reset email delivery failed.');
+                }
             }
+
+            $success = 'If an account exists for that email, a password reset link has been sent.';
         }
     }
 }
