@@ -159,10 +159,19 @@ EXECUTE academics_stmt;
 DEALLOCATE PREPARE academics_stmt;
 
 -- Preserve tenant ownership for legacy notifications addressed to school users.
-UPDATE notifications n
-INNER JOIN users u ON u.id = n.user_id
-SET n.school_id = u.school_id
-WHERE n.school_id IS NULL AND u.school_id IS NOT NULL;
+SET @academics_sql = (
+    SELECT IF(
+        EXISTS (SELECT 1 FROM information_schema.COLUMNS
+                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'notifications' AND COLUMN_NAME = 'user_id')
+        AND EXISTS (SELECT 1 FROM information_schema.COLUMNS
+                    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'school_id'),
+        'UPDATE notifications n INNER JOIN users u ON u.id = n.user_id SET n.school_id = u.school_id WHERE n.school_id IS NULL AND u.school_id IS NOT NULL',
+        'SELECT 1'
+    )
+);
+PREPARE academics_stmt FROM @academics_sql;
+EXECUTE academics_stmt;
+DEALLOCATE PREPARE academics_stmt;
 
 SET @academics_sql = (
     SELECT IF(
