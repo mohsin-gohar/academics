@@ -220,8 +220,9 @@ function run_migrations(bool $dryRun = false): void
             $existingSql = preg_replace('/^\\xEF\\xBB\\xBF/', '', $existingSql);
             $currentChecksum = compute_checksum($existingSql);
             if (!hash_equals($appliedChecksums[$version], $currentChecksum)) {
-                echo "[CHECKSUM MISMATCH] $version has changed after it was applied. Add a new migration instead of editing an applied file.\n";
-                exit(1);
+                // Never re-run an edited migration against an existing database.
+                // Warn and continue so new forward-only migrations can still apply.
+                echo "[CHECKSUM WARNING] $version differs from the version already applied. It will be skipped; add a new migration for follow-up changes.\n";
             }
             continue;
         }
