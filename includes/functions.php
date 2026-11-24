@@ -452,10 +452,10 @@ function sendPasswordResetEmail(string $email, string $token): bool
     }
     if ($appUrl === '' && (!defined('IS_PRODUCTION') || !IS_PRODUCTION)) {
         $host = (string)($_SERVER['HTTP_HOST'] ?? 'localhost');
-        if (!preg_match('/^[a-z0-9.\\-]+(?::[0-9]{1,5})?$/i', $host)) return false;
+        if (!preg_match('/^[a-z0-9.-]+(?:[0-9]{1,5})?$/i', $host)) return false;
         $https = (!empty($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off');
         $scheme = $https ? 'https' : 'http';
-        $scriptDir = str_replace('\\\\', '/', dirname((string)($_SERVER['SCRIPT_NAME'] ?? '/auth/forgot_password.php')));
+        $scriptDir = str_replace('\\', '/', dirname((string)($_SERVER['SCRIPT_NAME'] ?? '/auth/forgot_password.php')));
         $basePath = rtrim(dirname($scriptDir), '/.');
         $appUrl = $scheme . '://' . $host . $basePath;
     }
@@ -479,7 +479,7 @@ function sendPasswordResetEmail(string $email, string $token): bool
     // transport (STARTTLS/SMTPS + AUTH LOGIN), not PHP mail() masquerading as SMTP.
     if ($mailHost !== '' && $mailPort > 0 && $mailPort <= 65535
         && filter_var($mailFrom, FILTER_VALIDATE_EMAIL)
-        && !preg_match('/[\\r\\n]/', $mailHost)
+        && !preg_match('/[\r\n]/', $mailHost)
         && in_array($mailEncrypt, ['tls', 'ssl', 'none'], true)) {
         $socket = null;
         try {
@@ -530,7 +530,7 @@ function sendPasswordResetEmail(string $email, string $token): bool
             [$greetingCode] = $readResponse();
             if ($greetingCode !== 220) throw new RuntimeException('SMTP server greeting was rejected.');
 
-            $hello = preg_replace('/[^a-zA-Z0-9.\\-]/', '', (string)(gethostname() ?: 'localhost'));
+            $hello = preg_replace('/[^a-zA-Z0-9.-]/', '', (string)(gethostname() ?: 'localhost'));
             if ($hello === '') $hello = 'localhost';
             $command('EHLO ' . $hello, [250]);
 
@@ -554,7 +554,7 @@ function sendPasswordResetEmail(string $email, string $token): bool
             $command('RCPT TO:<' . $email . '>', [250, 251]);
             $command('DATA', [354]);
 
-            $safeName = str_replace(["\\r", "\\n"], '', $mailFromName);
+            $safeName = str_replace(["\r", "\n"], '', $mailFromName);
             $encodedName = '=?UTF-8?B?' . base64_encode($safeName) . '?=';
             $fromDomain = substr(strrchr($mailFrom, '@') ?: '@localhost', 1);
             $headers = [
@@ -570,7 +570,7 @@ function sendPasswordResetEmail(string $email, string $token): bool
                 'X-Mailer: Academics',
             ];
             $message = implode("\r\n", $headers) . "\r\n\r\n";
-            $bodyLines = preg_split('/\\r\\n|\\r|\\n/', $body) ?: [];
+            $bodyLines = preg_split('/\r\n|\r|\n/', $body) ?: [];
             foreach ($bodyLines as $line) {
                 $message .= (str_starts_with($line, '.') ? '.' : '') . $line . "\r\n";
             }
