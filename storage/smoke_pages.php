@@ -63,10 +63,14 @@ function page(string $label, string $path, string $jar, int $expectedCode = 200)
 $sch1Student = (int)$pdo->query("SELECT st.id FROM students st JOIN users u ON u.id=st.user_id WHERE u.email='student@sch001.com' LIMIT 1")->fetchColumn();
 $sch1Event = (int)$pdo->query("SELECT id FROM school_events WHERE school_id=(SELECT id FROM schools WHERE school_code='SCH001') LIMIT 1")->fetchColumn();
 $sch1User = (int)$pdo->query("SELECT id FROM users WHERE email='teacher@sch001.com' LIMIT 1")->fetchColumn();
-$otherStudent = (int)$pdo->query("SELECT id FROM students WHERE school_id = 2 ORDER BY id LIMIT 1")->fetchColumn();
-$otherCourse = (int)$pdo->query("SELECT id FROM courses WHERE school_id = 2 ORDER BY id LIMIT 1")->fetchColumn();
-$otherTask = (int)$pdo->query("SELECT id FROM tasks WHERE school_id = 2 ORDER BY id LIMIT 1")->fetchColumn();
-$otherEvent = (int)$pdo->query("SELECT id FROM school_events WHERE school_id = 2 ORDER BY id LIMIT 1")->fetchColumn();
+$otherStudent = (int)$pdo->query("SELECT id FROM students WHERE email = 'student@sch002.com' AND school_id = 2 LIMIT 1")->fetchColumn();
+$otherCourse = (int)$pdo->query("SELECT id FROM courses WHERE course_code = 'TEST201' AND school_id = 2 LIMIT 1")->fetchColumn();
+$otherTask = (int)$pdo->query("SELECT id FROM tasks WHERE title = 'Second School Task' AND school_id = 2 LIMIT 1")->fetchColumn();
+$otherEvent = (int)$pdo->query("SELECT id FROM school_events WHERE title = 'Second School Event' AND school_id = 2 LIMIT 1")->fetchColumn();
+if ($otherStudent <= 0 || $otherStudent === $sch1Student || $otherCourse <= 0 || $otherTask <= 0 || $otherEvent <= 0) {
+    fwrite(STDERR, "Cross-tenant smoke fixtures are missing or overlap the primary school fixtures.\n");
+    exit(1);
+}
 
 $super = login('admin@edusphere.com', 'Admin@123');
 foreach ([
