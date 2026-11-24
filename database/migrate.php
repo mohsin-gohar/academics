@@ -34,6 +34,78 @@ function ensure_schema_table(PDO $pdo): void
     ");
 }
 
+/**
+ * Prepare the legacy single-school users table before migration 0001 seeds
+ * tenant-aware accounts. CREATE TABLE IF NOT EXISTS does not add columns to
+ * an existing schema.sql installation, so this preflight is required before
+ * the first migration executes.
+ */
+function prepare_legacy_users_schema(PDO $pdo): void
+{
+    $table = $pdo->prepare(
+        "SELECT COUNT(*) FROM information_schema.TABLES
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users'"
+    );
+    $table->execute();
+    if ((int)$table->fetchColumn() === 0) {
+        return;
+    }
+
+    $columns = $pdo->prepare(
+        "SELECT COLUMN_NAME FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users'"
+    );
+    $columns->execute();
+    $existing = array_fill_keys($columns->fetchAll(PDO::FETCH_COLUMN), true);
+
+    if (!isset($existing['school_id'])) {
+        $pdo->exec("ALTER TABLE users ADD COLUMN school_id INT NULL AFTER id");
+    }
+    if (!isset($existing['must_change_password'])) {
+        $pdo->exec("ALTER TABLE users ADD COLUMN must_change_password TINYINT(1) NOT NULL DEFAULT 0");
+    }
+
+    $roleQuery = $pdo->prepare(
+        "SELECT COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT, CHARACTER_SET_NAME, COLLATION_NAME
+         FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'role'
+         LIMIT 1"
+    );
+    $roleQuery->execute();
+    $role = $roleQuery->fetch(PDO::FETCH_ASSOC);
+    if (!$role || stripos((string)$role['COLUMN_TYPE'], 'enum(') !== 0) {
+        return;
+    }
+
+    preg_match_all("/'((?:[^'\\\\]|\\\\.)*)'/", (string)$role['COLUMN_TYPE'], $matches);
+    $labels = $matches[1] ?? [];
+    $required = ['super_admin', 'school_admin', 'parent'];
+    $missing = array_values(array_diff($required, $labels));
+    if (!$missing) {
+        return;
+    }
+
+    $enumType = substr((string)$role['COLUMN_TYPE'], 0, -1);
+    foreach ($missing as $label) {
+        $enumType .= ',' . $pdo->quote($label);
+    }
+    $enumType .= ')';
+    $nullSql = ($role['IS_NULLABLE'] === 'YES') ? ' NULL' : ' NOT NULL';
+    $defaultSql = $role['COLUMN_DEFAULT'] === null
+        ? ''
+        : ' DEFAULT ' . $pdo->quote((string)$role['COLUMN_DEFAULT']);
+    $charsetSql = '';
+    if (preg_match('/^[A-Za-z0-9_]+$/', (string)$role['CHARACTER_SET_NAME'])
+        && preg_match('/^[A-Za-z0-9_]+$/', (string)$role['COLLATION_NAME'])) {
+        $charsetSql = ' CHARACTER SET ' . $role['CHARACTER_SET_NAME']
+            . ' COLLATE ' . $role['COLLATION_NAME'];
+    }
+
+    $pdo->exec(
+        "ALTER TABLE users MODIFY COLUMN role {$enumType}{$charsetSql}{$nullSql}{$defaultSql}"
+    );
+}
+
 function get_applied_versions(PDO $pdo): array
 {
     try {
@@ -276,6 +348,9 @@ function rollback_last(int $count = 1): void
 {
     global $pdo;
 
+    if (!$dryRun) {
+        prepare_legacy_users_schema($pdo);
+    }
     ensure_schema_table($pdo);
     $applied = get_applied_versions($pdo);
 
