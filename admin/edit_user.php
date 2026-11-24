@@ -167,7 +167,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $syncStudent = $pdo->prepare(
                         "UPDATE students
                          SET full_name = ?, email = ?,
-                             status = CASE WHEN status = 'Inactive' AND ? = 1 THEN 'Active' ELSE status END,
+                             status = CASE WHEN ? = 0 THEN 'Inactive' WHEN status = 'Inactive' THEN 'Active' ELSE status END,
                              updated_at = NOW()
                          WHERE id = ?"
                     );
