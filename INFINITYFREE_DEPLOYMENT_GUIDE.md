@@ -56,6 +56,14 @@ php database/migrate.php up
 
 3. Migration output میں ہر migration کے successful ہونے کی تصدیق کریں۔ Runner `schema_migrations` میں applied version اور checksum محفوظ کرتا ہے۔ FTP workflow versioned `database/migrations/*.sql` files اور runner کو deploy کرتا ہے، اس لیے hosting Terminal دستیاب ہو تو یہ command server پر بھی چل سکتی ہے۔
 
+4. Fresh installation پر پہلے platform administrator بنائیں:
+
+```bash
+php database/create_super_admin.php
+```
+
+یہ CLI-only tool strong password مانگتا ہے۔ Migration اب کوئی public default super-admin password create نہیں کرتی۔ اگر hosting پر CLI دستیاب نہیں تو local PHP CLI سے password hash generate کریں اور phpMyAdmin میں صرف اپنے secure admin email/hash کے ساتھ `users` میں `role='super_admin'`, `school_id=NULL`, `is_active=1` insert کریں۔ Plain-text password کو SQL file یا Git میں نہ رکھیں۔
+
 **اگر hosting پر CLI دستیاب نہیں اور صرف phpMyAdmin ہے:**
 
 1. Database select کریں۔
