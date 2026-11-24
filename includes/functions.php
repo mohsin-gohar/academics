@@ -371,15 +371,51 @@ function validatePasswordResetToken(PDO $pdo, string $raw): ?string
 
 function consumePasswordResetToken(PDO $pdo, string $raw, string $newPassword): bool
 {
-    $email = validatePasswordResetToken($pdo, $raw);
-    if ($email === null) {
+    if (!preg_match('/^[a-f0-9]{64}$/', $raw) || $newPassword === '') {
         return false;
     }
-    $hash = password_hash($newPassword, PASSWORD_DEFAULT);
-    $stmt = $pdo->prepare("UPDATE users SET password = ? WHERE email = ?");
-    $stmt->execute([$hash, $email]);
-    $pdo->prepare("UPDATE password_resets SET used = 1 WHERE token_hash = ?")->execute([hash('sha256', $raw)]);
-    return true;
+
+    $ownsTransaction = !$pdo->inTransaction();
+    try {
+        if ($ownsTransaction) $pdo->beginTransaction();
+
+        // Lock the token row so concurrent requests cannot redeem it twice.
+        $tokenStmt = $pdo->prepare(
+            "SELECT id, email FROM password_resets
+             WHERE token_hash = ? AND used = 0 AND expires_at > NOW()
+             LIMIT 1 FOR UPDATE"
+        );
+        $tokenStmt->execute([hash('sha256', $raw)]);
+        $token = $tokenStmt->fetch(PDO::FETCH_ASSOC);
+        if (!$token) {
+            if ($ownsTransaction) $pdo->rollBack();
+            return false;
+        }
+
+        $passwordHash = password_hash($newPassword, PASSWORD_DEFAULT);
+        if ($passwordHash === false) throw new RuntimeException('Password hashing failed.');
+
+        $userStmt = $pdo->prepare(
+            "UPDATE users SET password = ?, must_change_password = 0
+             WHERE email = ? AND is_active = 1"
+        );
+        $userStmt->execute([$passwordHash, $token['email']]);
+        if ($userStmt->rowCount() !== 1) {
+            if ($ownsTransaction) $pdo->rollBack();
+            return false;
+        }
+
+        // Invalidate every outstanding reset link for this account.
+        $consumeStmt = $pdo->prepare("UPDATE password_resets SET used = 1 WHERE email = ? AND used = 0");
+        $consumeStmt->execute([$token['email']]);
+
+        if ($ownsTransaction) $pdo->commit();
+        return true;
+    } catch (Throwable $e) {
+        if ($ownsTransaction && $pdo->inTransaction()) $pdo->rollBack();
+        error_log('Password reset token consumption failed: ' . $e->getMessage());
+        return false;
+    }
 }
 
 /* =========================================================================
