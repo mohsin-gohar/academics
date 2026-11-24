@@ -199,6 +199,44 @@ foreach ([
     'parent events' => '/events/index.php',
 ] as $label => $path) page($label, $path, $parent);
 
+// A school must retain at least one active school administrator.
+$superDashboard = http($base . '/dashboard.php', $super);
+preg_match('/name="csrf_token"\\s+value="([a-f0-9]{64})"/', $superDashboard['body'], $superCsrf);
+$lastSchoolAdminId = (int)$pdo->query("SELECT id FROM users WHERE email='schooladmin@sch001.com'")->fetchColumn();
+$lastAdminToggle = http($base . '/admin/toggle_user.php', $super, [
+    'id' => $lastSchoolAdminId,
+    'csrf_token' => $superCsrf[1] ?? '',
+]);
+$lastAdminStillActive = (int)$pdo->query("SELECT is_active FROM users WHERE id = " . $lastSchoolAdminId)->fetchColumn();
+$lastAdminGuardOk = $lastAdminStillActive === 1 && strpos($lastAdminToggle['url'], 'users.php?error=') !== false;
+if ($lastAdminGuardOk) $pass++; else $fail++;
+$rows[] = ($lastAdminGuardOk ? 'PASS ' : 'FAIL ') . str_pad('last school admin cannot be deactivated', 42)
+    . ' ACTIVE=' . $lastAdminStillActive . '  ' . $lastAdminToggle['url'];
+
+// Verify student account activation and student profile status stay in sync.
+$schoolAdminDashboard = http($base . '/dashboard.php', $schoolAdmin);
+preg_match('/name="csrf_token"\\s+value="([a-f0-9]{64})"/', $schoolAdminDashboard['body'], $schoolAdminCsrf);
+$studentUserId = (int)$pdo->query("SELECT id FROM users WHERE email='student@sch001.com'")->fetchColumn();
+$toggleStudentOnce = http($base . '/admin/toggle_user.php', $schoolAdmin, [
+    'id' => $studentUserId,
+    'csrf_token' => $schoolAdminCsrf[1] ?? '',
+]);
+$inactiveUser = (int)$pdo->query("SELECT is_active FROM users WHERE id = " . $studentUserId)->fetchColumn();
+$inactiveProfile = (string)$pdo->query("SELECT status FROM students WHERE user_id = " . $studentUserId)->fetchColumn();
+$toggleStudentTwice = http($base . '/admin/toggle_user.php', $schoolAdmin, [
+    'id' => $studentUserId,
+    'csrf_token' => $schoolAdminCsrf[1] ?? '',
+]);
+$activeUser = (int)$pdo->query("SELECT is_active FROM users WHERE id = " . $studentUserId)->fetchColumn();
+$activeProfile = (string)$pdo->query("SELECT status FROM students WHERE user_id = " . $studentUserId)->fetchColumn();
+$studentToggleOk = $inactiveUser === 0 && $inactiveProfile === 'Inactive'
+    && $activeUser === 1 && $activeProfile === 'Active'
+    && $toggleStudentOnce['code'] === 200 && $toggleStudentTwice['code'] === 200;
+if ($studentToggleOk) $pass++; else $fail++;
+$rows[] = ($studentToggleOk ? 'PASS ' : 'FAIL ') . str_pad('student activation keeps profile status synced', 42)
+    . ' USER=' . $activeUser . '/' . $inactiveUser . ' PROFILE=' . $activeProfile . '/' . $inactiveProfile;
+
+// Public routes remain available without an authenticated session.
 foreach ([
     'public landing' => '/index.php',
     'public school registration' => '/register.php',
