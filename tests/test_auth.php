@@ -109,6 +109,19 @@ class TestAuthSuite {
             'name' => 'consumePasswordResetToken updates user password successfully',
             'pass' => $consumed === true
         ];
+        $results[] = [
+            'name' => 'A consumed password reset token cannot be reused',
+            'pass' => consumePasswordResetToken($this->pdo, $resetToken, 'AnotherPass@123') === false
+        ];
+
+        $rateTable = $this->pdo->query(
+            "SELECT COUNT(*) FROM information_schema.tables
+             WHERE table_schema = DATABASE() AND table_name = 'password_reset_attempts'"
+        )->fetchColumn();
+        $results[] = [
+            'name' => 'Account-independent password reset rate-limit table exists',
+            'pass' => (int)$rateTable === 1
+        ];
 
         // Restore admin password
         $this->pdo->prepare("UPDATE users SET password = ? WHERE email = ?")->execute([
