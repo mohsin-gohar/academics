@@ -52,7 +52,9 @@ try {
         foreach ([
             "SELECT COUNT(*) FROM attendance WHERE student_id = ?",
             "SELECT COUNT(*) FROM student_marks WHERE student_id = ?",
-            "SELECT COUNT(*) FROM invoices WHERE student_id = ?"
+            "SELECT COUNT(*) FROM invoices WHERE student_id = ?",
+            "SELECT COUNT(*) FROM enrollments WHERE student_id = ?",
+            "SELECT COUNT(*) FROM tasks WHERE student_id = ?"
         ] as $historySql) {
             $historyStmt = $pdo->prepare($historySql);
             $historyStmt->execute([$studentId]);
@@ -62,8 +64,8 @@ try {
                 exit;
             }
         }
-        $pdo->prepare("DELETE FROM tasks WHERE student_id = ?")->execute([$studentId]);
-        $pdo->prepare("DELETE FROM enrollments WHERE student_id = ?")->execute([$studentId]);
+        // All student history checks passed; delete only the now-unreferenced
+        // profile and preserve the account's foreign-key integrity.
         $pdo->prepare("DELETE FROM students WHERE id = ?")->execute([$studentId]);
     } else {
         // Deleting staff with owned work would cascade-delete courses, tasks,
