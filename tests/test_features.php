@@ -90,6 +90,32 @@ class TestFeaturesSuite {
             'pass' => isset($feeSummary['paid']) && $feeSummary['paid'] > 0
         ];
 
+        $validationInvoiceId = createInvoice(
+            $this->pdo, $schoolId, $studentId, null, 'Payment Validation Test',
+            100.00, date('Y-m-d', strtotime('+30 days')), 1
+        );
+        $results[] = [
+            'name' => 'Fees: Reject unsupported payment methods',
+            'pass' => $validationInvoiceId > 0 && recordPayment(
+                $this->pdo, $schoolId, $validationInvoiceId, 10.00, $today,
+                'crypto', 'INVALID-METHOD', 1, null
+            ) === false
+        ];
+        $results[] = [
+            'name' => 'Fees: Reject impossible payment dates',
+            'pass' => $validationInvoiceId > 0 && recordPayment(
+                $this->pdo, $schoolId, $validationInvoiceId, 10.00, '2026-02-31',
+                'cash', 'INVALID-DATE', 1, null
+            ) === false
+        ];
+        $results[] = [
+            'name' => 'Fees: Prevent additional payments on a paid invoice',
+            'pass' => recordPayment(
+                $this->pdo, $schoolId, $invoiceId, 1.00, $today,
+                'cash', 'DUPLICATE-PAYMENT', 1, null
+            ) === false
+        ];
+
         // 4. Timetable Scheduling & Conflict Detection
         $insTt = $this->pdo->prepare("INSERT INTO timetables (school_id, teacher_id, course_id, day_of_week, start_time, end_time, room, status)
                                       VALUES (?, 2, 1, 'Monday', '09:00:00', '10:30:00', 'Lab 1', 'Active')");
