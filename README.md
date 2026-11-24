@@ -523,15 +523,23 @@ When presenting this project to your instructor or examiner, highlight these key
 php database/migrate.php up
 ```
 
-4. For automated tests, create a separate empty database (default `edusphere_test`) and use `APP_ENV=test` with `DB_NAME_TEST=edusphere_test`. The test fixture loader seeds data only in the test environment; it never seeds local or production databases.
-5. Run:
+5. On a fresh installation, provision the first platform administrator securely:
+
+```bash
+php database/create_super_admin.php
+```
+
+The tool is CLI-only and prompts for a unique email and strong password. The schema no longer seeds a public default super-admin password.
+
+6. For automated tests, create a separate empty database (default `edusphere_test`) and use `APP_ENV=test` with `DB_NAME_TEST=edusphere_test`. The test fixture loader seeds data only in the test environment; it never seeds local or production databases.
+8. Run:
 
 ```bash
 php tests/run_tests.php
 find . -type f -name '*.php' -not -path './storage/cache/*' -exec php -l {} \\;
 ```
 
-6. For authenticated portal smoke checks, start the PHP server in one terminal and run the smoke script in another:
+9. For authenticated portal smoke checks, start the PHP server in one terminal and run the smoke script in another:
 
 ```bash
 php -S 127.0.0.1:8090
