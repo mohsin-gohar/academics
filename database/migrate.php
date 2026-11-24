@@ -49,6 +49,20 @@ function compute_checksum(string $sql): string
     return hash('sha256', $sql);
 }
 
+function get_applied_migration_checksums(PDO $pdo): array
+{
+    try {
+        $stmt = $pdo->query("SELECT version, checksum FROM `" . SCHEMA_TABLE . "`");
+        $records = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $records[(string)$row['version']] = (string)$row['checksum'];
+        }
+        return $records;
+    } catch (PDOException $e) {
+        return [];
+    }
+}
+
 function apply_migration(PDO $pdo, string $version, string $sql): bool
 {
     $checksum = compute_checksum($sql);
@@ -185,7 +199,8 @@ function run_migrations(bool $dryRun = false): void
     echo "====================================================================\n\n";
 
     ensure_schema_table($pdo);
-    $applied = get_applied_versions($pdo);
+    $appliedChecksums = get_applied_migration_checksums($pdo);
+    $applied = array_keys($appliedChecksums);
     $files = get_migration_files();
 
     if (empty($files)) {
@@ -196,9 +211,21 @@ function run_migrations(bool $dryRun = false): void
     $pending = [];
     foreach ($files as $file) {
         $version = basename($file, '.sql');
-        if (!in_array($version, $applied, true)) {
-            $pending[] = [$version, $file];
+        if (isset($appliedChecksums[$version])) {
+            $existingSql = file_get_contents($file);
+            if ($existingSql === false) {
+                echo "[ERROR] Could not read $file\n";
+                exit(1);
+            }
+            $existingSql = preg_replace('/^\\xEF\\xBB\\xBF/', '', $existingSql);
+            $currentChecksum = compute_checksum($existingSql);
+            if (!hash_equals($appliedChecksums[$version], $currentChecksum)) {
+                echo "[CHECKSUM MISMATCH] $version has changed after it was applied. Add a new migration instead of editing an applied file.\n";
+                exit(1);
+            }
+            continue;
         }
+        $pending[] = [$version, $file];
     }
 
     if (empty($pending)) {
@@ -280,12 +307,20 @@ switch ($command) {
     case 'status':
         global $pdo;
         ensure_schema_table($pdo);
-        $applied = get_applied_versions($pdo);
+        $appliedChecksums = get_applied_migration_checksums($pdo);
         $files = get_migration_files();
         echo "Migration Status:\n";
         foreach ($files as $file) {
             $version = basename($file, '.sql');
-            $status = in_array($version, $applied, true) ? '[APPLIED]' : '[PENDING]';
+            if (!isset($appliedChecksums[$version])) {
+                $status = '[PENDING]';
+            } else {
+                $sql = file_get_contents($file);
+                $sql = $sql === false ? '' : preg_replace('/^\\xEF\\xBB\\xBF/', '', $sql);
+                $status = hash_equals($appliedChecksums[$version], compute_checksum($sql))
+                    ? '[APPLIED]'
+                    : '[CHECKSUM MISMATCH]';
+            }
             echo "  $status $version\n";
         }
         break;
