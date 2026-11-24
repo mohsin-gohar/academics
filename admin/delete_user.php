@@ -64,6 +64,17 @@ try {
                 exit;
             }
         }
+        $accountHistory = $pdo->prepare(
+            "SELECT
+                (SELECT COUNT(*) FROM leave_requests WHERE user_id = ?)
+              + (SELECT COUNT(*) FROM messages WHERE sender_id = ? OR receiver_id = ?)"
+        );
+        $accountHistory->execute([$id, $id, $id]);
+        if ((int)$accountHistory->fetchColumn() > 0) {
+            $pdo->rollBack();
+            header('Location: users.php?error=' . urlencode('This student has leave or message history. Deactivate the account instead.'));
+            exit;
+        }
         // All student history checks passed; delete only the now-unreferenced
         // profile and preserve the account's foreign-key integrity.
         $pdo->prepare("DELETE FROM students WHERE id = ?")->execute([$studentId]);
