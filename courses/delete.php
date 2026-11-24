@@ -2,7 +2,7 @@
 require_once '../includes/functions.php';
 require_once '../includes/tenant.php';
 require_once '../config/db.php';
-requireStaff();
+requireSchoolManagement();
 requirePost();
 
 $token = $_POST['csrf_token'] ?? '';
