@@ -270,6 +270,9 @@ function run_migrations(bool $dryRun = false): void
     echo "  " . date('Y-m-d H:i:s') . "\n";
     echo "====================================================================\n\n";
 
+    if (!$dryRun) {
+        prepare_legacy_users_schema($pdo);
+    }
     ensure_schema_table($pdo);
     $appliedChecksums = get_applied_migration_checksums($pdo);
     $applied = array_keys($appliedChecksums);
@@ -348,9 +351,6 @@ function rollback_last(int $count = 1): void
 {
     global $pdo;
 
-    if (!$dryRun) {
-        prepare_legacy_users_schema($pdo);
-    }
     ensure_schema_table($pdo);
     $applied = get_applied_versions($pdo);
 
