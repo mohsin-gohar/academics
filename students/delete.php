@@ -19,6 +19,22 @@ $student = $stmt->fetch();
 if (!$student) { header('Location: index.php?error=' . urlencode('Student not found.')); exit; }
 require_record_school($student);
 
+// Do not cascade-delete financial, attendance or grade history. Staff can
+// deactivate the account instead, preserving the student's permanent record.
+$historyChecks = [
+    ["SELECT COUNT(*) FROM attendance WHERE student_id = ?", [$id]],
+    ["SELECT COUNT(*) FROM student_marks WHERE student_id = ?", [$id]],
+    ["SELECT COUNT(*) FROM invoices WHERE student_id = ?", [$id]],
+];
+foreach ($historyChecks as [$sql, $params]) {
+    $historyStmt = $pdo->prepare($sql);
+    $historyStmt->execute($params);
+    if ((int)$historyStmt->fetchColumn() > 0) {
+        header('Location: index.php?error=' . urlencode('This student has academic or fee history and cannot be permanently deleted. Deactivate the account to preserve records.'));
+        exit;
+    }
+}
+
 try {
     $pdo->beginTransaction();
     // Delete related tasks/enrollments
