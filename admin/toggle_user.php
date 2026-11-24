@@ -32,6 +32,17 @@ try {
             exit;
         }
     }
+    if ($target['role'] === 'school_admin' && (int)$target['is_active'] === 1 && $newStatus === 0 && $target['school_id'] !== null) {
+        $schoolAdmins = $pdo->prepare(
+            "SELECT id FROM users WHERE role = 'school_admin' AND is_active = 1 AND school_id = ? FOR UPDATE"
+        );
+        $schoolAdmins->execute([(int)$target['school_id']]);
+        if (count($schoolAdmins->fetchAll(PDO::FETCH_COLUMN)) <= 1) {
+            $pdo->rollBack();
+            header('Location: users.php?error=' . urlencode('Cannot deactivate the last active school administrator.'));
+            exit;
+        }
+    }
 
     $update = $pdo->prepare("UPDATE users SET is_active = ?, updated_at = NOW() WHERE id = ?");
     $update->execute([$newStatus, $id]);
