@@ -53,7 +53,7 @@ jobs:
       - name: Run migrations
         run: php database/migrate.php up
       - name: PHP syntax check
-        run: find . -type f -name '*.php' -not -path './storage/*' -exec php -l {} \;
+        run: find . -type f -name '*.php' -not -path './storage/cache/*' -exec php -l {} \;
       - name: Run automated tests
         run: php tests/run_tests.php
       - name: Start PHP web server for portal smoke tests
@@ -102,5 +102,9 @@ jobs:
             **/.github*
             **/.github*/**
             **/tests/**
+            **/storage/*.php
+            **/storage/cache/**
+            **/storage/logs/**
+            **/storage/tmp/**
             **/*.sql
             **/*.md
