@@ -471,64 +471,79 @@ function saas_create_subscription(PDO $pdo, int $schoolId, array $data): int
         throw new InvalidArgumentException('Choose a valid subscription plan.');
     }
 
-    $price = (isset($data['price']) && $data['price'] !== '') ? (float)$data['price'] : saas_plan_price($plan);
-    if ($price < 0) {
-        throw new InvalidArgumentException('Subscription price cannot be negative.');
+    $rawPrice = $data['price'] ?? '';
+    $price = ($rawPrice === '') ? saas_plan_price($plan) : (is_numeric($rawPrice) ? (float)$rawPrice : -1);
+    if ($price < 0 || $price > 99999999.99 || abs($price - round($price, 2)) > 0.00001) {
+        throw new InvalidArgumentException('Subscription price must be non-negative with no more than two decimal places.');
     }
 
     $billing = strtolower(trim((string)($data['billing_cycle'] ?? 'monthly')));
     if (!in_array($billing, ['monthly', 'yearly'], true)) {
-        $billing = 'monthly';
+        throw new InvalidArgumentException('Choose a valid billing cycle.');
     }
 
-    $start = trim((string)($data['start_date'] ?? ''));
-    if ($start === '' || strtotime($start) === false) {
+    $startInput = trim((string)($data['start_date'] ?? ''));
+    if ($startInput === '') {
         $start = date('Y-m-d');
+    } elseif (isValidIsoDate($startInput)) {
+        $start = $startInput;
     } else {
-        $start = date('Y-m-d', strtotime($start));
+        throw new InvalidArgumentException('Subscription start date is invalid.');
     }
 
-    $end = trim((string)($data['end_date'] ?? ''));
-    if ($end === '' || strtotime($end) === false) {
+    $endInput = trim((string)($data['end_date'] ?? ''));
+    if ($endInput === '') {
         $end = date('Y-m-d', strtotime($start . ($billing === 'yearly' ? ' +1 year' : ' +1 month')));
+    } elseif (isValidIsoDate($endInput)) {
+        $end = $endInput;
     } else {
-        $end = date('Y-m-d', strtotime($end));
+        throw new InvalidArgumentException('Subscription end date is invalid.');
     }
-    if (strtotime($end) < strtotime($start)) {
+    if ($end < $start) {
         throw new InvalidArgumentException('Subscription end date cannot be before the start date.');
     }
 
     $status = strtolower(trim((string)($data['status'] ?? 'active')));
     if (!in_array($status, ['active', 'cancelled', 'expired'], true)) {
-        $status = 'active';
+        throw new InvalidArgumentException('Choose a valid subscription status.');
     }
 
     $payment = trim((string)($data['payment_method'] ?? ''));
     $transaction = trim((string)($data['transaction_id'] ?? ''));
-
-    $stmt = $pdo->prepare("
-        INSERT INTO school_subscriptions
-            (school_id, plan, price, billing_cycle, start_date, end_date, status, payment_method, transaction_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ");
-    $stmt->execute([
-        $schoolId, $plan, $price, $billing, $start, $end, $status,
-        $payment !== '' ? substr($payment, 0, 50) : null,
-        $transaction !== '' ? substr($transaction, 0, 100) : null,
-    ]);
-    $subscriptionId = (int)$pdo->lastInsertId();
-
-    if ($status === 'active') {
-        $legacy = saas_legacy_plan($plan);
-        $stmt = $pdo->prepare("
-            UPDATE schools
-            SET plan = ?, status = 'active', trial_ends_at = NULL, is_active = 1, subscription_plan = ?
-            WHERE id = ?
-        ");
-        $stmt->execute([$plan, $legacy, $schoolId]);
+    if (mb_strlen($payment) > 50 || mb_strlen($transaction) > 100) {
+        throw new InvalidArgumentException('Payment method or transaction reference is too long.');
     }
 
-    return $subscriptionId;
+    try {
+        $pdo->beginTransaction();
+        $stmt = $pdo->prepare(
+            "INSERT INTO school_subscriptions
+                (school_id, plan, price, billing_cycle, start_date, end_date, status, payment_method, transaction_id)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        );
+        $stmt->execute([
+            $schoolId, $plan, $price, $billing, $start, $end, $status,
+            $payment !== '' ? $payment : null,
+            $transaction !== '' ? $transaction : null,
+        ]);
+        $subscriptionId = (int)$pdo->lastInsertId();
+
+        if ($status === 'active') {
+            $legacy = saas_legacy_plan($plan);
+            $stmt = $pdo->prepare(
+                "UPDATE schools
+                 SET plan = ?, status = 'active', trial_ends_at = NULL, is_active = 1, subscription_plan = ?
+                 WHERE id = ?"
+            );
+            $stmt->execute([$plan, $legacy, $schoolId]);
+        }
+
+        $pdo->commit();
+        return $subscriptionId;
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        throw $e;
+    }
 }
 
 function saas_active_subscription(PDO $pdo, int $schoolId): ?array
