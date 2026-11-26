@@ -126,6 +126,12 @@
             </a>
         </div>
         <div class="nav-item">
+            <a href="<?php echo $base; ?>notes/index.php" class="nav-link <?php echo strpos($_SERVER['PHP_SELF'], 'notes/') !== false ? 'active' : ''; ?>">
+                <i class="fas fa-bullhorn"></i>
+                <span>Notice Board</span>
+            </a>
+        </div>
+        <div class="nav-item">
             <a href="<?php echo $base; ?>courses/my.php" class="nav-link <?php echo strpos($_SERVER['PHP_SELF'], 'courses/my.php') !== false ? 'active' : ''; ?>">
                 <i class="fas fa-book-open"></i>
                 <span>My Courses</span>
