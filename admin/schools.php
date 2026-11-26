@@ -43,6 +43,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $subdomain = strtolower(trim($_POST['subdomain'] ?? ''));
             $owner   = trim($_POST['owner_name'] ?? '');
             $email   = trim($_POST['school_email'] ?? '');
+            // The canonical schools.school_email column is NOT NULL and unique.
+            // Preserve the optional UI field while ensuring the database always
+            // receives a unique, syntactically valid placeholder when it is blank.
+            if ($email === '') {
+                $email = 'school-' . strtolower($code) . '@no-reply.invalid';
+            }
             $phone   = trim($_POST['school_phone'] ?? '');
             $address = trim($_POST['school_address'] ?? '');
             $motto   = trim($_POST['motto'] ?? '');
