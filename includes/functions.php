@@ -899,6 +899,17 @@ function requireAuth() {
         header('Location: ' . getBasePath() . 'auth/login.php');
         exit;
     }
+
+    // Centralize live account, role, tenant and first-password checks here so
+    // direct AJAX/action endpoints receive the same protections as pages that
+    // include the shared header.
+    global $pdo;
+    if (isset($pdo) && $pdo instanceof PDO && function_exists('enforceSession')) {
+        enforceSession($pdo);
+    }
+    if (function_exists('enforcePasswordChange')) {
+        enforcePasswordChange();
+    }
 }
 
 // Require specific role
