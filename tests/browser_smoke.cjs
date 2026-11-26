@@ -87,6 +87,7 @@ const personas = [
       }
       checks++;
 
+      const internalLinks = new Set();
       for (const route of persona.routes) {
         const response = await page.goto(base + route, { waitUntil: 'domcontentloaded' });
         await page.waitForTimeout(80);
@@ -94,11 +95,39 @@ const personas = [
         const status = response ? response.status() : 0;
         const body = await page.locator('body').innerText().catch(() => '');
         const serverError = /Fatal error:|Uncaught (?:PDOException|Error|TypeError)|SQLSTATE\[[A-Z0-9]+\]/i.test(body);
+        const hrefs = await page.locator('a[href]').evaluateAll(anchors => anchors.map(a => a.getAttribute('href')).filter(Boolean));
+        for (const href of hrefs) {
+          if (href.startsWith('#') || href.startsWith('javascript:') || href.startsWith('mailto:')) continue;
+          try {
+            const target = new URL(href, base);
+            if (target.origin !== new URL(base).origin || /logout\.php$/i.test(target.pathname)) continue;
+            if (/\.(?:png|jpe?g|gif|svg|css|js|pdf|ico|woff2?)$/i.test(target.pathname)) continue;
+            internalLinks.add(target.toString());
+          } catch (_) {
+            failures.push(persona.name + ' ' + route + ': malformed link ' + href);
+          }
+        }
 
         if (status >= 500 || status === 403 || finalPath.endsWith('/auth/login.php') || serverError) {
           failures.push(persona.name + ' ' + route + ': HTTP ' + status + ', final ' + finalPath);
         } else {
           checks++;
+        }
+      }
+
+      for (const href of internalLinks) {
+        try {
+          const response = await context.request.get(href, { timeout: 10000 });
+          const finalUrl = new URL(response.url());
+          if (response.status() === 404 || response.status() >= 500
+              || finalUrl.pathname.endsWith('/auth/login.php')) {
+            failures.push(persona.name + ' broken internal link: ' + href
+              + ' -> HTTP ' + response.status() + ' ' + response.url());
+          } else {
+            checks++;
+          }
+        } catch (error) {
+          failures.push(persona.name + ' internal link request failed: ' + href + ' (' + error.message + ')');
         }
       }
 
