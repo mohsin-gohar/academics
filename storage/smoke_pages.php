@@ -334,6 +334,52 @@ if ($studentToggleOk) $pass++; else $fail++;
 $rows[] = ($studentToggleOk ? 'PASS ' : 'FAIL ') . str_pad('student activation keeps profile status synced', 42)
     . ' USER=' . $activeUser . '/' . $inactiveUser . ' PROFILE=' . $activeProfile . '/' . $inactiveProfile;
 
+// Hard deletes must not cascade away linked academic, financial or parent history.
+$parentUserId = (int)$pdo->query("SELECT id FROM users WHERE email='parent@sch001.com'")->fetchColumn();
+$parentLinksBeforeDelete = (int)$pdo->query("SELECT COUNT(*) FROM parent_student WHERE parent_id = " . $parentUserId)->fetchColumn();
+$parentDeleteAttempt = http($base . '/admin/delete_user.php', $schoolAdmin, [
+    'id' => $parentUserId,
+    'csrf_token' => $schoolAdminCsrf[1] ?? '',
+]);
+$parentStillExists = (int)$pdo->query("SELECT COUNT(*) FROM users WHERE id = " . $parentUserId)->fetchColumn();
+$parentLinksAfterDelete = (int)$pdo->query("SELECT COUNT(*) FROM parent_student WHERE parent_id = " . $parentUserId)->fetchColumn();
+$parentDeleteGuardOk = $parentDeleteAttempt['code'] === 200
+    && $parentStillExists === 1
+    && $parentLinksAfterDelete === $parentLinksBeforeDelete
+    && $parentLinksBeforeDelete > 0;
+if ($parentDeleteGuardOk) $pass++; else $fail++;
+$rows[] = ($parentDeleteGuardOk ? 'PASS ' : 'FAIL ')
+    . str_pad('parent account delete preserves child links', 42)
+    . ' LINKS=' . $parentLinksBeforeDelete . '->' . $parentLinksAfterDelete;
+
+$studentProfileId = (int)$pdo->query("SELECT id FROM students WHERE user_id = " . $studentUserId)->fetchColumn();
+$studentDeleteAttempt = http($base . '/students/delete.php', $schoolAdmin, [
+    'id' => $studentProfileId,
+    'csrf_token' => $schoolAdminCsrf[1] ?? '',
+]);
+$studentStillExists = (int)$pdo->query("SELECT COUNT(*) FROM students WHERE id = " . $studentProfileId)->fetchColumn();
+$studentDeleteGuardOk = $studentDeleteAttempt['code'] === 200 && $studentStillExists === 1;
+if ($studentDeleteGuardOk) $pass++; else $fail++;
+$rows[] = ($studentDeleteGuardOk ? 'PASS ' : 'FAIL ')
+    . str_pad('student hard delete preserves academic history', 42)
+    . ' PROFILE=' . $studentStillExists;
+
+$courseEnrollmentsBeforeDelete = (int)$pdo->query("SELECT COUNT(*) FROM enrollments WHERE course_id = 1")->fetchColumn();
+$courseDeleteAttempt = http($base . '/courses/delete.php', $schoolAdmin, [
+    'id' => 1,
+    'csrf_token' => $schoolAdminCsrf[1] ?? '',
+]);
+$courseStillExists = (int)$pdo->query("SELECT COUNT(*) FROM courses WHERE id = 1 AND school_id = 1")->fetchColumn();
+$courseEnrollmentsAfterDelete = (int)$pdo->query("SELECT COUNT(*) FROM enrollments WHERE course_id = 1")->fetchColumn();
+$courseDeleteGuardOk = $courseDeleteAttempt['code'] === 200
+    && $courseStillExists === 1
+    && $courseEnrollmentsAfterDelete === $courseEnrollmentsBeforeDelete
+    && $courseEnrollmentsBeforeDelete > 0;
+if ($courseDeleteGuardOk) $pass++; else $fail++;
+$rows[] = ($courseDeleteGuardOk ? 'PASS ' : 'FAIL ')
+    . str_pad('course hard delete preserves enrollments', 42)
+    . ' ENROLLMENTS=' . $courseEnrollmentsBeforeDelete . '->' . $courseEnrollmentsAfterDelete;
+
 // Public routes remain available without an authenticated session.
 foreach ([
     'public landing' => '/index.php',
