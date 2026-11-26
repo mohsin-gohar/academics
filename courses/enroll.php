@@ -55,6 +55,9 @@ try {
     if ($existing && $existing['status'] === 'Enrolled') {
         throw new InvalidArgumentException('Student is already enrolled in this course.');
     }
+    if ($existing && !in_array($existing['status'], ['Dropped', 'Withdrawn'], true)) {
+        throw new InvalidArgumentException('This enrollment is closed and cannot be reactivated.');
+    }
 
     if ($existing) {
         $marksStmt = $pdo->prepare(
