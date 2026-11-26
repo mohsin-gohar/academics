@@ -89,60 +89,79 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if (!$errors) {
                 $legacyPlan = saas_legacy_plan($plan);
-                $trialValue = $trialEnds !== '' ? date('Y-m-d 23:59:59', strtotime($trialEnds)) : null;
-
-                if ($id) {
-                    $st = $pdo->prepare("
-                        UPDATE schools
-                        SET school_name=?, school_code=?, subdomain=?, school_email=?, school_phone=?, school_address=?,
-                            owner_name=?, motto=?, website=?, primary_color=?, secondary_color=?,
-                            plan=?, status=?, trial_ends_at=?, is_active=?, subscription_plan=?
-                        WHERE id=?
-                    ");
-                    $st->execute([
-                        $name, $code, $subdomain, $email ?: null, $phone ?: null, $address ?: null,
-                        $owner ?: null, $motto ?: null, $website ?: null, $primary, $secondary,
-                        $plan, $status, $trialValue, $active, $legacyPlan, $id,
-                    ]);
-                    tenant_log($pdo, 'school_update', 'school', $id, "Updated school $code");
-                    header('Location: schools.php?success=' . urlencode('School updated successfully.'));
-                    exit;
+                if ($status === 'trial' && !isValidIsoDate($trialEnds)) {
+                    $errors[] = 'A valid trial end date is required for trial schools.';
+                } elseif ($trialEnds !== '' && !isValidIsoDate($trialEnds)) {
+                    $errors[] = 'Trial end date is invalid.';
                 }
 
-                $st = $pdo->prepare("
-                    INSERT INTO schools
-                        (school_name, school_code, subdomain, school_email, school_phone, school_address,
-                         owner_name, motto, website, primary_color, secondary_color, plan, status,
-                         trial_ends_at, is_active, subscription_plan)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-                ");
-                $st->execute([
-                    $name, $code, $subdomain, $email ?: null, $phone ?: null, $address ?: null,
-                    $owner ?: null, $motto ?: null, $website ?: null, $primary, $secondary,
-                    $plan, $status, $trialValue, $active, $legacyPlan,
-                ]);
-                $newId = (int)$pdo->lastInsertId();
+                if (!$errors) {
+                    $trialValue = $trialEnds !== '' ? $trialEnds . ' 23:59:59' : null;
+                    try {
+                        $pdo->beginTransaction();
 
-                $pdo->prepare("INSERT INTO school_settings (school_id, public_page_title, public_page_description) VALUES (?,?,?) ON DUPLICATE KEY UPDATE school_id = school_id")
-                    ->execute([$newId, $name . ' — Official Portal', 'Welcome to ' . $name . '.']);
+                        if ($id) {
+                            $st = $pdo->prepare(
+                                "UPDATE schools
+                                 SET school_name=?, school_code=?, subdomain=?, school_email=?, school_phone=?, school_address=?,
+                                     owner_name=?, motto=?, website=?, primary_color=?, secondary_color=?,
+                                     plan=?, status=?, trial_ends_at=?, is_active=?, subscription_plan=?
+                                 WHERE id=?"
+                            );
+                            $st->execute([
+                                $name, $code, $subdomain, $email ?: null, $phone ?: null, $address ?: null,
+                                $owner ?: null, $motto ?: null, $website ?: null, $primary, $secondary,
+                                $plan, $status, $trialValue, $active, $legacyPlan, $id,
+                            ]);
+                            tenant_log($pdo, 'school_update', 'school', $id, "Updated school $code");
+                            $pdo->commit();
+                            header('Location: schools.php?success=' . urlencode('School updated successfully.'));
+                            exit;
+                        }
 
-                if ($status !== 'suspended') {
-                    $start = date('Y-m-d');
-                    $end = $status === 'trial' && $trialEnds !== ''
-                        ? date('Y-m-d', strtotime($trialEnds))
-                        : date('Y-m-d', strtotime('+1 year'));
-                    $price = $status === 'trial' ? 0 : saas_plan_price($plan);
-                    $payment = $status === 'trial' ? 'trial' : 'manual';
-                    $pdo->prepare("
-                        INSERT INTO school_subscriptions
-                            (school_id, plan, price, billing_cycle, start_date, end_date, status, payment_method, transaction_id)
-                        VALUES (?,?,?, 'yearly', ?, ?, 'active', ?, ?)
-                    ")->execute([$newId, $plan, $price, $start, $end, $payment, 'MANUAL-' . $code]);
+                        $st = $pdo->prepare(
+                            "INSERT INTO schools
+                                (school_name, school_code, subdomain, school_email, school_phone, school_address,
+                                 owner_name, motto, website, primary_color, secondary_color, plan, status,
+                                 trial_ends_at, is_active, subscription_plan)
+                             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+                        );
+                        $st->execute([
+                            $name, $code, $subdomain, $email ?: null, $phone ?: null, $address ?: null,
+                            $owner ?: null, $motto ?: null, $website ?: null, $primary, $secondary,
+                            $plan, $status, $trialValue, $active, $legacyPlan,
+                        ]);
+                        $newId = (int)$pdo->lastInsertId();
+
+                        $pdo->prepare(
+                            "INSERT INTO school_settings (school_id, public_page_title, public_page_description)
+                             VALUES (?,?,?) ON DUPLICATE KEY UPDATE school_id = school_id"
+                        )->execute([$newId, $name . ' — Official Portal', 'Welcome to ' . $name . '.']);
+
+                        if ($status !== 'suspended') {
+                            $start = date('Y-m-d');
+                            $end = $status === 'trial' && $trialEnds !== ''
+                                ? $trialEnds
+                                : date('Y-m-d', strtotime('+1 year'));
+                            $price = $status === 'trial' ? 0 : saas_plan_price($plan);
+                            $payment = $status === 'trial' ? 'trial' : 'manual';
+                            $pdo->prepare(
+                                "INSERT INTO school_subscriptions
+                                    (school_id, plan, price, billing_cycle, start_date, end_date, status, payment_method, transaction_id)
+                                 VALUES (?,?,?, 'yearly', ?, ?, 'active', ?, ?)"
+                            )->execute([$newId, $plan, $price, $start, $end, $payment, 'MANUAL-' . $code]);
+                        }
+
+                        tenant_log($pdo, 'school_create', 'school', $newId, "Created school $code");
+                        $pdo->commit();
+                        header('Location: schools.php?success=' . urlencode('School created successfully.'));
+                        exit;
+                    } catch (Throwable $e) {
+                        if ($pdo->inTransaction()) $pdo->rollBack();
+                        error_log('School save failed: ' . $e->getMessage());
+                        $errors[] = 'School could not be saved. Please review the details and try again.';
+                    }
                 }
-
-                tenant_log($pdo, 'school_create', 'school', $newId, "Created school $code");
-                header('Location: schools.php?success=' . urlencode('School created successfully.'));
-                exit;
             }
 
             // Re-populate form on validation failure
