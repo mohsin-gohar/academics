@@ -247,30 +247,37 @@ function saas_school_login_url(array $school): string
  * Trials & access
  * ---------------------------------------------------------------------- */
 
-function saas_school_access_state(array $school): array
+function saas_school_access_state(array $school, ?PDO $pdo = null): array
 {
+    if (function_exists('school_session_access_state')) {
+        $state = school_session_access_state($school, null, $pdo);
+        $reasonMap = [
+            'school_suspended' => 'suspended',
+            'school_inactive' => 'disabled',
+            'trial_expired' => 'trial_expired',
+            'subscription_inactive' => 'subscription_inactive',
+        ];
+        return [
+            'allowed' => (bool)$state['allowed'],
+            'reason' => $reasonMap[$state['reason']] ?? (string)$state['reason'],
+        ];
+    }
+
     $status = strtolower((string)($school['status'] ?? 'active'));
-    if ($status === 'suspended') {
-        return ['allowed' => false, 'reason' => 'suspended'];
-    }
-
-    if ((int)($school['is_active'] ?? 1) !== 1) {
-        return ['allowed' => false, 'reason' => 'disabled'];
-    }
-
+    if ($status === 'suspended') return ['allowed' => false, 'reason' => 'suspended'];
+    if ((int)($school['is_active'] ?? 1) !== 1) return ['allowed' => false, 'reason' => 'disabled'];
     if ($status === 'trial') {
         $ends = $school['trial_ends_at'] ?? null;
         if (!empty($ends) && strtotime((string)$ends) !== false && strtotime((string)$ends) < time()) {
             return ['allowed' => false, 'reason' => 'trial_expired'];
         }
     }
-
     return ['allowed' => true, 'reason' => ''];
 }
 
-function saas_school_is_accessible(array $school): bool
+function saas_school_is_accessible(array $school, ?PDO $pdo = null): bool
 {
-    return (bool)saas_school_access_state($school)['allowed'];
+    return (bool)saas_school_access_state($school, $pdo)['allowed'];
 }
 
 function saas_access_message(string $reason): string
@@ -528,7 +535,7 @@ function saas_active_subscription(PDO $pdo, int $schoolId): ?array
 {
     $stmt = $pdo->prepare("
         SELECT * FROM school_subscriptions
-        WHERE school_id = ? AND status = 'active' AND end_date >= CURDATE()
+        WHERE school_id = ? AND status = 'active' AND start_date <= CURDATE() AND end_date >= CURDATE()
         ORDER BY end_date DESC, id DESC
         LIMIT 1
     ");
@@ -544,7 +551,7 @@ function saas_monthly_recurring_revenue(PDO $pdo): float
             CASE WHEN billing_cycle = 'yearly' THEN price / 12 ELSE price END
         ), 0)
         FROM school_subscriptions
-        WHERE status = 'active' AND end_date >= CURDATE()
+        WHERE status = 'active' AND start_date <= CURDATE() AND end_date >= CURDATE()
     ");
     return (float)$stmt->fetchColumn();
 }
