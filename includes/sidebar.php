@@ -134,8 +134,8 @@ $sidebarPortalLabel = isStudent() ? 'STUDENT PORTAL'
         <?php
         $myStuId = $_SESSION['student_id'] ?? null;
         if (!$myStuId && isset($_SESSION['user_id']) && isset($pdo)) {
-            $stmt = $pdo->prepare("SELECT id FROM students WHERE user_id = ?");
-            $stmt->execute([$_SESSION['user_id']]);
+            $stmt = $pdo->prepare("SELECT id FROM students WHERE user_id = ? AND school_id = ? LIMIT 1");
+            $stmt->execute([$_SESSION['user_id'], (int)(currentSchoolId() ?? 0)]);
             $myStuId = $stmt->fetchColumn();
             if ($myStuId) {
                 $_SESSION['student_id'] = (int)$myStuId;

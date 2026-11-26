@@ -10,7 +10,7 @@ $schoolId = (int)(currentSchoolId() ?? 0);
 if ($schoolId <= 0) { http_response_code(403); exit('School context is required.'); }
 $isStudentUser = isStudent();
 $isManager = isSchoolManagement();
-$studentId = $isStudentUser ? (int)($_SESSION['student_id'] ?? 0) : (int)($_GET['student_id'] ?? 0);
+$studentId = $isStudentUser ? 0 : (int)($_GET['student_id'] ?? 0);
 $types = [
     'eproject' => 'My eProject', 'cv' => 'My CV', 'job' => 'Jobs',
     'achievement' => 'Achievements', 'badge' => 'Badges', 'league' => 'League',
@@ -28,9 +28,11 @@ if ($isManager) {
     if ($studentId > 0 && !array_filter($students, static fn($x) => (int)$x['id'] === $studentId)) $studentId = 0;
 }
 if ($isStudentUser) {
-    $check = $pdo->prepare('SELECT id FROM students WHERE id = ? AND user_id = ? AND school_id = ? LIMIT 1');
-    $check->execute([$studentId, (int)$_SESSION['user_id'], $schoolId]);
-    if (!$check->fetchColumn()) { http_response_code(403); exit('Student record not found.'); }
+    $check = $pdo->prepare('SELECT id FROM students WHERE user_id = ? AND school_id = ? LIMIT 1');
+    $check->execute([(int)$_SESSION['user_id'], $schoolId]);
+    $studentId = (int)$check->fetchColumn();
+    if ($studentId <= 0) { http_response_code(403); exit('Student record not found.'); }
+    $_SESSION['student_id'] = $studentId;
 }
 $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
