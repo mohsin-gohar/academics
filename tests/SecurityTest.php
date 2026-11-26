@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../includes/tenant.php';
 /**
  * Security, XSS, SQLi & CSV Injection Tests
  */
@@ -137,6 +138,23 @@ class SecurityTest {
         $results[] = [
             'name' => 'Unexpired trial remains accessible to authenticated sessions',
             'pass' => $validTrial['allowed'] === true
+        ];
+
+        // 6. Hard-delete guards discover every CASCADE relationship from schema metadata.
+        $userDependencies = cascade_dependent_records($this->pdo, 'users', 5);
+        $studentDependencies = cascade_dependent_records($this->pdo, 'students', 2);
+        $courseDependencies = cascade_dependent_records($this->pdo, 'courses', 1);
+        $results[] = [
+            'name' => 'User deletion guard detects dependent task/message/history rows',
+            'pass' => count($userDependencies) > 0
+        ];
+        $results[] = [
+            'name' => 'Student deletion guard detects enrollment and invoice dependencies',
+            'pass' => count($studentDependencies) > 0
+        ];
+        $results[] = [
+            'name' => 'Course deletion guard detects enrollment and assessment dependencies',
+            'pass' => count($courseDependencies) > 0
         ];
 
         return $results;
