@@ -95,7 +95,7 @@ const personas = [
         const status = response ? response.status() : 0;
         const body = await page.locator('body').innerText().catch(() => '');
         const serverError = /Fatal error:|Uncaught (?:PDOException|Error|TypeError)|SQLSTATE\[[A-Z0-9]+\]/i.test(body);
-        const hrefs = await page.locator('a[href]').evaluateAll(anchors => anchors.map(a => a.getAttribute('href')).filter(Boolean));
+        const hrefs = await page.locator('a[href]').evaluateAll(anchors => anchors.map(a => a.href).filter(Boolean));
         for (const href of hrefs) {
           if (href.startsWith('#') || href.startsWith('javascript:') || href.startsWith('mailto:')) continue;
           try {
