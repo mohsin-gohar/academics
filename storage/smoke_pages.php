@@ -656,6 +656,22 @@ foreach ([
     'public events' => '/public_events.php',
 ] as $label => $path) page($label, $path, '');
 
+// Cancelling the only subscription must revoke an already-authenticated tenant session.
+$subscriptionInsert = $pdo->prepare(
+    "INSERT INTO school_subscriptions
+        (school_id, plan, price, billing_cycle, start_date, end_date, status, payment_method)
+     VALUES (1, 'basic', 0, 'monthly', CURDATE(), DATE_ADD(CURDATE(), INTERVAL 30 DAY), 'active', 'smoke-test')"
+);
+$subscriptionInsert->execute();
+$smokeSubscriptionId = (int)$pdo->lastInsertId();
+$pdo->prepare("UPDATE school_subscriptions SET status = 'cancelled' WHERE id = ?")->execute([$smokeSubscriptionId]);
+$cancelledTenantSession = http($base . '/dashboard.php', $schoolAdmin);
+$subscriptionRevocationOk = strpos($cancelledTenantSession['url'], '/auth/login.php') !== false;
+if ($subscriptionRevocationOk) $pass++; else $fail++;
+$rows[] = ($subscriptionRevocationOk ? 'PASS ' : 'FAIL ')
+    . str_pad('cancelled subscription revokes existing tenant session', 42)
+    . ' URL=' . $cancelledTenantSession['url'];
+
 echo implode(PHP_EOL, $rows) . PHP_EOL;
 echo str_repeat('-', 80) . PHP_EOL;
 echo "PASS: $pass   FAIL: $fail" . PHP_EOL;
