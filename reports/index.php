@@ -52,7 +52,12 @@ if ($isStudent && isset($_GET['export']) && $_GET['export'] === 'csv') {
 // Handle Staff CSV Export
 if (!$isStudent && isset($_GET['export']) && $_GET['export'] === 'csv') {
     requireStaff();
-    $report_type = $_GET['type'] ?? 'students';
+    $report_type = (string)($_GET['type'] ?? 'students');
+    $allowedReportTypes = ['students', 'courses', 'tasks', 'enrollments'];
+    if (!in_array($report_type, $allowedReportTypes, true)) {
+        http_response_code(400);
+        exit('Unsupported report type.');
+    }
     $filename = 'academics_' . $report_type . '_' . date('Y-m-d') . '.csv';
     header('Content-Type: text/csv; charset=utf-8');
     header('Content-Disposition: attachment; filename=' . $filename);
