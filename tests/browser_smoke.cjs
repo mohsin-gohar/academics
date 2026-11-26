@@ -96,10 +96,6 @@ const personas = [
         const body = await page.locator('body').innerText().catch(() => '');
         const serverError = /Fatal error:|Uncaught (?:PDOException|Error|TypeError)|SQLSTATE\[[A-Z0-9]+\]/i.test(body);
         const hrefs = await page.locator('a[href]').evaluateAll(anchors => anchors.map(a => a.href).filter(Boolean));
-        if (route === '/admin/users.php') {
-          console.log('DEBUG browser URL/base:', page.url(), await page.evaluate(() => document.baseURI));
-          console.log('DEBUG sample hrefs:', hrefs.slice(0, 8).join(' | '));
-        }
         for (const href of hrefs) {
           if (href.startsWith('#') || href.startsWith('javascript:') || href.startsWith('mailto:')) continue;
           try {
