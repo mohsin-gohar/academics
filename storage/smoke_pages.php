@@ -145,6 +145,24 @@ page('school admin cross-school course denied', '/courses/show.php?id=' . $other
 page('school admin cross-school task denied', '/tasks/show.php?id=' . $otherTask, $schoolAdmin, 403);
 page('school admin cross-school event denied', '/events/edit.php?id=' . $otherEvent, $schoolAdmin, 403);
 
+// Exercise a real cross-tenant write attempt, not only page visibility.
+$schoolAdminHome = http($base . '/dashboard.php', $schoolAdmin);
+preg_match('/name="csrf_token"\\s+value="([a-f0-9]{64})"/', $schoolAdminHome['body'], $writeCsrf);
+$otherTaskStatusBefore = (string)$pdo->query("SELECT status FROM tasks WHERE id = " . $otherTask)->fetchColumn();
+$crossTenantTaskWrite = http($base . '/tasks/update_status.php', $schoolAdmin, [
+    'id' => $otherTask,
+    'status' => 'Completed',
+    'csrf_token' => $writeCsrf[1] ?? '',
+]);
+$otherTaskStatusAfter = (string)$pdo->query("SELECT status FROM tasks WHERE id = " . $otherTask)->fetchColumn();
+$crossTenantWriteOk = $crossTenantTaskWrite['code'] === 403
+    && $otherTaskStatusAfter === $otherTaskStatusBefore;
+if ($crossTenantWriteOk) $pass++; else $fail++;
+$rows[] = ($crossTenantWriteOk ? 'PASS ' : 'FAIL ')
+    . str_pad('cross-school task status write is denied', 42)
+    . ' HTTP=' . $crossTenantTaskWrite['code']
+    . ' STATUS=' . $otherTaskStatusBefore . '->' . $otherTaskStatusAfter;
+
 $teacher = login('teacher@sch001.com', 'Teacher@123');
 foreach ([
     'teacher dashboard' => '/dashboard.php',
