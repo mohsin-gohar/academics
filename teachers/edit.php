@@ -120,7 +120,7 @@ require_once __DIR__ . '/../includes/header.php';
 
                     <div class="col-md-6">
                         <label class="form-label">New Password (leave blank to keep current)</label>
-                        <input type="password" name="password" class="form-control bg-dark text-white border-secondary" placeholder="••••••••">
+                        <input type="password" name="password" class="form-control bg-dark text-white border-secondary" placeholder="At least 10 characters with a symbol" minlength="10" autocomplete="new-password">
                     </div>
 
                     <div class="col-md-6 d-flex align-items-center mt-4">
