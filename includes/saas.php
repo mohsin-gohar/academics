@@ -346,8 +346,9 @@ function saas_register_school(PDO $pdo, array $input): array
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $errors[] = 'Enter a valid administrator email address.';
     }
-    if (strlen($password) < 8 || !preg_match('/[A-Z]/', $password) || !preg_match('/[a-z]/', $password) || !preg_match('/[0-9]/', $password)) {
-        $errors[] = 'Password must be at least 8 characters and include upper case, lower case and a number.';
+    $passwordErrors = validatePasswordStrength($password);
+    foreach ($passwordErrors as $passwordError) {
+        $errors[] = $passwordError;
     }
     if (!empty($input['confirm_password']) && !hash_equals($password, (string)$input['confirm_password'])) {
         $errors[] = 'Password confirmation does not match.';
