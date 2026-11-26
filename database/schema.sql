@@ -4,6 +4,30 @@
 CREATE DATABASE IF NOT EXISTS edusphere CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE edusphere;
 
+-- Schools must exist before tenant-aware tables below declare foreign keys.
+CREATE TABLE IF NOT EXISTS schools (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    school_name VARCHAR(150) NOT NULL,
+    school_code VARCHAR(20) NOT NULL,
+    subdomain VARCHAR(50) NULL,
+    school_email VARCHAR(150) NOT NULL,
+    school_phone VARCHAR(20) NULL,
+    school_address TEXT NULL,
+    owner_name VARCHAR(100) NOT NULL,
+    status ENUM('active','trial','suspended','disabled') DEFAULT 'trial',
+    plan ENUM('basic','pro','enterprise') DEFAULT 'basic',
+    subscription_plan VARCHAR(20) NULL,
+    trial_ends_at DATETIME NULL,
+    is_active TINYINT(1) DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_schools_code (school_code),
+    UNIQUE KEY uq_schools_subdomain (subdomain),
+    UNIQUE KEY uq_schools_email (school_email),
+    INDEX idx_schools_status (status),
+    INDEX idx_schools_active (is_active)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- USERS TABLE
 CREATE TABLE IF NOT EXISTS users (
     id INT AUTO_INCREMENT PRIMARY KEY,

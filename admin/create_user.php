@@ -28,7 +28,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $form_data = [
         'full_name' => trim($_POST['full_name'] ?? ''),
-        'email' => trim($_POST['email'] ?? ''),
+        'email' => strtolower(trim($_POST['email'] ?? '')),
         'password' => $_POST['password'] ?? '',
         'role' => $_POST['role'] ?? 'student',
         'is_active' => isset($_POST['is_active']) ? 1 : 0,
@@ -38,7 +38,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $currentSchoolId = currentSchoolId();
     $isSuperAdmin = isSuperAdmin();
 
-    if (empty($form_data['full_name'])) $errors[] = 'Full name is required.';
+    if (mb_strlen($form_data['full_name']) < 2 || mb_strlen($form_data['full_name']) > 100) $errors[] = 'Full name must be between 2 and 100 characters.';
     if (empty($form_data['email'])) $errors[] = 'Email is required.';
     elseif (!isValidEmail($form_data['email'])) $errors[] = 'Invalid email.';
     if (empty($form_data['password'])) {
@@ -68,11 +68,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // School-scoped admin: user must belong to their own school
         $form_data['school_id'] = $currentSchoolId;
     } elseif ($isSuperAdmin && $form_data['school_id'] !== null) {
-        // Validate school exists
-        $schoolCheck = $pdo->prepare("SELECT id FROM schools WHERE id = ? LIMIT 1");
+        // Only assign accounts to a currently accessible tenant.
+        $schoolCheck = $pdo->prepare("SELECT * FROM schools WHERE id = ? LIMIT 1");
         $schoolCheck->execute([$form_data['school_id']]);
-        if (!$schoolCheck->fetch()) {
-            $errors[] = 'Selected school does not exist.';
+        $selectedSchool = $schoolCheck->fetch(PDO::FETCH_ASSOC);
+        if (!$selectedSchool || !saas_school_is_accessible($selectedSchool)) {
+            $errors[] = 'Selected school does not exist or is not currently accessible.';
         }
     }
 
@@ -84,6 +85,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (empty($errors)) {
         try {
+            $pdo->beginTransaction();
             $hashed = password_hash($form_data['password'], PASSWORD_DEFAULT);
             $stmt = $pdo->prepare("INSERT INTO users (full_name, email, password, role, is_active, school_id, must_change_password) VALUES (?, ?, ?, ?, ?, ?, 1)");
             $stmt->execute([
@@ -92,20 +94,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $hashed,
                 $form_data['role'],
                 $form_data['is_active'],
-                $form_data['school_id'] !== null ? $form_data['school_id'] : null,
+                $form_data['school_id'],
             ]);
-            $uid = $pdo->lastInsertId();
+            $uid = (int)$pdo->lastInsertId();
 
             if ($form_data['role'] === 'student') {
-                $stuNum = generateStudentNumber($pdo);
-                $stmt = $pdo->prepare("INSERT INTO students (school_id, user_id, student_number, full_name, email, enrollment_date, status) VALUES (?, ?, ?, ?, ?, CURDATE(), 'Active')");
-                $stmt->execute([$form_data['school_id'], $uid, $stuNum, $form_data['full_name'], $form_data['email']]);
+                if (empty($form_data['school_id'])) {
+                    throw new RuntimeException('A student must belong to a school.');
+                }
+                $stuNum = generateStudentNumber($pdo, (int)$form_data['school_id']);
+                $stmt = $pdo->prepare("INSERT INTO students (school_id, user_id, student_number, full_name, email, enrollment_date, status) VALUES (?, ?, ?, ?, ?, CURDATE(), ?)");
+                $stmt->execute([
+                    $form_data['school_id'], $uid, $stuNum, $form_data['full_name'], $form_data['email'],
+                    $form_data['is_active'] === 1 ? 'Active' : 'Inactive'
+                ]);
             }
 
-            logActivity($pdo, $_SESSION['user_id'], 'create', 'user', $uid, 'Created user: ' . $form_data['full_name'] . ' (' . $form_data['role'] . ')');
+            $pdo->commit();
+            logActivity($pdo, (int)$_SESSION['user_id'], 'create', 'user', $uid, 'Created user: ' . $form_data['full_name'] . ' (' . $form_data['role'] . ')');
             header('Location: users.php?success=' . urlencode('User created successfully!'));
             exit;
-        } catch (PDOException $e) {
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
             error_log("User create failed: " . $e->getMessage());
             $errors[] = 'Failed to create user.';
         }

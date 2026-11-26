@@ -13,7 +13,8 @@ if ($schoolId <= 0) {
 }
 
 $date = trim((string)($_GET['date'] ?? $_POST['date'] ?? date('Y-m-d')));
-if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)
+    || !checkdate((int)substr($date, 5, 2), (int)substr($date, 8, 2), (int)substr($date, 0, 4))) {
     $date = date('Y-m-d');
 }
 
@@ -27,18 +28,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!validateCsrfToken($_POST['csrf_token'] ?? '')) {
         $errors[] = 'Invalid or expired form token. Please try again.';
     } else {
-        $marked = 0;
+        $postedStatuses = $_POST['status'] ?? [];
+        $allowedStatuses = array_keys(getAttendanceStatuses());
         foreach ($students as $st) {
             $sid = (int)$st['id'];
-            $status = (string)($_POST['status'][$sid] ?? 'present');
-            $remarks = trim((string)($_POST['remarks'][$sid] ?? ''));
-            if (markAttendance($pdo, $schoolId, $sid, $date, $status, $remarks !== '' ? $remarks : null, (int)($_SESSION['user_id'] ?? 0))) {
-                $marked++;
+            $status = (string)($postedStatuses[$sid] ?? 'present');
+            if (!in_array($status, $allowedStatuses, true)) {
+                $errors[] = 'One or more attendance statuses are invalid. Please reload and try again.';
+                break;
             }
         }
-        setFlashMessage('success', "Attendance saved for {$marked} of " . count($students) . " students on " . formatDate($date) . ".");
-        header('Location: index.php?date=' . urlencode($date));
-        exit;
+
+        if (empty($errors)) {
+            $marked = 0;
+            try {
+                $pdo->beginTransaction();
+                foreach ($students as $st) {
+                    $sid = (int)$st['id'];
+                    $status = (string)($postedStatuses[$sid] ?? 'present');
+                    $remarks = trim((string)($_POST['remarks'][$sid] ?? ''));
+                    if (mb_strlen($remarks) > 255) {
+                        throw new InvalidArgumentException('Attendance remarks cannot exceed 255 characters.');
+                    }
+                    if (!markAttendance($pdo, $schoolId, $sid, $date, $status, $remarks !== '' ? $remarks : null, (int)($_SESSION['user_id'] ?? 0))) {
+                        throw new RuntimeException('An attendance record could not be saved.');
+                    }
+                    $marked++;
+                }
+                $pdo->commit();
+                setFlashMessage('success', "Attendance saved for {$marked} of " . count($students) . " students on " . formatDate($date) . ".");
+                header('Location: index.php?date=' . urlencode($date));
+                exit;
+            } catch (Throwable $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                error_log('Attendance batch save failed: ' . $e->getMessage());
+                $errors[] = $e instanceof InvalidArgumentException
+                    ? $e->getMessage()
+                    : 'Attendance could not be saved. No changes were committed.';
+            }
+        }
     }
 }
 ?>

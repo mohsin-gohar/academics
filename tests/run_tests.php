@@ -12,6 +12,9 @@ require_once __DIR__ . '/../includes/functions.php';
 startSecureSession();
 require_once __DIR__ . '/../config/db.php';
 
+// Seed deterministic data only for the isolated CI/test database.
+require_once __DIR__ . '/fixtures.php';
+
 // Core suites
 require_once __DIR__ . '/AuthTest.php';
 require_once __DIR__ . '/TasksTest.php';

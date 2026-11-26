@@ -108,9 +108,9 @@ try {
     $userId = (int)$pdo->lastInsertId();
 
     // Student profile (still linked so admins can review the signup)
-    $student_number = generateStudentNumber($pdo);
+    $student_number = generateStudentNumber($pdo, $school_id);
     $stmt = $pdo->prepare("INSERT INTO students (school_id, user_id, student_number, full_name, email, enrollment_date, status)
-                           VALUES (?, ?, ?, ?, ?, CURDATE(), 'Active')");
+                           VALUES (?, ?, ?, ?, ?, CURDATE(), 'Inactive')");
     $stmt->execute([$school_id, $userId, $student_number, $full_name, $email]);
 
     logActivity($pdo, $userId, 'self_register', 'user', $userId,

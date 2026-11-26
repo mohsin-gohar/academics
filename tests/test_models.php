@@ -34,7 +34,7 @@ class TestModelsSuite {
         ];
 
         // 2. Student Number Generation
-        $stuNum = generateStudentNumber($this->pdo);
+        $stuNum = generateStudentNumber($this->pdo, $this->schoolId);
         $results[] = [
             'name' => 'Students model: Auto-generates valid format student number',
             'pass' => (bool)preg_match('/^STU-\d{4}-\d{4}$/', $stuNum)

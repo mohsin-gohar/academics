@@ -144,21 +144,17 @@ try {
         }
     }
 
-    // Update status and completion timestamp
-    // Build WHERE clause: only filter by school_id if it is not NULL
-    // This prevents the bug where NULL school_id gets converted to 0, matching
-    // legacy/global tasks incorrectly
-    $schoolIdParam = $task['school_id'] !== null ? (int)$task['school_id'] : null;
-    
-    if ($new_status === 'Completed') {
-        // If task has school_id, filter by it; if NULL, omit school filter
-        $where = "id = ? AND (school_id IS NULL OR school_id = ?)";
-        $upd = $pdo->prepare("UPDATE tasks SET status = ?, completed_at = NOW(), updated_at = NOW() WHERE $where");
-        $upd->execute([$new_status, $task_id, $schoolIdParam]);
-    } else {
-        $where = "id = ? AND (school_id IS NULL OR school_id = ?)";
-        $upd = $pdo->prepare("UPDATE tasks SET status = ?, completed_at = NULL, updated_at = NOW() WHERE $where");
-        $upd->execute([$new_status, $task_id, $schoolIdParam]);
+    // Null-safe tenant comparison keeps legacy/global tasks distinct from
+    // school-owned tasks and avoids silently converting NULL to school 0.
+    $sql = $new_status === 'Completed'
+        ? "UPDATE tasks SET status = ?, completed_at = COALESCE(completed_at, NOW()), updated_at = NOW() WHERE id = ? AND school_id <=> ?"
+        : "UPDATE tasks SET status = ?, completed_at = NULL, updated_at = NOW() WHERE id = ? AND school_id <=> ?";
+    $upd = $pdo->prepare($sql);
+    $upd->execute([$new_status, $task_id, $task['school_id']]);
+    if ($upd->rowCount() !== 1 && (string)$task['status'] !== $new_status) {
+        http_response_code(409);
+        echo json_encode(['success' => false, 'message' => 'Task changed before the status update could be saved.']);
+        exit;
     }
 
     logActivity($pdo, $user_id, 'ajax_update_status', 'task', $task_id, 'Quick status changed to: ' . $new_status);

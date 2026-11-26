@@ -27,6 +27,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($form_data['email'])) $errors[] = 'Email is required.';
     elseif (!isValidEmail($form_data['email'])) $errors[] = 'Invalid email address.';
     if (empty($form_data['enrollment_date'])) $errors[] = 'Enrollment date is required.';
+    if (currentSchoolId() === null) {
+        $errors[] = 'A school context is required to create a student.';
+    }
 
     // Check unique email
     if (empty($errors)) {

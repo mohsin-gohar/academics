@@ -15,7 +15,7 @@ The application retains the **Student Task Manager** as its mandatory, first-cla
 ## 2. Key Modules & Features
 
 ### A. Public Authentication & Security
-- **Registration**: Auto-provisions user account and matching student academic profile with a unique student ID.
+- **Registration**: Public self-registration creates a student account and matching academic profile in the selected school; the account remains inactive until school approval.
 - **Login**: Verifies credentials with `password_verify()` against bcrypt hashes.
 - **Rate Limiting**: Throttles brute-force login attempts (maximum 5 attempts per 15 minutes per email/IP).
 - **Session Security**: Session fixation defense via `session_regenerate_id(true)`, `HttpOnly`, `SameSite=Strict`, and strict mode cookies.
@@ -70,7 +70,7 @@ The application retains the **Student Task Manager** as its mandatory, first-cla
 - **Parent Portal**: Parents see per-child attendance summary and recent records.
 - **Student Portal**: Students see their own attendance percentage and history.
 - **Dashboard KPI**: School admin dashboard shows today's present/absent/late counts.
-- **Password Reset**: Forgot-password flow with single-use, 1-hour expiring tokens (link shown on-screen in dev mode since SMTP is not configured).
+- **Password Reset**: Single-use, 1-hour expiring SHA-256-hashed tokens; account-independent email/IP throttling; absolute reset links; authenticated SMTP (STARTTLS/SMTPS) with PHP mail fallback. Local development may write the link to a protected log file.
 
 ### J. Gradebook & Fees
 - **Gradebook**: Create assessments (exam/quiz/assignment/project) per course with max marks and weight; bulk mark entry; course gradebook matrix with weighted averages.
@@ -112,7 +112,11 @@ student-task-manager/
 ├── .env.example              # Sample environment configuration template
 ├── .gitignore                # Git exclusions (credentials, logs, temp files)
 ├── .htaccess                 # Apache security headers & sensitive file protection
-├── database.sql              # Canonical SQL schema & idempotent demo seed
+├── database/                 # Versioned SQL migrations and migration runner
+│   ├── migrate.php            # CLI migration runner with checksum drift detection
+│   ├── migrations/            # Ordered 0001–0011 schema migrations
+│   └── seed.sql               # Local/demo data only — never seed production
+├── database.sql              # Legacy full dump; not the canonical current schema
 ├── index.php                 # Public entry point / redirector
 ├── dashboard.php             # Data-driven dashboard with Chart.js analytics
 ├── register.php              # Public school self-registration (30-day trial)
@@ -240,8 +244,21 @@ Ensure the project folder `student-task-manager` is located inside your XAMPP we
 ### Step 3: Database Import
 You can set up the database in **two easy ways**:
 
-#### Option A: Automatic Self-Healing Bootstrap (Zero Configuration)
-The application includes a self-healing database bootstrap in `config/db.php`. When you first visit `http://localhost/student-task-manager/`, if the `edusphere` database does not exist, the system automatically creates the database, imports `database.sql`, and provisions the demo accounts!
+#### Option A: Automatic Database Bootstrap (Zero Configuration)
+The application includes a self-healing database bootstrap in `config/db.php`. When you first visit `http://localhost/student-task-manager/`, if the `edusphere` database does not exist, the system automatically creates the database and provisions the demo accounts (local development only). The canonical schema must be applied by running:
+
+```bash
+php database/migrate.php up
+```
+
+To import the legacy full dump, use `database.sql` manually via phpMyAdmin.
+
+#### Option B: Manual Import via phpMyAdmin
+1. Open your browser and navigate to `http://localhost/phpmyadmin/`.
+2. Click the **Import** tab on the top menu bar.
+3. Click **Choose File** and select `database.sql` from the project root.
+4. Click **Import** at the bottom of the page.
+MariaDB / MySQL will create the `edusphere` database with all 18 tables (tenants, subscriptions, contact messages, and the original academic modules) and sample seed records.
 
 #### Option B: Manual Import via phpMyAdmin
 1. Open your browser and navigate to `http://localhost/phpmyadmin/`.
@@ -507,3 +524,45 @@ When presenting this project to your instructor or examiner, highlight these key
 ---
 
 *Academics — Built with excellence for Aptech Computer Education.*
+
+
+## 5. Local setup, migrations and verification
+
+1. Copy `.env.example` to `.env` and configure the local MySQL connection.
+2. Create the database named by `DB_NAME` (default `edusphere`).
+3. Apply the current ordered schema migrations:
+
+```bash
+php database/migrate.php up
+```
+
+4. On a fresh installation, provision the first platform administrator securely:
+
+```bash
+php database/create_super_admin.php
+```
+
+The tool is CLI-only and prompts for a unique email and strong password. The schema no longer seeds a public default super-admin password.
+
+5. For automated tests, create a separate empty database (default `edusphere_test`) and use `APP_ENV=test` with `DB_NAME_TEST=edusphere_test`. The test fixture loader seeds data only in the test environment; it never seeds local or production databases.
+6. Run:
+
+```bash
+php tests/run_tests.php
+find . -type f -name '*.php' -not -path './storage/cache/*' -exec php -l {} \\;
+```
+
+7. For authenticated portal smoke checks, start the PHP server in one terminal and run the smoke script in another:
+
+```bash
+php -S 127.0.0.1:8090
+```
+
+```bash
+ACADEMICS_BASE=http://127.0.0.1:8090 php storage/smoke_pages.php
+```
+
+The CI workflow performs MySQL migrations, PHP syntax checks, automated tests and authenticated multi-role portal smoke checks on pull requests. It deploys only after a push to `main`; it does not execute production database migrations.
+
+**Production notes:** use a private root `.env` with `APP_ENV=production`, `APP_DEBUG=false`, canonical `APP_URL`, database credentials and SMTP credentials. Back up the database before applying migrations. Do not import the legacy `database.sql` dump into an existing installation and do not use demo seed accounts in production. See [INFINITYFREE_DEPLOYMENT_GUIDE.md](INFINITYFREE_DEPLOYMENT_GUIDE.md).
+

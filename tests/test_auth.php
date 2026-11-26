@@ -74,10 +74,20 @@ class TestAuthSuite {
             'pass' => isValidEmail('user@school.edu') && !isValidEmail('invalid-email') && !isValidEmail('@missinguser.com')
         ];
 
-        // 8. Session helper
+        // 8. Session and one-time flash-message helpers
         $results[] = [
             'name' => 'getRole returns valid role string',
             'pass' => is_string(getRole())
+        ];
+        setFlashMessage('success', 'Flash helper test');
+        $flash = consumeFlashMessage();
+        $results[] = [
+            'name' => 'consumeFlashMessage returns the one-time session message',
+            'pass' => is_array($flash) && ($flash['type'] ?? '') === 'success' && ($flash['text'] ?? '') === 'Flash helper test'
+        ];
+        $results[] = [
+            'name' => 'consumeFlashMessage clears the message after first read',
+            'pass' => consumeFlashMessage() === null
         ];
 
         // 9. Password reset token creation and consumption
@@ -99,6 +109,41 @@ class TestAuthSuite {
             'name' => 'consumePasswordResetToken updates user password successfully',
             'pass' => $consumed === true
         ];
+        $results[] = [
+            'name' => 'A consumed password reset token cannot be reused',
+            'pass' => consumePasswordResetToken($this->pdo, $resetToken, 'AnotherPass@123') === false
+        ];
+
+        $rateTable = $this->pdo->query(
+            "SELECT COUNT(*) FROM information_schema.tables
+             WHERE table_schema = DATABASE() AND table_name = 'password_reset_attempts'"
+        )->fetchColumn();
+        $results[] = [
+            'name' => 'Account-independent password reset rate-limit table exists',
+            'pass' => (int)$rateTable === 1
+        ];
+
+        // Re-run the idempotent retirement migration against a probe account
+        // carrying a known legacy default hash.
+        $defaultHash = '$2y$10$Ro246yHuqUPebBbJbl.9MeB9nETD76fg14wh2/VkT3XSxMY13eZn.';
+        $probeEmail = 'migration-probe@academics.invalid';
+        $this->pdo->prepare(
+            "INSERT INTO users (full_name, email, password, role, is_active, must_change_password, school_id)
+             VALUES ('Migration Probe', ?, ?, 'super_admin', 1, 1, NULL)"
+        )->execute([$probeEmail, $defaultHash]);
+        $migrationSql = file_get_contents(__DIR__ . '/../database/migrations/0011_disable_public_default_super_admin.sql');
+        if ($migrationSql === false) throw new RuntimeException('Could not read default admin retirement migration.');
+        $this->pdo->exec($migrationSql);
+        $probe = $this->pdo->prepare("SELECT is_active, must_change_password, password FROM users WHERE email = ?");
+        $probe->execute([$probeEmail]);
+        $probeRow = $probe->fetch(PDO::FETCH_ASSOC);
+        $results[] = [
+            'name' => 'Migration disables known default super-admin password hashes',
+            'pass' => $probeRow && (int)$probeRow['is_active'] === 0
+                && (int)$probeRow['must_change_password'] === 1
+                && !hash_equals($defaultHash, (string)$probeRow['password'])
+        ];
+        $this->pdo->prepare("DELETE FROM users WHERE email = ?")->execute([$probeEmail]);
 
         // Restore admin password
         $this->pdo->prepare("UPDATE users SET password = ? WHERE email = ?")->execute([

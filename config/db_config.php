@@ -13,6 +13,21 @@ if (!defined('IS_PRODUCTION')) {
 }
 
 if (IS_PRODUCTION) {
+    // Production must never silently fall back to development credentials.
+    $required = ['DB_HOST', 'DB_NAME', 'DB_USER', 'DB_PASS'];
+    $missing = [];
+    foreach ($required as $key) {
+        $value = getenv($key);
+        if ($value === false || trim((string)$value) === '') {
+            $missing[] = $key;
+        }
+    }
+    if ($missing) {
+        error_log('Academics production database configuration missing: ' . implode(', ', $missing));
+        http_response_code(503);
+        exit('Service temporarily unavailable. Database configuration is incomplete.');
+    }
+
     if (!defined('DB_HOST')) {
         define('DB_HOST', getenv('DB_HOST') !== false ? trim((string)getenv('DB_HOST')) : 'localhost');
     }

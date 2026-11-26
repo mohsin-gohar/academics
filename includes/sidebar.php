@@ -244,10 +244,13 @@
         </div>
         <?php endif; ?>
         <div class="nav-item">
-            <a href="<?php echo $base; ?>auth/logout.php" class="nav-link py-2 text-danger">
-                <i class="fas fa-sign-out-alt"></i>
-                <span>Logout</span>
-            </a>
+            <form action="<?php echo $base; ?>auth/logout.php" method="POST">
+                <input type="hidden" name="csrf_token" value="<?php echo e(generateCsrfToken()); ?>">
+                <button type="submit" class="nav-link py-2 text-danger border-0 bg-transparent w-100 text-start">
+                    <i class="fas fa-sign-out-alt"></i>
+                    <span>Logout</span>
+                </button>
+            </form>
         </div>
     </div>
 </div>

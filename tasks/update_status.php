@@ -45,15 +45,19 @@ $allowed = ['Pending','In Progress','Completed','Cancelled'];
 if (!in_array($status, $allowed)) $status = 'Pending';
 
 try {
-    if ($status === 'Completed') {
-        $pdo->prepare("UPDATE tasks SET status = ?, completed_at = NOW(), updated_at = NOW() WHERE id = ? AND school_id = ?")->execute([$status, $id, (int)$task['school_id']]);
-    } else {
-        $pdo->prepare("UPDATE tasks SET status = ?, completed_at = NULL, updated_at = NOW() WHERE id = ? AND school_id = ?")->execute([$status, $id, (int)$task['school_id']]);
+    $sql = $status === 'Completed'
+        ? "UPDATE tasks SET status = ?, completed_at = COALESCE(completed_at, NOW()), updated_at = NOW() WHERE id = ? AND school_id <=> ?"
+        : "UPDATE tasks SET status = ?, completed_at = NULL, updated_at = NOW() WHERE id = ? AND school_id <=> ?";
+    $update = $pdo->prepare($sql);
+    $update->execute([$status, $id, $task['school_id']]);
+    if ($update->rowCount() !== 1 && (string)$task['status'] !== $status) {
+        throw new RuntimeException('Task changed before the status update could be saved.');
     }
     logActivity($pdo, $user_id, 'update_status', 'task', $id, 'Status changed to ' . $status);
     header('Location: show.php?id=' . $id . '&success=' . urlencode('Status updated successfully!'));
     exit;
-} catch (PDOException $e) {
+} catch (Throwable $e) {
+    error_log('Task status update failed: ' . $e->getMessage());
     header('Location: show.php?id=' . $id . '&error=' . urlencode('Failed to update status.'));
     exit;
 }
