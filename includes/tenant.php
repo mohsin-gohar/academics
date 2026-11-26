@@ -120,6 +120,48 @@ function require_record_school(array $record, string $column = 'school_id'): voi
     }
 }
 
+/**
+ * Return dependent rows that a hard delete would cascade away.
+ * The referenced table is restricted to known application entities; table and
+ * column identifiers are sourced only from information_schema and quoted.
+ */
+function cascade_dependent_records(PDO $pdo, string $referencedTable, int $recordId): array
+{
+    if (!in_array($referencedTable, ['users', 'students', 'courses'], true) || $recordId <= 0) {
+        throw new InvalidArgumentException('Unsupported cascade dependency lookup.');
+    }
+
+    $stmt = $pdo->prepare(
+        "SELECT DISTINCT k.TABLE_NAME, k.COLUMN_NAME
+         FROM information_schema.KEY_COLUMN_USAGE k
+         INNER JOIN information_schema.REFERENTIAL_CONSTRAINTS r
+           ON r.CONSTRAINT_SCHEMA = k.CONSTRAINT_SCHEMA
+          AND r.CONSTRAINT_NAME = k.CONSTRAINT_NAME
+          AND r.TABLE_NAME = k.TABLE_NAME
+         WHERE k.REFERENCED_TABLE_SCHEMA = DATABASE()
+           AND k.REFERENCED_TABLE_NAME = ?
+           AND k.TABLE_SCHEMA = DATABASE()
+           AND r.DELETE_RULE = 'CASCADE'"
+    );
+    $stmt->execute([$referencedTable]);
+    $dependencies = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $reference) {
+        $table = str_replace('`', '``', (string)$reference['TABLE_NAME']);
+        $column = str_replace('`', '``', (string)$reference['COLUMN_NAME']);
+        $count = $pdo->prepare("SELECT COUNT(*) FROM `{$table}` WHERE `{$column}` = ?");
+        $count->execute([$recordId]);
+        $rows = (int)$count->fetchColumn();
+        if ($rows > 0) {
+            $dependencies[] = [
+                'table' => (string)$reference['TABLE_NAME'],
+                'column' => (string)$reference['COLUMN_NAME'],
+                'count' => $rows,
+            ];
+        }
+    }
+    return $dependencies;
+}
+
 /** True when the record belongs to the current actor's school. */
 function can_access_school(?int $schoolId): bool {
     if (isSuperAdmin()) return true;
