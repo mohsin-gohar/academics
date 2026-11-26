@@ -142,6 +142,12 @@ $sidebarPortalLabel = isStudent() ? 'STUDENT PORTAL'
             </a>
         </div>
         <div class="nav-item">
+            <a href="<?php echo $base; ?>students/photo.php" class="nav-link <?php echo strpos($_SERVER['PHP_SELF'], 'students/photo.php') !== false ? 'active' : ''; ?>">
+                <i class="fas fa-camera"></i>
+                <span>My Photo</span>
+            </a>
+        </div>
+        <div class="nav-item">
             <a href="<?php echo $base; ?>notes/index.php" class="nav-link <?php echo strpos($_SERVER['PHP_SELF'], 'notes/') !== false ? 'active' : ''; ?>">
                 <i class="fas fa-bullhorn"></i>
                 <span>Notice Board</span>
