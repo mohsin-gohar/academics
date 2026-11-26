@@ -220,18 +220,18 @@ $domainLabel = (defined('APP_DOMAIN') && APP_DOMAIN !== '') ? APP_DOMAIN : 'your
                     <div class="col-md-6">
                         <label class="form-label">Password <span class="text-danger">*</span></label>
                         <div class="input-group">
-                            <input type="password" name="password" id="password" class="form-control" required minlength="8"
+                            <input type="password" name="password" id="password" class="form-control" required minlength="10"
                                    placeholder="Create a strong password" autocomplete="new-password">
                             <button class="btn btn-outline-secondary" type="button" onclick="toggleRegPassword('password','toggleIcon1')">
                                 <i class="fas fa-eye" id="toggleIcon1"></i>
                             </button>
                         </div>
-                        <div class="form-text">At least 8 characters with upper case, lower case and a number.</div>
+                        <div class="form-text">At least 10 characters with upper case, lower case, a number and a special character.</div>
                     </div>
                     <div class="col-md-6">
                         <label class="form-label">Confirm password <span class="text-danger">*</span></label>
                         <div class="input-group">
-                            <input type="password" name="confirm_password" id="confirm_password" class="form-control" required minlength="8"
+                            <input type="password" name="confirm_password" id="confirm_password" class="form-control" required minlength="10"
                                    placeholder="Repeat your password" autocomplete="new-password">
                             <button class="btn btn-outline-secondary" type="button" onclick="toggleRegPassword('confirm_password','toggleIcon2')">
                                 <i class="fas fa-eye" id="toggleIcon2"></i>
