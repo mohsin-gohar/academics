@@ -107,8 +107,8 @@ if ($isStudent):
     $studentId = $student ? (int)$student['id'] : 0;
 
     // Enrolled Courses
-    $enrStmt = $pdo->prepare("SELECT e.*, c.course_code, c.course_name, c.credits, c.schedule, u.full_name as instructor_name FROM enrollments e JOIN courses c ON e.course_id = c.id LEFT JOIN users u ON c.instructor_id = u.id WHERE e.student_id = ? ORDER BY c.course_name");
-    $enrStmt->execute([$studentId]);
+    $enrStmt = $pdo->prepare("SELECT e.*, c.course_code, c.course_name, c.credits, c.schedule, u.full_name as instructor_name FROM enrollments e JOIN courses c ON e.course_id = c.id AND c.school_id = e.school_id LEFT JOIN users u ON c.instructor_id = u.id AND u.school_id = e.school_id WHERE e.student_id = ? AND e.school_id = ? ORDER BY c.course_name");
+    $enrStmt->execute([$studentId, $schoolId]);
     $myEnrollments = $enrStmt->fetchAll();
 
     // Tasks
@@ -402,7 +402,7 @@ else:
                 </table>
             </div>
         <?php elseif ($report_type === 'tasks'): ?>
-            <?php [$rs, $rp] = school_scope('t.school_id'); $rowsStmt = $pdo->prepare("SELECT t.*, s.full_name as student, c.course_name FROM tasks t LEFT JOIN students s ON t.student_id=s.id LEFT JOIN courses c ON t.course_id=c.id WHERE {$rs} ORDER BY t.created_at DESC"); $rowsStmt->execute($rp); $rows = $rowsStmt->fetchAll(); ?>
+            <?php [$rs, $rp] = school_scope('t.school_id'); $rowsStmt = $pdo->prepare("SELECT t.*, s.full_name as student, c.course_name FROM tasks t LEFT JOIN students s ON t.student_id=s.id AND s.school_id=t.school_id LEFT JOIN courses c ON t.course_id=c.id AND c.school_id=t.school_id WHERE {$rs} ORDER BY t.created_at DESC"); $rowsStmt->execute($rp); $rows = $rowsStmt->fetchAll(); ?>
             <div class="table-responsive">
                 <table class="table table-hover align-middle mb-0">
                     <thead class="table-light"><tr><th>Title</th><th>Student</th><th>Course</th><th>Priority</th><th>Status</th><th>Due</th></tr></thead>
