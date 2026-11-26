@@ -1,11 +1,19 @@
 <!-- Sidebar (Matching Reference Image 1) -->
+<?php
+$sidebarSchool = currentSchool($pdo);
+$sidebarBrandName = trim((string)($sidebarSchool['school_name'] ?? '')) ?: APP_NAME;
+$sidebarPortalLabel = isStudent() ? 'STUDENT PORTAL'
+    : (isTeacher() ? 'TEACHER PORTAL'
+    : (isParent() ? 'PARENT PORTAL'
+    : (isSuperAdmin() ? 'PLATFORM ADMIN' : 'SCHOOL PORTAL')));
+?>
 <div class="sidebar" id="sidebar">
     <div class="sidebar-brand">
         <a href="<?php echo $base; ?>dashboard.php" class="text-decoration-none d-flex align-items-center gap-2">
             <img class="brand-logo-img" src="<?php echo $base; ?>assets/img/academics-mark.svg" alt="" width="40" height="40">
             <span class="brand-copy">
-                <span class="brand-title">Academics</span>
-                <span class="brand-tagline">School Platform</span>
+                <span class="brand-title"><?php echo e($sidebarBrandName); ?></span>
+                <span class="brand-tagline"><?php echo e($sidebarPortalLabel); ?></span>
             </span>
         </a>
     </div>
