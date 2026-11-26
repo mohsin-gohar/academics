@@ -375,6 +375,10 @@ $command = $argv[1] ?? 'up';
 switch ($command) {
     case 'up':
         run_migrations($dryRun);
+        if (!$dryRun) {
+            echo "\nApplying idempotent SaaS compatibility migration...\n";
+            require_once __DIR__ . '/migrate_saas.php';
+        }
         break;
     case 'down':
         $count = isset($argv[2]) && is_numeric($argv[2]) ? (int)$argv[2] : 1;
