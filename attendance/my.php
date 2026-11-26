@@ -19,11 +19,6 @@ if ($schoolId <= 0 || $studentId <= 0) {
     http_response_code(404);
     exit('Your student record could not be found in this school.');
 }
-if ($schoolId <= 0 || $studentId <= 0) {
-    header('Location: ../dashboard.php');
-    exit;
-}
-
 $from = trim((string)($_GET['from'] ?? date('Y-m-d', strtotime('-30 days'))));
 $to = trim((string)($_GET['to'] ?? date('Y-m-d')));
 if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $from)) $from = date('Y-m-d', strtotime('-30 days'));

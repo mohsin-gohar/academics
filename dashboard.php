@@ -88,8 +88,8 @@ $myCourses = [];
 if ($isStudentUser && $studentId) {
     $stmt = $pdo->prepare("SELECT c.course_code, c.course_name, e.status, e.grade
         FROM enrollments e JOIN courses c ON c.id = e.course_id AND c.school_id = e.school_id
-        WHERE e.student_id = ? AND e.school_id = ? AND e.school_id = ? ORDER BY c.course_name LIMIT 4");
-    $stmt->execute([$studentId, $scopeSchoolId, $scopeSchoolId]);
+        WHERE e.student_id = ? AND e.school_id = ? ORDER BY c.course_name LIMIT 4");
+    $stmt->execute([$studentId, $scopeSchoolId]);
     $myCourses = $stmt->fetchAll();
 }
 
