@@ -33,6 +33,10 @@ class TestFeaturesSuite {
             'name' => 'Attendance: Reject marking a student from another school',
             'pass' => markAttendance($this->pdo, $schoolId, 3, $today, 'present', null, 1) === false
         ];
+        $results[] = [
+            'name' => 'Attendance: Reject remarks beyond the database field limit',
+            'pass' => markAttendance($this->pdo, $schoolId, $studentId, $today, 'present', str_repeat('x', 256), 1) === false
+        ];
 
         // 2. Gradebook & Assessments
         $assessmentId = createAssessment($this->pdo, $schoolId, 1, 'Unit 1 Examination', 'exam', 100.0, 1.0, $today, 'Midterm exam', 1);
@@ -122,6 +126,13 @@ class TestFeaturesSuite {
             'pass' => $validationInvoiceId > 0 && recordPayment(
                 $this->pdo, $schoolId, $validationInvoiceId, 10.00, '2026-02-31',
                 'cash', 'INVALID-DATE', 1, null
+            ) === false
+        ];
+        $results[] = [
+            'name' => 'Fees: Reject payment notes beyond the database field limit',
+            'pass' => $validationInvoiceId > 0 && recordPayment(
+                $this->pdo, $schoolId, $validationInvoiceId, 10.00, $today,
+                'cash', 'LONG-NOTES', 1, str_repeat('x', 5001)
             ) === false
         ];
         $results[] = [
