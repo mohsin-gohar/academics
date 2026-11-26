@@ -260,6 +260,30 @@ class SaasTest {
                     && $mrrAfter >= $mrrBefore + 499.0,
             ];
 
+            $subscriptionsBeforeOverlap = $this->pdo->prepare("SELECT COUNT(*) FROM school_subscriptions WHERE school_id = ?");
+            $subscriptionsBeforeOverlap->execute([(int)$fixture['school_id']]);
+            $subscriptionCountBeforeOverlap = (int)$subscriptionsBeforeOverlap->fetchColumn();
+            $overlapRejected = false;
+            try {
+                saas_create_subscription($this->pdo, (int)$fixture['school_id'], [
+                    'plan' => 'pro',
+                    'billing_cycle' => 'monthly',
+                    'start_date' => date('Y-m-d'),
+                    'end_date' => date('Y-m-d', strtotime('+1 month')),
+                    'status' => 'active',
+                    'payment_method' => 'qa-overlap',
+                    'transaction_id' => 'QA-OVERLAP-' . strtoupper($suffix),
+                ]);
+            } catch (InvalidArgumentException $e) {
+                $overlapRejected = stripos($e->getMessage(), 'already covers') !== false;
+            }
+            $subscriptionsBeforeOverlap->execute([(int)$fixture['school_id']]);
+            $subscriptionCountAfterOverlap = (int)$subscriptionsBeforeOverlap->fetchColumn();
+            $results[] = [
+                'name' => 'Overlapping paid subscriptions are rejected without creating duplicate billing rows',
+                'pass' => $overlapRejected && $subscriptionCountAfterOverlap === $subscriptionCountBeforeOverlap,
+            ];
+
             // 9. Tenant isolation
             $stmt = $this->pdo->prepare("SELECT COUNT(*) FROM users WHERE school_id = ?");
             $stmt->execute([(int)$fixture['school_id']]);
