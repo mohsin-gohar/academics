@@ -318,6 +318,13 @@ if ($announcementCreateOk) $pass++; else $fail++;
 $rows[] = ($announcementCreateOk ? 'PASS ' : 'FAIL ')
     . str_pad('school admin can create audience-targeted announcements', 42)
     . ' CREATED=' . $announcementCount;
+$schoolAdminNotes = http($base . '/notes/index.php', $schoolAdmin);
+$schoolAdminAudienceOk = strpos($schoolAdminNotes['body'], $announcementTitles['teacher']) !== false
+    && strpos($schoolAdminNotes['body'], $announcementTitles['student']) === false
+    && strpos($schoolAdminNotes['body'], $announcementTitles['parent']) === false;
+if ($schoolAdminAudienceOk) $pass++; else $fail++;
+$rows[] = ($schoolAdminAudienceOk ? 'PASS ' : 'FAIL ')
+    . str_pad('school admin sees staff-only announcements', 42);
 
 $teacher = login('teacher@sch001.com', 'Teacher@123');
 foreach ([
