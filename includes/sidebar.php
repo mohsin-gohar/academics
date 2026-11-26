@@ -221,12 +221,48 @@ $sidebarPortalLabel = isStudent() ? 'STUDENT PORTAL'
                 <span>Study Material &amp; Labs</span>
             </a>
         </div>
+        <div class="nav-section mt-3">Career</div>
         <div class="nav-item">
-            <a href="<?php echo $base; ?>student-life/index.php" class="nav-link <?php echo strpos($_SERVER['PHP_SELF'], 'student-life/') !== false ? 'active' : ''; ?>">
-                <i class="fas fa-award"></i>
-                <span>My eProject &amp; Activities</span>
+            <a href="<?php echo $base; ?>student-life/index.php?section=job" class="nav-link <?php echo strpos($_SERVER['PHP_SELF'], 'student-life/') !== false && ($_GET['section'] ?? '') === 'job' ? 'active' : ''; ?>">
+                <i class="fas fa-briefcase"></i><span>Jobs</span>
             </a>
         </div>
+        <div class="nav-item">
+            <a href="<?php echo $base; ?>student-life/index.php?section=cv" class="nav-link <?php echo strpos($_SERVER['PHP_SELF'], 'student-life/') !== false && ($_GET['section'] ?? '') === 'cv' ? 'active' : ''; ?>">
+                <i class="fas fa-file-alt"></i><span>My CV</span>
+            </a>
+        </div>
+        <div class="nav-section mt-3">Projects &amp; Achievements</div>
+        <div class="nav-item">
+            <a href="<?php echo $base; ?>student-life/index.php?section=eproject" class="nav-link <?php echo strpos($_SERVER['PHP_SELF'], 'student-life/') !== false && (($_GET['section'] ?? '') === 'eproject' || !isset($_GET['section'])) ? 'active' : ''; ?>">
+                <i class="fas fa-laptop-code"></i><span>My eProject</span>
+            </a>
+        </div>
+        <?php foreach ([
+            'achievement' => ['Our Achievements', 'fa-trophy'],
+            'badge' => ['My Badges', 'fa-medal'],
+            'rank' => ['Badge Legends', 'fa-ranking-star'],
+            'league' => ['Badge League', 'fa-award'],
+            'award' => ['My Awards', 'fa-certificate'],
+        ] as $portfolioSection => $portfolioNav): ?>
+        <div class="nav-item">
+            <a href="<?php echo $base; ?>student-life/index.php?section=<?php echo e($portfolioSection); ?>" class="nav-link <?php echo strpos($_SERVER['PHP_SELF'], 'student-life/') !== false && ($_GET['section'] ?? '') === $portfolioSection ? 'active' : ''; ?>">
+                <i class="fas <?php echo e($portfolioNav[1]); ?>"></i><span><?php echo e($portfolioNav[0]); ?></span>
+            </a>
+        </div>
+        <?php endforeach; ?>
+        <div class="nav-section mt-3">Campus Life</div>
+        <?php foreach ([
+            'volunteer' => ['Volunteer', 'fa-hands-helping'],
+            'event' => ['Events &amp; Workshops', 'fa-calendar-alt'],
+            'conduct' => ['Code of Conduct', 'fa-shield-alt'],
+        ] as $portfolioSection => $portfolioNav): ?>
+        <div class="nav-item">
+            <a href="<?php echo $base; ?>student-life/index.php?section=<?php echo e($portfolioSection); ?>" class="nav-link <?php echo strpos($_SERVER['PHP_SELF'], 'student-life/') !== false && ($_GET['section'] ?? '') === $portfolioSection ? 'active' : ''; ?>">
+                <i class="fas <?php echo e($portfolioNav[1]); ?>"></i><span><?php echo $portfolioNav[0]; ?></span>
+            </a>
+        </div>
+        <?php endforeach; ?>
         <?php endif; ?>
         <?php endif; ?>
 
