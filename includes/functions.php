@@ -1244,6 +1244,9 @@ function school_session_access_state(array $school, ?int $now = null): array
 
 function enforceSession(?PDO $pdo = null): void
 {
+    static $validatedThisRequest = false;
+    if ($validatedThisRequest) return;
+
     if (!isLoggedIn()) {
         return; // requireAuth handles the redirect for pages that need auth
     }
@@ -1306,18 +1309,9 @@ function enforceSession(?PDO $pdo = null): void
         return;
     }
 
-    // 4. Up to 60s of caching keyed to the session fingerprint.
-    $now = time();
-    $validatedAt = (int)($_SESSION['_validated_at'] ?? 0);
-    $fingerprint = hash('sha256',
-        (string)($_SESSION['user_id'] ?? '') . '|' .
-        (string)($_SESSION['user_role'] ?? '') . '|' .
-        (string)($_SESSION['school_id'] ?? '')
-    );
-    if ($validatedAt > 0 && ($now - $validatedAt) < 60 && ($_SESSION['_validated_fp'] ?? '') === $fingerprint) {
-        return;
-    }
-
+    // Validate once per HTTP request, but never reuse account/tenant state
+    // across requests: deactivation, role changes and trial expiry take effect
+    // on the very next protected request.
     // 5. Re-read the user row and check account state
     $stmt = $pdo->prepare("SELECT id, role, is_active, school_id, must_change_password FROM users WHERE id = ? LIMIT 1");
     $stmt->execute([(int)$_SESSION['user_id']]);
@@ -1368,13 +1362,7 @@ function enforceSession(?PDO $pdo = null): void
     // Reflect administrator-enforced password changes on existing sessions.
     $_SESSION['must_change_password'] = ((int)($user['must_change_password'] ?? 0) === 1);
 
-    // 8. Cache the successful validation for up to 60 seconds
-    $_SESSION['_validated_at'] = $now;
-    $_SESSION['_validated_fp'] = hash('sha256',
-        (string)$_SESSION['user_id'] . '|' .
-        (string)$_SESSION['user_role'] . '|' .
-        (string)($_SESSION['school_id'] ?? '')
-    );
+    $validatedThisRequest = true;
 }
 
 // Force a first-login password change when users.must_change_password is set.
