@@ -12,20 +12,20 @@ if ($schoolId <= 0) { header('Location: ../dashboard.php'); exit; }
 $assessmentId = (int)($_GET['assessment_id'] ?? $_POST['assessment_id'] ?? 0);
 if ($assessmentId <= 0) { header('Location: index.php'); exit; }
 
-$stmt = $pdo->prepare("SELECT a.*, c.course_name, c.course_code FROM assessments a JOIN courses c ON c.id = a.course_id WHERE a.id = ? AND a.school_id = ?");
+$stmt = $pdo->prepare("SELECT a.*, c.course_name, c.course_code FROM assessments a JOIN courses c ON c.id = a.course_id AND c.school_id = a.school_id WHERE a.id = ? AND a.school_id = ?");
 $stmt->execute([$assessmentId, $schoolId]);
 $assessment = $stmt->fetch();
 if (!$assessment) { header('Location: index.php'); exit; }
 
 // enrolled students
-$stmt = $pdo->prepare("SELECT st.id, st.full_name, st.student_number FROM students st JOIN enrollments e ON e.student_id = st.id WHERE e.course_id = ? AND e.status = 'Enrolled' AND st.school_id = ? ORDER BY st.full_name ASC");
-$stmt->execute([(int)$assessment['course_id'], $schoolId]);
+$stmt = $pdo->prepare("SELECT st.id, st.full_name, st.student_number FROM students st JOIN enrollments e ON e.student_id = st.id AND e.school_id = st.school_id WHERE e.course_id = ? AND e.school_id = ? AND st.school_id = ? AND e.status = 'Enrolled' ORDER BY st.full_name ASC");
+$stmt->execute([(int)$assessment['course_id'], $schoolId, $schoolId]);
 $students = $stmt->fetchAll();
 
 // existing marks
 $marks = [];
-$mStmt = $pdo->prepare("SELECT * FROM student_marks WHERE assessment_id = ?");
-$mStmt->execute([$assessmentId]);
+$mStmt = $pdo->prepare("SELECT * FROM student_marks WHERE assessment_id = ? AND school_id = ?");
+$mStmt->execute([$assessmentId, $schoolId]);
 foreach ($mStmt->fetchAll() as $m) $marks[(int)$m['student_id']] = $m;
 
 $errors = [];
@@ -40,6 +40,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $sid = (int)$st['id'];
             $raw = trim((string)($_POST['marks'][$sid] ?? ''));
             $remarks = trim((string)($_POST['remarks'][$sid] ?? ''));
+            if (mb_strlen($remarks) > 255) {
+                $errors[] = $st['full_name'] . ': remarks cannot exceed 255 characters.';
+                continue;
+            }
             if ($raw === '') {
                 $toSave[$sid] = [null, $remarks !== '' ? $remarks : null];
                 continue;
@@ -49,26 +53,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 continue;
             }
             $val = (float)$raw;
-            if ($val < 0 || $val > $maxMarks) {
-                $errors[] = $st['full_name'] . ': marks must be between 0 and ' . $maxMarks . '.';
+            if ($val < 0 || $val > $maxMarks || $val > 999999.99
+                || abs($val - round($val, 2)) > 0.00001) {
+                $errors[] = $st['full_name'] . ': marks must be between 0 and ' . $maxMarks . ' with at most two decimal places.';
                 continue;
             }
             $toSave[$sid] = [$val, $remarks !== '' ? $remarks : null];
         }
 
         if (empty($errors)) {
-            $pdo->beginTransaction();
             $saved = 0;
-            foreach ($toSave as $sid => [$val, $remarks]) {
-                if (recordMark($pdo, $schoolId, $assessmentId, (int)$sid, $val, $remarks, (int)($_SESSION['user_id'] ?? 0))) {
+            try {
+                $pdo->beginTransaction();
+                foreach ($toSave as $sid => [$val, $remarks]) {
+                    if (!recordMark($pdo, $schoolId, $assessmentId, (int)$sid, $val, $remarks, (int)($_SESSION['user_id'] ?? 0))) {
+                        throw new RuntimeException('A student mark could not be saved.');
+                    }
                     $saved++;
                 }
+                $pdo->commit();
+                logActivity($pdo, (int)($_SESSION['user_id'] ?? 0), 'enter_marks', 'assessment', $assessmentId, "Saved marks for $saved student(s) in assessment #$assessmentId");
+                setFlashMessage('success', "Marks saved for {$saved} students.");
+                header('Location: view.php?course_id=' . (int)$assessment['course_id']);
+                exit;
+            } catch (Throwable $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                error_log('Assessment marks save failed: ' . $e->getMessage());
+                $errors[] = 'Marks could not be saved. No changes were committed.';
             }
-            $pdo->commit();
-            logActivity($pdo, (int)($_SESSION['user_id'] ?? 0), 'enter_marks', 'assessment', $assessmentId, "Saved marks for $saved student(s) in assessment #$assessmentId");
-            setFlashMessage('success', "Marks saved for {$saved} students.");
-            header('Location: view.php?course_id=' . (int)$assessment['course_id']);
-            exit;
         }
     }
 }
