@@ -721,6 +721,16 @@ $extra_js = '
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script>
 document.addEventListener("DOMContentLoaded", function() {
+    const dashboardSearch = document.getElementById("dashSearch");
+    if (dashboardSearch) {
+        const searchableCards = Array.from(document.querySelectorAll(".card, .kpi-card"));
+        const searchableRows = Array.from(document.querySelectorAll("table tbody tr"));
+        dashboardSearch.addEventListener("input", function () {
+            const query = this.value.trim().toLocaleLowerCase();
+            searchableCards.forEach((card) => { card.hidden = !!query && !card.textContent.toLocaleLowerCase().includes(query); });
+            searchableRows.forEach((row) => { row.hidden = !!query && !row.textContent.toLocaleLowerCase().includes(query); });
+        });
+    }
     const monthLabels = ' . json_encode($monthLabels) . ';
     const monthlyAssigned = ' . json_encode(array_values($monthlyAssigned)) . ';
     const monthlyCompleted = ' . json_encode(array_values($monthlyCompleted)) . ';
