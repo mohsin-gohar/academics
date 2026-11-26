@@ -3,6 +3,18 @@ $page_title = 'Courses';
 require_once '../includes/header.php';
 requireAuth();
 
+// Students must use their enrolled-course view; the staff catalogue is not a
+// student-facing directory and must not disclose other courses in the school.
+if (isStudent()) {
+    header('Location: my.php');
+    exit;
+}
+if (isParent()) {
+    header('Location: ../parent/dashboard.php');
+    exit;
+}
+requireStaff();
+
 $page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
 $perPage = 10;
 $offset = ($page - 1) * $perPage;
