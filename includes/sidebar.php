@@ -186,9 +186,33 @@ $sidebarPortalLabel = isStudent() ? 'STUDENT PORTAL'
             </a>
         </div>
         <div class="nav-item">
-            <a href="<?php echo $base; ?>student-services/index.php" class="nav-link <?php echo strpos($_SERVER['PHP_SELF'], 'student-services/') !== false ? 'active' : ''; ?>">
+            <a href="<?php echo $base; ?>student-services/index.php?type=issue" class="nav-link <?php echo strpos($_SERVER['PHP_SELF'], 'student-services/') !== false && ($_GET['type'] ?? '') === 'issue' ? 'active' : ''; ?>">
                 <i class="fas fa-life-ring"></i>
-                <span>Help Desk &amp; Requests</span>
+                <span>My Issues</span>
+            </a>
+        </div>
+        <div class="nav-item">
+            <a href="<?php echo $base; ?>student-services/index.php?type=complaint" class="nav-link <?php echo strpos($_SERVER['PHP_SELF'], 'student-services/') !== false && ($_GET['type'] ?? '') === 'complaint' ? 'active' : ''; ?>">
+                <i class="fas fa-comment-dots"></i>
+                <span>Complaints</span>
+            </a>
+        </div>
+        <div class="nav-item">
+            <a href="<?php echo $base; ?>student-services/index.php?type=request" class="nav-link <?php echo strpos($_SERVER['PHP_SELF'], 'student-services/') !== false && ($_GET['type'] ?? '') === 'request' ? 'active' : ''; ?>">
+                <i class="fas fa-file-alt"></i>
+                <span>My Requests</span>
+            </a>
+        </div>
+        <div class="nav-item">
+            <a href="<?php echo $base; ?>student-services/index.php?type=batch_change" class="nav-link <?php echo strpos($_SERVER['PHP_SELF'], 'student-services/') !== false && ($_GET['type'] ?? '') === 'batch_change' ? 'active' : ''; ?>">
+                <i class="fas fa-exchange-alt"></i>
+                <span>Change Batch</span>
+            </a>
+        </div>
+        <div class="nav-item">
+            <a href="<?php echo $base; ?>student-services/index.php?type=feedback" class="nav-link <?php echo strpos($_SERVER['PHP_SELF'], 'student-services/') !== false && ($_GET['type'] ?? '') === 'feedback' ? 'active' : ''; ?>">
+                <i class="fas fa-comment"></i>
+                <span>My Feedback</span>
             </a>
         </div>
         <div class="nav-item">
