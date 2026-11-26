@@ -35,8 +35,8 @@ class SaasTest {
             'email'            => $email,
             'phone'            => '+92 300 0000000',
             'address'          => 'QA Test Address',
-            'password'         => 'QaTestPass123',
-            'confirm_password' => 'QaTestPass123',
+            'password'         => 'QaTestPass123!',
+            'confirm_password' => 'QaTestPass123!',
             'plan'             => $plan,
         ]);
         $this->cleanupSchoolIds[] = (int)$result['school_id'];
@@ -162,7 +162,7 @@ class SaasTest {
                     && $adminUser['role'] === 'school_admin'
                     && (int)$adminUser['school_id'] === (int)$fixture['school_id']
                     && (int)$adminUser['is_active'] === 1
-                    && password_verify('QaTestPass123', $adminUser['password'])
+                    && password_verify('QaTestPass123!', $adminUser['password'])
                     && !password_verify('wrong-password', $adminUser['password']),
             ];
 
@@ -178,6 +178,27 @@ class SaasTest {
                     && $trialSubscription['end_date'] === date('Y-m-d', strtotime((string)$school['trial_ends_at'])),
             ];
 
+            // Public school signup must enforce the same strong password policy
+            // as password reset and administrator-created accounts.
+            $weakPasswordRejected = false;
+            try {
+                saas_register_school($this->pdo, [
+                    'school_name' => 'Weak Password School',
+                    'subdomain' => 'weak-' . $suffix,
+                    'full_name' => 'Weak Password Admin',
+                    'email' => 'weak-' . $suffix . '@example.com',
+                    'password' => 'WeakPass123',
+                    'confirm_password' => 'WeakPass123',
+                    'plan' => 'basic',
+                ]);
+            } catch (InvalidArgumentException $e) {
+                $weakPasswordRejected = stripos($e->getMessage(), 'special character') !== false;
+            }
+            $results[] = [
+                'name' => 'School registration rejects passwords that do not meet the global strength policy',
+                'pass' => $weakPasswordRejected,
+            ];
+
             // 6. Duplicate subdomain protection
             $duplicateRejected = false;
             try {
@@ -186,8 +207,8 @@ class SaasTest {
                     'subdomain'        => $subdomain,
                     'full_name'        => 'Duplicate Admin',
                     'email'            => 'duplicate-' . $suffix . '@example.com',
-                    'password'         => 'QaTestPass123',
-                    'confirm_password' => 'QaTestPass123',
+                    'password'         => 'QaTestPass123!',
+                    'confirm_password' => 'QaTestPass123!',
                     'plan'             => 'basic',
                 ]);
             } catch (InvalidArgumentException $e) {
