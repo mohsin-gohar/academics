@@ -210,6 +210,15 @@ class SecurityTest {
             'pass' => ($subscriptionStates['active_saas']['allowed'] ?? false) === true
         ];
 
+        $publicBootstrapAdmins = (int)$this->pdo->query(
+            "SELECT COUNT(*) FROM users
+             WHERE email = 'superadmin@academics.app' AND is_active = 1"
+        )->fetchColumn();
+        $results[] = [
+            'name' => 'Legacy public default super administrator is disabled by forward migration',
+            'pass' => $publicBootstrapAdmins === 0
+        ];
+
         return $results;
     }
 }
