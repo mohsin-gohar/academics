@@ -19,8 +19,9 @@ $children = $stmt->fetchAll();
 
 $from = trim((string)($_GET['from'] ?? date('Y-m-d', strtotime('-30 days'))));
 $to = trim((string)($_GET['to'] ?? date('Y-m-d')));
-if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $from)) $from = date('Y-m-d', strtotime('-30 days'));
-if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $to)) $to = date('Y-m-d');
+if (!isValidIsoDate($from)) $from = date('Y-m-d', strtotime('-30 days'));
+if (!isValidIsoDate($to)) $to = date('Y-m-d');
+if ($from > $to) { [$from, $to] = [$to, $from]; }
 ?>
 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
     <div>
