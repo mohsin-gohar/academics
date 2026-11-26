@@ -66,7 +66,7 @@ $trialCount = 0;
 $expiringCount = 0;
 $mrr = saas_monthly_recurring_revenue($pdo);
 foreach ($subscriptions as $sub) {
-    if ($sub['status'] === 'active' && strtotime($sub['end_date']) >= strtotime('today')) {
+    if ($sub['status'] === 'active' && strtotime($sub['start_date']) <= strtotime('today') && strtotime($sub['end_date']) >= strtotime('today')) {
         $activeCount++;
         if (strtotime($sub['end_date']) <= strtotime('+30 days')) {
             $expiringCount++;
