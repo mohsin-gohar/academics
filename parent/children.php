@@ -12,9 +12,9 @@ $parentId = (int)$_SESSION['user_id'];
 
 $stmt = $pdo->prepare("
     SELECT st.*, ps.relationship,
-        (SELECT COUNT(*) FROM tasks t WHERE t.student_id = st.id) AS task_total,
-        (SELECT COUNT(*) FROM tasks t WHERE t.student_id = st.id AND t.status = 'Completed') AS task_done,
-        (SELECT COUNT(*) FROM enrollments e WHERE e.student_id = st.id) AS course_count
+        (SELECT COUNT(*) FROM tasks t WHERE t.student_id = st.id AND t.school_id = st.school_id) AS task_total,
+        (SELECT COUNT(*) FROM tasks t WHERE t.student_id = st.id AND t.school_id = st.school_id AND t.status = 'Completed') AS task_done,
+        (SELECT COUNT(*) FROM enrollments e WHERE e.student_id = st.id AND e.school_id = st.school_id) AS course_count
     FROM parent_student ps
     JOIN students st ON st.id = ps.student_id
     WHERE ps.parent_id = ? AND ps.school_id = ?
