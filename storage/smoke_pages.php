@@ -134,6 +134,7 @@ foreach ([
     'school admin courses' => '/courses/index.php',
     'school admin tasks' => '/tasks/index.php',
     'school admin events' => '/events/index.php',
+    'school admin expenses' => '/expenses/index.php',
     'school admin events create' => '/events/create.php',
     'school admin event edit' => '/events/edit.php?id=' . $sch1Event,
     'school admin reports' => '/reports/index.php?type=tasks',
