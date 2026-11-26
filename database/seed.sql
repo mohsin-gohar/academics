@@ -5,8 +5,22 @@
 -- real accounts, erase real data, and reset must_change_password flags.
 -- Production setups must use php database/migrate.php and manual account creation.
 -- ============================================================================
+-- Strict safety check: this script will ONLY execute against databases matching
+-- the pattern 'edusphere_%' or 'edusphere'.  If your database has a different
+-- name (e.g. 'edusphere_production', 'live', 'prod'), the script will abort
+-- to prevent accidental data overwrite.
+-- To run against a different database, copy this script and modify the
+-- database name in the USE statement above.
 -- Silence strict-mode warnings and proceed at your own risk.
 -- ============================================================================
+-- Safety: verify we're not overwriting production data
+SELECT CASE
+    WHEN DATABASE() NOT LIKE 'edusphere_%' THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Seed script aborted: not running against a test ' +
+            'edusphere database.  Use php database/migrate.php for production setups.'
+    ELSE 1
+END AS __seed_safety_check__;
 USE edusphere;
 
 -- ---------------------------------------------------------------------------
