@@ -39,6 +39,117 @@ $student = $stmt->fetch();
 if (!$student) { header('Location: index.php?error=' . urlencode('Student not found.')); exit; }
 require_record_school($student);
 
+$studentSchoolId = (int)$student['school_id'];
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!isSchoolManagement()) {
+        http_response_code(403);
+        exit('Forbidden');
+    }
+    requirePost();
+    if (!validateCsrfToken($_POST['csrf_token'] ?? '')) {
+        setFlashMessage('danger', 'Invalid security token.');
+        header('Location: show.php?id=' . $id);
+        exit;
+    }
+
+    $action = (string)($_POST['action'] ?? '');
+    $parentId = (int)($_POST['parent_id'] ?? 0);
+    try {
+        $pdo->beginTransaction();
+        $studentLock = $pdo->prepare("SELECT id FROM students WHERE id = ? AND school_id = ? FOR UPDATE");
+        $studentLock->execute([$id, $studentSchoolId]);
+        if (!$studentLock->fetchColumn()) {
+            throw new InvalidArgumentException('Student is no longer available in this school.');
+        }
+
+        if ($action === 'link_parent') {
+            $relationship = trim((string)($_POST['relationship'] ?? 'Parent'));
+            $allowedRelationships = ['Parent', 'Mother', 'Father', 'Guardian', 'Other'];
+            if ($parentId <= 0 || !in_array($relationship, $allowedRelationships, true)) {
+                throw new InvalidArgumentException('Choose a valid parent account and relationship.');
+            }
+            $parentLock = $pdo->prepare(
+                "SELECT id FROM users
+                 WHERE id = ? AND school_id = ? AND role = 'parent' AND is_active = 1
+                 FOR UPDATE"
+            );
+            $parentLock->execute([$parentId, $studentSchoolId]);
+            if (!$parentLock->fetchColumn()) {
+                throw new InvalidArgumentException('Parent account must be active and belong to the same school.');
+            }
+
+            $existingLink = $pdo->prepare(
+                "SELECT id FROM parent_student WHERE school_id = ? AND parent_id = ? AND student_id = ? FOR UPDATE"
+            );
+            $existingLink->execute([$studentSchoolId, $parentId, $id]);
+            $linkId = $existingLink->fetchColumn();
+            if ($linkId) {
+                $pdo->prepare("UPDATE parent_student SET relationship = ? WHERE id = ? AND school_id = ?")
+                    ->execute([$relationship, (int)$linkId, $studentSchoolId]);
+                $activity = 'Updated parent link for student ID ' . $id;
+            } else {
+                $pdo->prepare(
+                    "INSERT INTO parent_student (school_id, parent_id, student_id, relationship)
+                     VALUES (?, ?, ?, ?)"
+                )->execute([$studentSchoolId, $parentId, $id, $relationship]);
+                $activity = 'Linked parent ID ' . $parentId . ' to student ID ' . $id;
+            }
+        } elseif ($action === 'unlink_parent') {
+            if ($parentId <= 0) throw new InvalidArgumentException('Choose a valid parent account.');
+            $delete = $pdo->prepare(
+                "DELETE FROM parent_student WHERE school_id = ? AND parent_id = ? AND student_id = ?"
+            );
+            $delete->execute([$studentSchoolId, $parentId, $id]);
+            if ($delete->rowCount() !== 1) {
+                throw new InvalidArgumentException('Parent link was not found.');
+            }
+            $activity = 'Removed parent ID ' . $parentId . ' from student ID ' . $id;
+        } else {
+            throw new InvalidArgumentException('Invalid parent-link action.');
+        }
+
+        $pdo->commit();
+        recordActivity($pdo, (int)$_SESSION['user_id'], 'manage_parent_link', 'student', $id, $activity);
+        setFlashMessage('success', $action === 'link_parent' ? 'Parent linked successfully.' : 'Parent link removed.');
+    } catch (InvalidArgumentException $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        setFlashMessage('warning', $e->getMessage());
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        error_log('Student parent-link update failed: ' . $e->getMessage());
+        setFlashMessage('danger', 'Parent link could not be saved. Please try again.');
+    }
+    header('Location: show.php?id=' . $id);
+    exit;
+}
+
+$linkedParents = [];
+$availableParents = [];
+if (isSchoolManagement()) {
+    $linkedStmt = $pdo->prepare(
+        "SELECT ps.parent_id, ps.relationship, ps.is_primary, u.full_name, u.email
+         FROM parent_student ps
+         JOIN users u ON u.id = ps.parent_id AND u.school_id = ps.school_id AND u.role = 'parent'
+         WHERE ps.school_id = ? AND ps.student_id = ?
+         ORDER BY ps.is_primary DESC, u.full_name"
+    );
+    $linkedStmt->execute([$studentSchoolId, $id]);
+    $linkedParents = $linkedStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $availableStmt = $pdo->prepare(
+        "SELECT u.id, u.full_name, u.email
+         FROM users u
+         WHERE u.school_id = ? AND u.role = 'parent' AND u.is_active = 1
+           AND NOT EXISTS (
+               SELECT 1 FROM parent_student ps
+               WHERE ps.school_id = u.school_id AND ps.parent_id = u.id AND ps.student_id = ?
+           )
+         ORDER BY u.full_name"
+    );
+    $availableStmt->execute([$studentSchoolId, $id]);
+    $availableParents = $availableStmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
 // Enrollments
 $stmt = $pdo->prepare("SELECT e.*, c.course_code, c.course_name FROM enrollments e JOIN courses c ON e.course_id = c.id AND c.school_id = e.school_id WHERE e.student_id = ? AND e.school_id = ? ORDER BY e.enrollment_date DESC");
 $stmt->execute([$id, (int)$student['school_id']]);
