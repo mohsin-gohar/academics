@@ -102,6 +102,59 @@ if ($otherStudent <= 0 || $otherStudent === $sch1Student || $otherCourse <= 0 ||
 }
 
 $super = login('admin@edusphere.com', 'Admin@123');
+
+// Platform school creation must atomically provision a default 30-day trial.
+$newSchoolTag = strtoupper(bin2hex(random_bytes(3)));
+$newSchoolCode = 'QA' . $newSchoolTag;
+$newSchoolSubdomain = 'qa-school-' . strtolower($newSchoolTag);
+$schoolCreateForm = http($base . '/admin/schools.php', $super);
+preg_match('/name="csrf_token"\\s+value="([a-f0-9]{64})"/', $schoolCreateForm['body'], $schoolCreateCsrf);
+$schoolCreateResponse = http($base . '/admin/schools.php', $super, [
+    'csrf_token' => $schoolCreateCsrf[1] ?? '',
+    'action' => 'save',
+    'id' => '0',
+    'school_name' => 'QA School ' . $newSchoolTag,
+    'school_code' => $newSchoolCode,
+    'subdomain' => $newSchoolSubdomain,
+    'owner_name' => 'QA Owner',
+    'school_email' => '',
+    'school_phone' => '',
+    'school_address' => '',
+    'motto' => '',
+    'website' => '',
+    'primary_color' => '#4f46e5',
+    'secondary_color' => '#06b6d4',
+    'plan' => 'basic',
+    'status' => 'trial',
+    'trial_ends_at' => '',
+    'is_active' => '1',
+]);
+$newSchoolStmt = $pdo->prepare("SELECT id, status, trial_ends_at FROM schools WHERE school_code = ? LIMIT 1");
+$newSchoolStmt->execute([$newSchoolCode]);
+$newSchool = $newSchoolStmt->fetch(PDO::FETCH_ASSOC);
+$newSchoolSubscriptionRow = false;
+if ($newSchool) {
+    $newSchoolSubscription = $pdo->prepare(
+        "SELECT price, status, end_date, payment_method FROM school_subscriptions WHERE school_id = ? ORDER BY id DESC LIMIT 1"
+    );
+    $newSchoolSubscription->execute([(int)$newSchool['id']]);
+    $newSchoolSubscriptionRow = $newSchoolSubscription->fetch(PDO::FETCH_ASSOC);
+}
+$trialDays = $newSchool && !empty($newSchool['trial_ends_at'])
+    ? (int)floor((strtotime($newSchool['trial_ends_at']) - time()) / 86400)
+    : 0;
+$schoolCreateOk = $schoolCreateResponse['code'] === 200
+    && $newSchool
+    && $newSchool['status'] === 'trial'
+    && $trialDays >= 29 && $trialDays <= 31
+    && $newSchoolSubscriptionRow
+    && (float)$newSchoolSubscriptionRow['price'] === 0.0
+    && $newSchoolSubscriptionRow['status'] === 'active'
+    && $newSchoolSubscriptionRow['payment_method'] === 'trial';
+if ($schoolCreateOk) $pass++; else $fail++;
+$rows[] = ($schoolCreateOk ? 'PASS ' : 'FAIL ')
+    . str_pad('platform school creation provisions a 30-day trial', 42)
+    . ' TRIAL_DAYS=' . $trialDays;
 foreach ([
     'super dashboard' => '/dashboard.php',
     'super schools' => '/admin/schools.php',
