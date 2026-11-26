@@ -58,19 +58,26 @@ if ($scopeSchoolId) {
  * ---------------------------------------------------------------------- */
 $studentId = 0;
 if ($isStudentUser) {
-    $stmt = $pdo->prepare("SELECT id FROM students WHERE user_id = ? LIMIT 1");
-    $stmt->execute([$user_id]);
+    // Resolve the authenticated student's record inside the active tenant.
+    // A user may have legacy/stale links to another school's student row.
+    if ($scopeSchoolId > 0) {
+        $stmt = $pdo->prepare("SELECT id FROM students WHERE user_id = ? AND school_id = ? LIMIT 1");
+        $stmt->execute([$user_id, $scopeSchoolId]);
+    } else {
+        $stmt = $pdo->prepare("SELECT id FROM students WHERE user_id = ? AND 1 = 0 LIMIT 1");
+        $stmt->execute([$user_id]);
+    }
     $studentId = (int)($stmt->fetchColumn() ?: 0);
 }
 
 $children = [];
 if ($isParentUser && $scopeSchoolId) {
     $stmt = $pdo->prepare("SELECT st.*, ps.relationship,
-            (SELECT COUNT(*) FROM tasks t WHERE t.student_id = st.id) AS task_total,
-            (SELECT COUNT(*) FROM tasks t WHERE t.student_id = st.id AND t.status = 'Completed') AS task_done,
-            (SELECT COUNT(*) FROM tasks t WHERE t.student_id = st.id AND t.status <> 'Completed' AND t.due_date < CURDATE()) AS task_overdue
+            (SELECT COUNT(*) FROM tasks t WHERE t.student_id = st.id AND t.school_id = ps.school_id) AS task_total,
+            (SELECT COUNT(*) FROM tasks t WHERE t.student_id = st.id AND t.school_id = ps.school_id AND t.status = 'Completed') AS task_done,
+            (SELECT COUNT(*) FROM tasks t WHERE t.student_id = st.id AND t.school_id = ps.school_id AND t.status <> 'Completed' AND t.due_date < CURDATE()) AS task_overdue
         FROM parent_student ps
-        JOIN students st ON st.id = ps.student_id
+        JOIN students st ON st.id = ps.student_id AND st.school_id = ps.school_id
         WHERE ps.parent_id = ? AND ps.school_id = ?
         ORDER BY st.full_name");
     $stmt->execute([$user_id, $scopeSchoolId]);
@@ -80,9 +87,9 @@ if ($isParentUser && $scopeSchoolId) {
 $myCourses = [];
 if ($isStudentUser && $studentId) {
     $stmt = $pdo->prepare("SELECT c.course_code, c.course_name, e.status, e.grade
-        FROM enrollments e JOIN courses c ON c.id = e.course_id
-        WHERE e.student_id = ? ORDER BY c.course_name LIMIT 4");
-    $stmt->execute([$studentId]);
+        FROM enrollments e JOIN courses c ON c.id = e.course_id AND c.school_id = e.school_id
+        WHERE e.student_id = ? AND e.school_id = ? AND e.school_id = ? ORDER BY c.course_name LIMIT 4");
+    $stmt->execute([$studentId, $scopeSchoolId, $scopeSchoolId]);
     $myCourses = $stmt->fetchAll();
 }
 
@@ -104,6 +111,8 @@ if ($isSuper) {
     if ($studentId) {
         $taskWhere[] = 't.student_id = ?';
         $taskParams[] = $studentId;
+        $taskWhere[] = 't.school_id = ?';
+        $taskParams[] = $scopeSchoolId;
     } else {
         $taskWhere[] = '1=0';
     }
