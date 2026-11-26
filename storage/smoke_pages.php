@@ -273,6 +273,14 @@ foreach ([
     'parent unlinked student profile guarded' => '/students/show.php?id=' . $otherStudent,
 ] as $label => $path) page($label, $path, $parent);
 
+$parentCrossProfile = http($base . '/students/show.php?id=' . $otherStudent, $parent);
+$parentCrossProfileOk = strpos($parentCrossProfile['url'], '/parent/children.php') !== false
+    && strpos($parentCrossProfile['body'], 'Second School Student') === false;
+if ($parentCrossProfileOk) $pass++; else $fail++;
+$rows[] = ($parentCrossProfileOk ? 'PASS ' : 'FAIL ')
+    . str_pad('parent cannot read an unlinked student profile', 42)
+    . ' URL=' . $parentCrossProfile['url'];
+
 // A school must retain at least one active school administrator.
 $superDashboard = http($base . '/dashboard.php', $super);
 preg_match('/name="csrf_token"\\s+value="([a-f0-9]{64})"/', $superDashboard['body'], $superCsrf);
