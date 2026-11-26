@@ -197,11 +197,19 @@ function getActiveAnnouncements($pdo, $limit = 5) {
     if (!isLoggedIn()) return [];
     try {
         $role = getUserRole();
+        $targetRole = in_array($role, ['school_admin', 'admin', 'teacher'], true) ? 'teacher' : $role;
         $schoolId = getUserSchoolId();
+        if (!$schoolId) return [];
         $stmt = $pdo->prepare(
-            "SELECT a.*, u.full_name as author_name FROM announcements a LEFT JOIN users u ON a.created_by = u.id WHERE a.school_id = ? AND a.is_active = 1 AND a.start_date <= NOW() AND (a.end_date IS NULL OR a.end_date >= NOW()) AND (a.target_roles = 'all' OR a.target_roles = ?) ORDER BY a.priority DESC, a.created_at DESC LIMIT ?"
+            "SELECT a.*, u.full_name as author_name
+             FROM announcements a
+             LEFT JOIN users u ON a.created_by = u.id
+             WHERE a.school_id = ? AND a.is_active = 1
+               AND a.start_date <= NOW() AND (a.end_date IS NULL OR a.end_date >= NOW())
+               AND (a.target_roles = 'all' OR a.target_roles = ?)
+             ORDER BY a.priority DESC, a.created_at DESC LIMIT ?"
         );
-        $stmt->execute([$schoolId, $role, (int)$limit]);
+        $stmt->execute([$schoolId, $targetRole, (int)$limit]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     } catch (PDOException $e) {
         return [];
