@@ -125,7 +125,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 actionsHtml += ` <a href="${linkPrefix}edit.php?id=${t.id}" class="btn btn-sm btn-outline-primary" title="Edit"><i class="fas fa-edit"></i></a>`;
             }
             if (t.can_delete) {
-                actionsHtml += ` <a href="${linkPrefix}delete.php?id=${t.id}&csrf_token=${metaCsrf}" class="btn btn-sm btn-outline-danger" title="Delete" onclick="return confirm('Delete this task?');"><i class="fas fa-trash"></i></a>`;
+                actionsHtml += ` <form method="post" action="${linkPrefix}delete.php" class="d-inline" onsubmit="return confirm('Delete this task?');"><input type="hidden" name="id" value="${Number(t.id)}"><input type="hidden" name="csrf_token" value="${escapeHtml(metaCsrf)}"><button type="submit" class="btn btn-sm btn-outline-danger" title="Delete"><i class="fas fa-trash"></i></button></form>`;
             }
 
             html += `
