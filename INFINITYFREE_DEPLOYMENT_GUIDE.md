@@ -43,7 +43,7 @@ MAIL_FROM_NAME="Academics"
 
 ## 3. Database migrations چلائیں
 
-موجودہ schema version کے لیے migrations `database/migrations/` میں ترتیب وار `0001` سے `0011` تک ہیں۔
+موجودہ schema version کے لیے migrations `database/migrations/` میں ترتیب وار `0001` سے `0012` تک ہیں۔
 
 **اگر hosting پر PHP CLI/Terminal دستیاب ہے:**
 
@@ -67,7 +67,7 @@ php database/create_super_admin.php
 **اگر hosting پر CLI دستیاب نہیں اور صرف phpMyAdmin ہے:**
 
 1. Database select کریں۔
-2. `database/migrations/` کی SQL files کو filename order میں ایک ایک کر کے import کریں: `0001`, `0002` ... `0011`۔
+2. `database/migrations/` کی SQL files کو filename order میں ایک ایک کر کے import کریں: `0001`, `0002` ... `0012`۔
 3. کسی migration میں error آئے تو آگے والی files import نہ کریں؛ پہلے error resolve کریں۔
 4. Manual import کے بعد CLI migration runner خود سے نہ چلائیں جب تک `schema_migrations` میں applied versions/checksums درست طور پر record نہ کر دیے جائیں؛ ورنہ runner پرانی migrations دوبارہ چلانے کی کوشش کر سکتا ہے۔
 
