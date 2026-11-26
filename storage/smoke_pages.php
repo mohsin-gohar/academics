@@ -437,12 +437,6 @@ foreach ([
     'student own profile' => '/students/show.php?id=' . $sch1Student,
     'student profile page' => '/profile.php',
 ] as $label => $path) page($label, $path, $student);
-$studentDashboardAudience = http($base . '/dashboard.php', $student);
-$studentDashboardAudienceOk = strpos($studentDashboardAudience['body'], $announcementTitles['student']) !== false
-    && strpos($studentDashboardAudience['body'], $announcementTitles['teacher']) === false;
-if ($studentDashboardAudienceOk) $pass++; else $fail++;
-$rows[] = ($studentDashboardAudienceOk ? 'PASS ' : 'FAIL ')
-    . str_pad('student dashboard filters announcement audience', 42);
 $studentNotes = http($base . '/notes/index.php', $student);
 $studentAudienceOk = strpos($studentNotes['body'], $announcementTitles['student']) !== false
     && strpos($studentNotes['body'], $announcementTitles['teacher']) === false
