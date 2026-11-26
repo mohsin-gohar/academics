@@ -332,6 +332,13 @@ foreach ([
     'teacher reports' => '/reports/index.php?type=students',
     // Teachers must not access school-administration emergency controls.
 ] as $label => $path) page($label, $path, $teacher);
+$teacherNotes = http($base . '/notes/index.php', $teacher);
+$teacherAudienceOk = strpos($teacherNotes['body'], $announcementTitles['teacher']) !== false
+    && strpos($teacherNotes['body'], $announcementTitles['student']) === false
+    && strpos($teacherNotes['body'], $announcementTitles['parent']) === false;
+if ($teacherAudienceOk) $pass++; else $fail++;
+$rows[] = ($teacherAudienceOk ? 'PASS ' : 'FAIL ')
+    . str_pad('teacher sees only staff-targeted announcements', 42);
 page('teacher expenses create denied', '/expenses/create.php', $teacher, 403);
 page('teacher emergency denied', '/admin/emergency_alert.php', $teacher, 403);
 page('teacher cross-school student denied', '/students/show.php?id=' . $otherStudent, $teacher, 403);
