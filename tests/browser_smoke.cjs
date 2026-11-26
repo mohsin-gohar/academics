@@ -40,7 +40,7 @@ const personas = [
     email: 'student@sch001.com',
     password: 'Student@123',
     routes: [
-      '/dashboard.php', '/students/show.php?id=2', '/tasks/index.php',
+      '/dashboard.php', '/students/show.php?id=2', '/students/photo.php', '/tasks/index.php',
       '/courses/index.php', '/courses/my.php', '/attendance/my.php',
       '/grades/my.php', '/fees/my.php', '/notes/index.php',
       '/student-services/index.php', '/learning/index.php', '/reports/index.php'
