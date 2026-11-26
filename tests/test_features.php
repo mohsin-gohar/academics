@@ -44,6 +44,14 @@ class TestFeaturesSuite {
             'name' => 'Gradebook: Reject assessment creation for another school course',
             'pass' => createAssessment($this->pdo, $schoolId, 2, 'Cross Tenant Assessment', 'exam', 100.0, 1.0, $today, null, 1) === 0
         ];
+        $results[] = [
+            'name' => 'Gradebook: Reject unsupported assessment types',
+            'pass' => createAssessment($this->pdo, $schoolId, 1, 'Invalid Type', 'not-a-type', 100.0, 1.0, $today, null, 1) === 0
+        ];
+        $results[] = [
+            'name' => 'Gradebook: Reject impossible assessment dates',
+            'pass' => createAssessment($this->pdo, $schoolId, 1, 'Invalid Date', 'exam', 100.0, 1.0, '2026-02-31', null, 1) === 0
+        ];
 
         $markRecorded = recordMark($this->pdo, $schoolId, $assessmentId, $studentId, 95.0, 'Excellent performance', 1);
         $results[] = [
@@ -76,6 +84,14 @@ class TestFeaturesSuite {
         $results[] = [
             'name' => 'Fees: Reject invoice creation for another school student',
             'pass' => createInvoice($this->pdo, $schoolId, 3, null, 'Cross Tenant Invoice', 100.0, null, 1) === 0
+        ];
+        $results[] = [
+            'name' => 'Fees: Reject impossible invoice due dates',
+            'pass' => createInvoice($this->pdo, $schoolId, $studentId, null, 'Invalid Invoice Date', 100.0, '2026-02-31', 1) === 0
+        ];
+        $results[] = [
+            'name' => 'Fees: Reject amounts with unsupported fractional precision',
+            'pass' => createInvoice($this->pdo, $schoolId, $studentId, null, 'Invalid Invoice Amount', 100.001, null, 1) === 0
         ];
 
         $payRecorded = recordPayment($this->pdo, $schoolId, $invoiceId, 500.00, $today, 'Bank Transfer', 'TXN-998877', 1, 'Paid in full');
@@ -193,7 +209,7 @@ class TestFeaturesSuite {
         $this->pdo->prepare("DELETE FROM messages WHERE id = ?")->execute([$msgId]);
         $this->pdo->prepare("DELETE FROM timetables WHERE id = ?")->execute([$ttId]);
         $this->pdo->prepare("DELETE FROM payments WHERE invoice_id = ?")->execute([$invoiceId]);
-        $this->pdo->prepare("DELETE FROM invoices WHERE id = ?")->execute([$invoiceId]);
+        $this->pdo->prepare("DELETE FROM invoices WHERE id IN (?, ?)")->execute([$invoiceId, $validationInvoiceId]);
         $this->pdo->prepare("DELETE FROM student_marks WHERE assessment_id = ?")->execute([$assessmentId]);
         $this->pdo->prepare("DELETE FROM assessments WHERE id = ?")->execute([$assessmentId]);
 
