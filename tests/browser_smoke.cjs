@@ -43,7 +43,7 @@ const personas = [
       '/dashboard.php', '/students/show.php?id=2', '/students/photo.php', '/tasks/index.php',
       '/courses/index.php', '/courses/my.php', '/attendance/my.php',
       '/grades/my.php', '/fees/my.php', '/notes/index.php',
-      '/student-services/index.php', '/learning/index.php', '/reports/index.php'
+      '/student-services/index.php', '/learning/index.php', '/student-life/index.php?section=eproject', '/student-life/index.php?section=cv', '/student-life/index.php?section=achievement', '/reports/index.php'
     ]
   },
   {
