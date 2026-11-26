@@ -63,7 +63,7 @@ if ($schoolId !== null) {
         header('Location: login.php?error=' . urlencode('Your school could not be found. Please contact the platform administrator.'));
         exit;
     }
-    $schoolState = saas_school_access_state($schoolRow);
+    $schoolState = saas_school_access_state($schoolRow, $pdo);
     if (!$schoolState['allowed']) {
         header('Location: login.php?error=' . urlencode(saas_access_message($schoolState['reason'])));
         exit;
