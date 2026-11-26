@@ -98,33 +98,12 @@ try {
         }
     }
 
-    // Inspect every live FK that would cascade from this user row. The
-    // explicit checks above provide friendly messages for common records;
-    // this schema-driven guard also protects modules added in later migrations
-    // (for example announcements, parent links, timetable ownership and invites).
-    $cascadeRefs = $pdo->prepare(
-        "SELECT DISTINCT k.TABLE_NAME, k.COLUMN_NAME
-         FROM information_schema.KEY_COLUMN_USAGE k
-         INNER JOIN information_schema.REFERENTIAL_CONSTRAINTS r
-           ON r.CONSTRAINT_SCHEMA = k.CONSTRAINT_SCHEMA
-          AND r.CONSTRAINT_NAME = k.CONSTRAINT_NAME
-          AND r.TABLE_NAME = k.TABLE_NAME
-         WHERE k.REFERENCED_TABLE_SCHEMA = DATABASE()
-           AND k.REFERENCED_TABLE_NAME = 'users'
-           AND k.TABLE_SCHEMA = DATABASE()
-           AND r.DELETE_RULE = 'CASCADE'"
-    );
-    $cascadeRefs->execute();
-    foreach ($cascadeRefs->fetchAll(PDO::FETCH_ASSOC) as $reference) {
-        $table = str_replace('`', '``', (string)$reference['TABLE_NAME']);
-        $column = str_replace('`', '``', (string)$reference['COLUMN_NAME']);
-        $dependency = $pdo->prepare("SELECT COUNT(*) FROM `{$table}` WHERE `{$column}` = ?");
-        $dependency->execute([$id]);
-        if ((int)$dependency->fetchColumn() > 0) {
-            $pdo->rollBack();
-            header('Location: users.php?error=' . urlencode('This account is referenced by other records. Deactivate it instead of permanently deleting its history.'));
-            exit;
-        }
+    // Refuse hard deletion if any current or future module would cascade
+    // dependent records. Deactivation remains available and preserves history.
+    if (cascade_dependent_records($pdo, 'users', $id)) {
+        $pdo->rollBack();
+        header('Location: users.php?error=' . urlencode('This account is referenced by other records. Deactivate it instead of permanently deleting its history.'));
+        exit;
     }
 
     $pdo->prepare("DELETE FROM users WHERE id = ?")->execute([$id]);
