@@ -171,12 +171,14 @@
         </div>
         <?php endif; ?>
 
+        <?php if (!isStudent()): ?>
         <div class="nav-item">
             <a href="<?php echo $base; ?>events/index.php" class="nav-link <?php echo strpos($_SERVER['PHP_SELF'], 'events/') !== false ? 'active' : ''; ?>">
                 <i class="fas fa-calendar-alt"></i>
                 <span>Events Calendar</span>
             </a>
         </div>
+        <?php endif; ?>
         <?php endif; ?>
 
         <?php if (isSuperAdmin() || (isSchoolManagement() && currentSchoolId() !== null)): ?>
