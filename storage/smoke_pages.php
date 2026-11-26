@@ -155,6 +155,55 @@ if ($schoolCreateOk) $pass++; else $fail++;
 $rows[] = ($schoolCreateOk ? 'PASS ' : 'FAIL ')
     . str_pad('platform school creation provisions a 30-day trial', 42)
     . ' TRIAL_DAYS=' . $trialDays;
+
+$suspendedSchoolCode = 'QS' . strtoupper(bin2hex(random_bytes(3)));
+$suspendedSchoolSubdomain = 'suspended-' . strtolower(bin2hex(random_bytes(3)));
+$suspendedCreateForm = http($base . '/admin/schools.php', $super);
+preg_match('/name="csrf_token"\\s+value="([a-f0-9]{64})"/', $suspendedCreateForm['body'], $suspendedCreateCsrf);
+$suspendedCreateResponse = http($base . '/admin/schools.php', $super, [
+    'csrf_token' => $suspendedCreateCsrf[1] ?? '',
+    'action' => 'save',
+    'id' => '0',
+    'school_name' => 'Suspended QA ' . $suspendedSchoolCode,
+    'school_code' => $suspendedSchoolCode,
+    'subdomain' => $suspendedSchoolSubdomain,
+    'owner_name' => 'QA Owner',
+    'school_email' => '',
+    'school_phone' => '',
+    'school_address' => '',
+    'motto' => '',
+    'website' => '',
+    'primary_color' => '#4f46e5',
+    'secondary_color' => '#06b6d4',
+    'plan' => 'basic',
+    'status' => 'suspended',
+    'trial_ends_at' => '',
+]);
+$suspendedSchoolStmt = $pdo->prepare("SELECT id, status, is_active FROM schools WHERE school_code = ? LIMIT 1");
+$suspendedSchoolStmt->execute([$suspendedSchoolCode]);
+$suspendedSchool = $suspendedSchoolStmt->fetch(PDO::FETCH_ASSOC);
+$suspendedSubscriptionStatus = $suspendedSchool
+    ? $pdo->query("SELECT status FROM school_subscriptions WHERE school_id = " . (int)$suspendedSchool['id'] . " ORDER BY id DESC LIMIT 1")->fetchColumn()
+    : null;
+$suspendedToggleResponse = $suspendedSchool ? http($base . '/admin/schools.php', $super, [
+    'csrf_token' => $suspendedCreateCsrf[1] ?? '',
+    'action' => 'toggle',
+    'id' => (int)$suspendedSchool['id'],
+]) : ['code' => 0, 'url' => ''];
+$suspendedSchoolAfterToggle = $suspendedSchool ? school_by_id($pdo, (int)$suspendedSchool['id']) : null;
+$suspendedAccessAfterToggle = $suspendedSchoolAfterToggle
+    ? school_session_access_state($suspendedSchoolAfterToggle, time(), $pdo)
+    : ['allowed' => true, 'reason' => 'missing'];
+$suspendedActivationOk = $suspendedCreateResponse['code'] === 200
+    && $suspendedSubscriptionStatus === 'cancelled'
+    && $suspendedToggleResponse['code'] === 200
+    && $suspendedSchoolAfterToggle
+    && $suspendedSchoolAfterToggle['status'] === 'active'
+    && ($suspendedAccessAfterToggle['allowed'] ?? true) === false
+    && ($suspendedAccessAfterToggle['reason'] ?? '') === 'subscription_inactive';
+if ($suspendedActivationOk) $pass++; else $fail++;
+$rows[] = ($suspendedActivationOk ? 'PASS ' : 'FAIL ')
+    . str_pad('suspended school requires subscription before access', 42);
 foreach ([
     'super dashboard' => '/dashboard.php',
     'super schools' => '/admin/schools.php',
