@@ -249,6 +249,14 @@ $totalAmount = (float)$expenseSummary['total_amount'];
                                 </form>
                             </div>
                             <?php endif; ?>
+                            <?php if ($e['status'] === 'approved' && isAdmin()): ?>
+                            <form method="post" action="approve.php" class="d-inline" onsubmit="return confirm('Mark this approved expense as paid?');">
+                                <?php echo csrfField(); ?>
+                                <input type="hidden" name="id" value="<?php echo (int)$e['id']; ?>">
+                                <input type="hidden" name="action" value="pay">
+                                <button type="submit" class="btn btn-sm btn-outline-primary" title="Mark as paid"><i class="fas fa-money-check-dollar"></i></button>
+                            </form>
+                            <?php endif; ?>
                         </td>
                     </tr>
                     <?php endforeach; ?>
