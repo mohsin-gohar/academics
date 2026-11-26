@@ -166,7 +166,9 @@ foreach ($schools as $school) {
     $plan = strtolower((string)($school['subscription_plan'] ?? 'basic'));
     $plan = $plan === 'premium' ? 'enterprise' : ($plan === 'pro' ? 'pro' : 'basic');
     $price = $planPrices[$plan] ?? 50.00;
-    $createdAt = saas_q($pdo, "SELECT DATE(created_at) FROM schools WHERE id = ?", [$schoolId])->fetchColumn() ?: date('Y-m-d');
+    // Give existing tenants a full migration grace year from deployment,
+    // rather than backdating a subscription to an old school.created_at date.
+    $migrationStartDate = date('Y-m-d');
 
     saas_q($pdo, "
         INSERT INTO school_subscriptions
@@ -176,8 +178,8 @@ foreach ($schools as $school) {
         $schoolId,
         $plan,
         $price,
-        $createdAt,
-        $createdAt,
+        $migrationStartDate,
+        $migrationStartDate,
         'MIGRATED-' . $school['school_code'],
     ]);
     echo "[ok] subscription seeded for school #{$schoolId}\n";
