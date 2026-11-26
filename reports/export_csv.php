@@ -14,7 +14,13 @@ startSecureSession();
 require_once __DIR__ . '/../config/db.php';
 requireAuth();
 
-$type = $_GET['type'] ?? 'students';
+$type = (string)($_GET['type'] ?? 'students');
+$allowedTypes = ['students', 'courses', 'tasks', 'attendance', 'fees'];
+if (!in_array($type, $allowedTypes, true)) {
+    http_response_code(400);
+    header('Content-Type: text/plain; charset=utf-8');
+    exit('Unsupported export type.');
+}
 
 // Resolve a strict school scope. Never allow a null/zero scope to fall through
 // into an unscoped query: that is exactly the leak this endpoint had.
