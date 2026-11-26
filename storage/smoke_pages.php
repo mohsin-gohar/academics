@@ -191,6 +191,9 @@ $suspendedToggleResponse = $suspendedSchool ? http($base . '/admin/schools.php',
     'id' => (int)$suspendedSchool['id'],
 ]) : ['code' => 0, 'url' => ''];
 $suspendedSchoolAfterToggle = $suspendedSchool ? school_by_id($pdo, (int)$suspendedSchool['id']) : null;
+// A suspended school must remain inaccessible even if the platform
+// reactivates its account flag; this check intentionally keeps status suspended
+// so it verifies the subscription gate independently of the toggle operation.
 $suspendedAccessAfterToggle = $suspendedSchoolAfterToggle
     ? school_session_access_state($suspendedSchoolAfterToggle, time(), $pdo)
     : ['allowed' => true, 'reason' => 'missing'];
