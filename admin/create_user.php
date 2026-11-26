@@ -193,9 +193,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <select name="child_student_id" class="form-select" id="childStudentSelect">
                             <option value="">Select a student</option>
                             <?php foreach ($studentsForParentLink as $child): ?>
-                                <?php if (!empty($form_data['school_id']) && (int)$child['school_id'] === (int)$form_data['school_id']): ?>
-                                <option value="<?php echo (int)$child['id']; ?>" <?php echo (int)($form_data['child_student_id'] ?? 0) === (int)$child['id'] ? 'selected' : ''; ?>><?php echo e($child['full_name'] . ' (' . $child['student_number'] . ')'); ?></option>
-                                <?php endif; ?>
+                                <option value="<?php echo (int)$child['id']; ?>" data-school-id="<?php echo (int)$child['school_id']; ?>" <?php echo (int)($form_data['child_student_id'] ?? 0) === (int)$child['id'] ? 'selected' : ''; ?>><?php echo e($child['full_name'] . ' (' . $child['student_number'] . ')'); ?></option>
                             <?php endforeach; ?>
                         </select>
                         <small class="text-muted">A parent account is linked to one child here. Additional children can be linked from the parent management workflow.</small>
@@ -222,6 +220,16 @@ document.getElementById('roleSelect').addEventListener('change', function () {
     schoolField.style.display = showSchool ? '' : 'none';
     const parentField = document.getElementById('parentChildField');
     const childSelect = document.getElementById('childStudentSelect');
+    const schoolSelect = schoolField.querySelector('select');
+    const filterChildren = () => {
+        Array.from(childSelect.options).forEach((option) => {
+            if (!option.value) return;
+            option.hidden = !!schoolSelect.value && option.dataset.schoolId !== schoolSelect.value;
+            if (option.hidden && option.selected) childSelect.value = '';
+        });
+    };
+    schoolSelect.addEventListener('change', filterChildren);
+    filterChildren();
     const isParent = this.value === 'parent';
     parentField.style.display = isParent ? '' : 'none';
     childSelect.required = isParent;
