@@ -126,6 +126,12 @@
             </a>
         </div>
         <div class="nav-item">
+            <a href="<?php echo $base; ?>courses/my.php" class="nav-link <?php echo strpos($_SERVER['PHP_SELF'], 'courses/my.php') !== false ? 'active' : ''; ?>">
+                <i class="fas fa-book-open"></i>
+                <span>My Courses</span>
+            </a>
+        </div>
+        <div class="nav-item">
             <a href="<?php echo $base; ?>attendance/my.php" class="nav-link <?php echo strpos($_SERVER['PHP_SELF'], 'attendance/my.php') !== false ? 'active' : ''; ?>">
                 <i class="fas fa-calendar-check"></i>
                 <span>My Attendance</span>
@@ -134,7 +140,7 @@
         <div class="nav-item">
             <a href="<?php echo $base; ?>grades/my.php" class="nav-link <?php echo strpos($_SERVER['PHP_SELF'], 'grades/my.php') !== false ? 'active' : ''; ?>">
                 <i class="fas fa-clipboard-list"></i>
-                <span>My Grades</span>
+                <span>My Exams &amp; Results</span>
             </a>
         </div>
         <div class="nav-item">
