@@ -634,9 +634,16 @@ function getAssessmentTypes(): array
 
 function createAssessment(PDO $pdo, int $schoolId, int $courseId, string $title, string $type, float $maxMarks, float $weight, ?string $dueDate, ?string $description, ?int $createdBy): int
 {
+    if ($schoolId <= 0 || $courseId <= 0 || trim($title) === '' || mb_strlen(trim($title)) > 255
+        || !array_key_exists($type, getAssessmentTypes())
+        || $maxMarks <= 0 || $maxMarks > 999999.99 || abs($maxMarks - round($maxMarks, 2)) > 0.00001
+        || $weight <= 0 || $weight > 999.99 || abs($weight - round($weight, 2)) > 0.00001
+        || !isValidIsoDate($dueDate, true)) {
+        return 0;
+    }
     $courseCheck = $pdo->prepare("SELECT id FROM courses WHERE id = ? AND school_id = ? LIMIT 1");
     $courseCheck->execute([$courseId, $schoolId]);
-    if (!$courseCheck->fetchColumn() || $maxMarks <= 0 || $weight <= 0 || trim($title) === '') {
+    if (!$courseCheck->fetchColumn()) {
         return 0;
     }
 
@@ -675,7 +682,11 @@ function recordMark(PDO $pdo, int $schoolId, int $assessmentId, int $studentId, 
     }
 
     $max = (float)$assessment['max_marks'];
-    if ($marks !== null && ($marks < 0 || $marks > $max)) {
+    if ($marks !== null && ($marks < 0 || $marks > $max
+        || $marks > 999999.99 || abs($marks - round($marks, 2)) > 0.00001)) {
+        return false;
+    }
+    if ($remarks !== null && mb_strlen($remarks) > 255) {
         return false;
     }
 
@@ -763,9 +774,19 @@ function generateInvoiceNumber(PDO $pdo, int $schoolId): string
     return $prefix . str_pad((string)($next + random_int(1, 999)), 5, '0', STR_PAD_LEFT);
 }
 
+function isValidIsoDate(?string $date, bool $nullable = false): bool
+{
+    if ($date === null || $date === '') return $nullable;
+    if (!preg_match('/^\\d{4}-\\d{2}-\\d{2}$/', $date)) return false;
+    return checkdate((int)substr($date, 5, 2), (int)substr($date, 8, 2), (int)substr($date, 0, 4));
+}
+
 function createInvoice(PDO $pdo, int $schoolId, int $studentId, ?int $feeStructureId, string $title, float $amount, ?string $dueDate, ?int $createdBy): int
 {
-    if ($amount <= 0 || trim($title) === '') {
+    if ($schoolId <= 0 || $studentId <= 0 || $amount <= 0
+        || abs($amount - round($amount, 2)) > 0.00001 || $amount > 99999999.99
+        || trim($title) === '' || mb_strlen(trim($title)) > 255
+        || !isValidIsoDate($dueDate, true)) {
         return 0;
     }
     $studentCheck = $pdo->prepare("SELECT id FROM students WHERE id = ? AND school_id = ? LIMIT 1");
@@ -774,7 +795,7 @@ function createInvoice(PDO $pdo, int $schoolId, int $studentId, ?int $feeStructu
         return 0;
     }
     if ($feeStructureId !== null) {
-        $feeCheck = $pdo->prepare("SELECT id FROM fee_structures WHERE id = ? AND school_id = ? LIMIT 1");
+        $feeCheck = $pdo->prepare("SELECT id FROM fee_structures WHERE id = ? AND school_id = ? AND is_active = 1 LIMIT 1");
         $feeCheck->execute([$feeStructureId, $schoolId]);
         if (!$feeCheck->fetchColumn()) {
             return 0;
