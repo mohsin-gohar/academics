@@ -108,7 +108,7 @@ $newSchoolTag = strtoupper(bin2hex(random_bytes(3)));
 $newSchoolCode = 'QA' . $newSchoolTag;
 $newSchoolSubdomain = 'qa-school-' . strtolower($newSchoolTag);
 $schoolCreateForm = http($base . '/admin/schools.php', $super);
-preg_match('/name="csrf_token"\\s+value="([a-f0-9]{64})"/', $schoolCreateForm['body'], $schoolCreateCsrf);
+preg_match('/name="csrf_token"\s+value="([a-f0-9]{64})"/', $schoolCreateForm['body'], $schoolCreateCsrf);
 $schoolCreateResponse = http($base . '/admin/schools.php', $super, [
     'csrf_token' => $schoolCreateCsrf[1] ?? '',
     'action' => 'save',
@@ -159,7 +159,7 @@ $rows[] = ($schoolCreateOk ? 'PASS ' : 'FAIL ')
 $suspendedSchoolCode = 'QS' . strtoupper(bin2hex(random_bytes(3)));
 $suspendedSchoolSubdomain = 'suspended-' . strtolower(bin2hex(random_bytes(3)));
 $suspendedCreateForm = http($base . '/admin/schools.php', $super);
-preg_match('/name="csrf_token"\\s+value="([a-f0-9]{64})"/', $suspendedCreateForm['body'], $suspendedCreateCsrf);
+preg_match('/name="csrf_token"\s+value="([a-f0-9]{64})"/', $suspendedCreateForm['body'], $suspendedCreateCsrf);
 $suspendedCreateResponse = http($base . '/admin/schools.php', $super, [
     'csrf_token' => $suspendedCreateCsrf[1] ?? '',
     'action' => 'save',
@@ -230,7 +230,7 @@ $schoolAdmin = login('schooladmin@sch001.com', 'School@123');
 // School management can link, unlink and re-link guardians, but cannot cross tenants.
 $parentUserIdForLink = (int)$pdo->query("SELECT id FROM users WHERE email='parent@sch001.com'")->fetchColumn();
 $parentLinkForm = http($base . '/students/show.php?id=' . $sch1Student, $schoolAdmin);
-preg_match('/name="csrf_token"\\s+value="([a-f0-9]{64})"/', $parentLinkForm['body'], $parentLinkCsrf);
+preg_match('/name="csrf_token"\s+value="([a-f0-9]{64})"/', $parentLinkForm['body'], $parentLinkCsrf);
 $unlinkParentResponse = http($base . '/students/show.php?id=' . $sch1Student, $schoolAdmin, [
     'csrf_token' => $parentLinkCsrf[1] ?? '',
     'action' => 'unlink_parent',
@@ -302,7 +302,7 @@ page('school admin cross-school event denied', '/events/edit.php?id=' . $otherEv
 
 // Exercise a real cross-tenant write attempt, not only page visibility.
 $schoolAdminHome = http($base . '/dashboard.php', $schoolAdmin);
-preg_match('/name="csrf_token"\\s+value="([a-f0-9]{64})"/', $schoolAdminHome['body'], $writeCsrf);
+preg_match('/name="csrf_token"\s+value="([a-f0-9]{64})"/', $schoolAdminHome['body'], $writeCsrf);
 $otherTaskStatusBefore = (string)$pdo->query("SELECT status FROM tasks WHERE id = " . $otherTask)->fetchColumn();
 $crossTenantTaskWrite = http($base . '/tasks/update_status.php', $schoolAdmin, [
     'id' => $otherTask,
@@ -334,7 +334,7 @@ $rows[] = ($invalidStatusOk ? 'PASS ' : 'FAIL ')
 
 // Expense creation and approval are a complete, tenant-scoped workflow.
 $expenseForm = http($base . '/expenses/create.php', $schoolAdmin);
-preg_match('/name="csrf_token"\\s+value="([a-f0-9]{64})"/', $expenseForm['body'], $expenseCsrf);
+preg_match('/name="csrf_token"\s+value="([a-f0-9]{64})"/', $expenseForm['body'], $expenseCsrf);
 $expenseTitle = 'CI Smoke Expense ' . bin2hex(random_bytes(3));
 $expenseSubmit = http($base . '/expenses/create.php', $schoolAdmin, [
     'csrf_token' => $expenseCsrf[1] ?? '',
@@ -448,7 +448,7 @@ $rows[] = ($crossExpenseOk ? 'PASS ' : 'FAIL ')
 
 // Create audience-targeted announcements to verify role-based visibility.
 $announcementForm = http($base . '/notes/create.php', $schoolAdmin);
-preg_match('/name="csrf_token"\\s+value="([a-f0-9]{64})"/', $announcementForm['body'], $announcementCsrf);
+preg_match('/name="csrf_token"\s+value="([a-f0-9]{64})"/', $announcementForm['body'], $announcementCsrf);
 $announcementTag = bin2hex(random_bytes(3));
 $announcementTitles = [
     'student' => 'CI Student Audience ' . $announcementTag,
@@ -552,7 +552,7 @@ page('teacher cross-school task denied', '/tasks/show.php?id=' . $otherTask, $te
 
 // Exercise leave creation against the reconciled legacy-compatible enum.
 $leaveForm = http($base . '/leave/create.php', $teacher);
-preg_match('/name="csrf_token"\\s+value="([a-f0-9]{64})"/', $leaveForm['body'], $leaveCsrf);
+preg_match('/name="csrf_token"\s+value="([a-f0-9]{64})"/', $leaveForm['body'], $leaveCsrf);
 $leaveDate = date('Y-m-d', strtotime('+1 day'));
 $leaveSubmit = http($base . '/leave/create.php', $teacher, [
     'csrf_token' => $leaveCsrf[1] ?? '',
@@ -588,7 +588,7 @@ $rows[] = ($invalidLeaveOk ? 'PASS ' : 'FAIL ')
 
 // Teacher password changes must use the global strength policy and force a change on next request.
 $teacherEditForm = http($base . '/teachers/edit.php?id=' . $sch1User, $schoolAdmin);
-preg_match('/name="csrf_token"\\s+value="([a-f0-9]{64})"/', $teacherEditForm['body'], $teacherEditCsrf);
+preg_match('/name="csrf_token"\s+value="([a-f0-9]{64})"/', $teacherEditForm['body'], $teacherEditCsrf);
 $teacherPasswordBefore = (string)$pdo->query("SELECT password FROM users WHERE id = " . $sch1User)->fetchColumn();
 $teacherMustChangeBefore = (int)$pdo->query("SELECT must_change_password FROM users WHERE id = " . $sch1User)->fetchColumn();
 $weakTeacherPassword = http($base . '/teachers/edit.php?id=' . $sch1User, $schoolAdmin, [
@@ -649,7 +649,7 @@ studentCannotOpenOtherProfile('student cross-school profile redirects to own', $
 // Logout is state-changing: GET must be rejected and a valid CSRF POST must end the session.
 $logoutJar = login('admin@edusphere.com', 'Admin@123');
 $logoutDashboard = http($base . '/dashboard.php', $logoutJar);
-preg_match('/name="csrf_token"\\s+value="([a-f0-9]{64})"/', $logoutDashboard['body'], $logoutToken);
+preg_match('/name="csrf_token"\s+value="([a-f0-9]{64})"/', $logoutDashboard['body'], $logoutToken);
 $logoutGet = http($base . '/auth/logout.php', $logoutJar);
 $logoutPost = http($base . '/auth/logout.php', $logoutJar, ['csrf_token' => $logoutToken[1] ?? '']);
 $afterLogout = http($base . '/dashboard.php', $logoutJar);
@@ -699,7 +699,7 @@ $rows[] = ($parentCrossProfileOk ? 'PASS ' : 'FAIL ')
 
 // A school must retain at least one active school administrator.
 $superDashboard = http($base . '/dashboard.php', $super);
-preg_match('/name="csrf_token"\\s+value="([a-f0-9]{64})"/', $superDashboard['body'], $superCsrf);
+preg_match('/name="csrf_token"\s+value="([a-f0-9]{64})"/', $superDashboard['body'], $superCsrf);
 $lastSchoolAdminId = (int)$pdo->query("SELECT id FROM users WHERE email='schooladmin@sch001.com'")->fetchColumn();
 $lastAdminToggle = http($base . '/admin/toggle_user.php', $super, [
     'id' => $lastSchoolAdminId,
@@ -713,10 +713,10 @@ $rows[] = ($lastAdminGuardOk ? 'PASS ' : 'FAIL ') . str_pad('last school admin c
 
 // Verify student account activation and student profile status stay in sync.
 $schoolAdminDashboard = http($base . '/dashboard.php', $schoolAdmin);
-preg_match('/name="csrf_token"\\s+value="([a-f0-9]{64})"/', $schoolAdminDashboard['body'], $schoolAdminCsrf);
+preg_match('/name="csrf_token"\s+value="([a-f0-9]{64})"/', $schoolAdminDashboard['body'], $schoolAdminCsrf);
 $studentUserId = (int)$pdo->query("SELECT id FROM users WHERE email='student@sch001.com'")->fetchColumn();
 $studentDashboardBeforeDisable = http($base . '/dashboard.php', $student);
-preg_match('/name="csrf_token"\\s+value="([a-f0-9]{64})"/', $studentDashboardBeforeDisable['body'], $studentCsrf);
+preg_match('/name="csrf_token"\s+value="([a-f0-9]{64})"/', $studentDashboardBeforeDisable['body'], $studentCsrf);
 $sch1TaskStatusBeforeDisable = (string)$pdo->query("SELECT status FROM tasks WHERE id = " . $sch1Task)->fetchColumn();
 $toggleStudentOnce = http($base . '/admin/toggle_user.php', $schoolAdmin, [
     'id' => $studentUserId,
