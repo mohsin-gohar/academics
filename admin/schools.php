@@ -139,19 +139,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                              VALUES (?,?,?) ON DUPLICATE KEY UPDATE school_id = school_id"
                         )->execute([$newId, $name . ' — Official Portal', 'Welcome to ' . $name . '.']);
 
-                        if ($status !== 'suspended') {
-                            $start = date('Y-m-d');
-                            $end = $status === 'trial' && $trialEnds !== ''
-                                ? $trialEnds
-                                : date('Y-m-d', strtotime('+1 year'));
-                            $price = $status === 'trial' ? 0 : saas_plan_price($plan);
-                            $payment = $status === 'trial' ? 'trial' : 'manual';
-                            $pdo->prepare(
-                                "INSERT INTO school_subscriptions
-                                    (school_id, plan, price, billing_cycle, start_date, end_date, status, payment_method, transaction_id)
-                                 VALUES (?,?,?, 'yearly', ?, ?, 'active', ?, ?)"
-                            )->execute([$newId, $plan, $price, $start, $end, $payment, 'MANUAL-' . $code]);
-                        }
+                        $start = date('Y-m-d');
+                        $end = $status === 'trial' && $trialEnds !== ''
+                            ? $trialEnds
+                            : date('Y-m-d', strtotime('+1 year'));
+                        $price = $status === 'trial' ? 0 : saas_plan_price($plan);
+                        $payment = $status === 'trial' ? 'trial' : 'manual';
+                        $subscriptionStatus = $status === 'suspended' ? 'cancelled' : 'active';
+                        $pdo->prepare(
+                            "INSERT INTO school_subscriptions
+                                (school_id, plan, price, billing_cycle, start_date, end_date, status, payment_method, transaction_id)
+                             VALUES (?,?,?, 'yearly', ?, ?, ?, ?, ?)"
+                        )->execute([
+                            $newId, $plan, $price, $start, $end, $subscriptionStatus, $payment, 'MANUAL-' . $code
+                        ]);
 
                         tenant_log($pdo, 'school_create', 'school', $newId, "Created school $code");
                         $pdo->commit();
