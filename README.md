@@ -114,7 +114,7 @@ student-task-manager/
 ├── .htaccess                 # Apache security headers & sensitive file protection
 ├── database/                 # Versioned SQL migrations and migration runner
 │   ├── migrate.php            # CLI migration runner with checksum drift detection
-│   ├── migrations/            # Ordered 0001–0012 schema migrations
+│   ├── migrations/            # Ordered 0001–0013 schema migrations
 │   └── seed.sql               # Local/demo data only — never seed production
 ├── database.sql              # Legacy full dump; not the canonical current schema
 ├── index.php                 # Public entry point / redirector
