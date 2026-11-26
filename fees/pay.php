@@ -20,7 +20,7 @@ if (!$invoice) { header('Location: invoices.php'); exit; }
 $errors = [];
 $old = ['amount' => $invoice['amount'], 'payment_date' => date('Y-m-d'), 'method' => 'cash', 'reference' => '', 'notes' => ''];
 
-// already paid sum
+// Compute current balance from the database (always fresh on page load).
 $stmt = $pdo->prepare("SELECT COALESCE(SUM(amount),0) FROM payments WHERE invoice_id = ? AND school_id = ?");
 $stmt->execute([$invoiceId, $schoolId]);
 $paidSoFar = (float)$stmt->fetchColumn();
@@ -37,11 +37,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // H4: block payments against cancelled invoices or invoices already settled.
         if ($invoice['status'] === 'cancelled') {
             $errors[] = 'This invoice is cancelled and cannot accept payments.';
-        } elseif ($invoice['status'] === 'paid' || $balance <= 0) {
+        } elseif ($invoice['status'] === 'paid') {
             $errors[] = 'This invoice is already paid in full.';
         }
 
         if (empty($errors)) {
+            // Note: the actual atomic balance check is performed inside recordPayment()
+            // via SELECT ... FOR UPDATE and transaction guards. The pre-check below
+            // provides immediate UI feedback but the definitive validation occurs
+            // inside recordPayment() which uses FOR UPDATE and transaction boundaries.
             if ((float)$old['amount'] > $balance + 0.005) {
                 $errors[] = 'Amount exceeds the outstanding balance of ' . number_format($balance, 2) . '.';
             }

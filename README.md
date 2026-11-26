@@ -244,8 +244,21 @@ Ensure the project folder `student-task-manager` is located inside your XAMPP we
 ### Step 3: Database Import
 You can set up the database in **two easy ways**:
 
-#### Option A: Automatic Self-Healing Bootstrap (Zero Configuration)
-The application includes a self-healing database bootstrap in `config/db.php`. When you first visit `http://localhost/student-task-manager/`, if the `edusphere` database does not exist, the system automatically creates the database, imports `database.sql`, and provisions the demo accounts!
+#### Option A: Automatic Database Bootstrap (Zero Configuration)
+The application includes a self-healing database bootstrap in `config/db.php`. When you first visit `http://localhost/student-task-manager/`, if the `edusphere` database does not exist, the system automatically creates the database and provisions the demo accounts (local development only). The canonical schema must be applied by running:
+
+```bash
+php database/migrate.php up
+```
+
+To import the legacy full dump, use `database.sql` manually via phpMyAdmin.
+
+#### Option B: Manual Import via phpMyAdmin
+1. Open your browser and navigate to `http://localhost/phpmyadmin/`.
+2. Click the **Import** tab on the top menu bar.
+3. Click **Choose File** and select `database.sql` from the project root.
+4. Click **Import** at the bottom of the page.
+MariaDB / MySQL will create the `edusphere` database with all 18 tables (tenants, subscriptions, contact messages, and the original academic modules) and sample seed records.
 
 #### Option B: Manual Import via phpMyAdmin
 1. Open your browser and navigate to `http://localhost/phpmyadmin/`.

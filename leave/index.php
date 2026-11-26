@@ -18,6 +18,13 @@ if (!isSuperAdmin()) {
     $where[] = 'lr.school_id = ?';
     $params[] = $schoolId;
 }
+// Parent: only see leave requests for linked children via parent_student table
+if ($role === 'parent') {
+    $where[] = ' EXISTS (SELECT 1 FROM parent_student ps WHERE ps.student_id = lr.user_id AND ps.parent_id = ? AND ps.school_id = ?)';
+    $params[] = $userId;
+    $where[] = 'lr.school_id = ?';
+    $params[] = $schoolId;
+}
 if ($role === 'student') {
     $where[] = 'lr.user_id = ?';
     $params[] = $userId;

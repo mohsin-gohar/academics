@@ -1,4 +1,12 @@
--- Academics Demo Seed Data
+-- ============================================================================
+-- ACCEPTABLE USE:
+-- This file is intended for LOCAL DEVELOPMENT and test environment reset only.
+-- DO NOT execute this script against a production database — it will overwrite
+-- real accounts, erase real data, and reset must_change_password flags.
+-- Production setups must use php database/migrate.php and manual account creation.
+-- ============================================================================
+-- Silence strict-mode warnings and proceed at your own risk.
+-- ============================================================================
 USE edusphere;
 
 -- ---------------------------------------------------------------------------
