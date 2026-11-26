@@ -231,6 +231,45 @@ $rows[] = ($invalidLeaveOk ? 'PASS ' : 'FAIL ')
     . str_pad('impossible leave dates are rejected', 42)
     . ' ROWS=' . $leaveCountBeforeInvalid . '->' . $leaveCountAfterInvalid;
 
+// Teacher password changes must use the global strength policy and force a change on next request.
+$teacherEditForm = http($base . '/teachers/edit.php?id=' . $sch1User, $schoolAdmin);
+preg_match('/name="csrf_token"\\s+value="([a-f0-9]{64})"/', $teacherEditForm['body'], $teacherEditCsrf);
+$teacherPasswordBefore = (string)$pdo->query("SELECT password FROM users WHERE id = " . $sch1User)->fetchColumn();
+$teacherMustChangeBefore = (int)$pdo->query("SELECT must_change_password FROM users WHERE id = " . $sch1User)->fetchColumn();
+$weakTeacherPassword = http($base . '/teachers/edit.php?id=' . $sch1User, $schoolAdmin, [
+    'csrf_token' => $teacherEditCsrf[1] ?? '',
+    'full_name' => 'Test Teacher',
+    'email' => 'teacher@sch001.com',
+    'is_active' => '1',
+    'password' => 'WeakPass123',
+]);
+$teacherPasswordAfterWeak = (string)$pdo->query("SELECT password FROM users WHERE id = " . $sch1User)->fetchColumn();
+$weakTeacherPasswordOk = $teacherPasswordAfterWeak === $teacherPasswordBefore
+    && $teacherMustChangeBefore === (int)$pdo->query("SELECT must_change_password FROM users WHERE id = " . $sch1User)->fetchColumn()
+    && strpos($weakTeacherPassword['body'], 'special character') !== false;
+if ($weakTeacherPasswordOk) $pass++; else $fail++;
+$rows[] = ($weakTeacherPasswordOk ? 'PASS ' : 'FAIL ')
+    . str_pad('teacher edit rejects weak passwords', 42);
+
+$strongTeacherPassword = 'StrongTeacherPass123!';
+$strongTeacherEdit = http($base . '/teachers/edit.php?id=' . $sch1User, $schoolAdmin, [
+    'csrf_token' => $teacherEditCsrf[1] ?? '',
+    'full_name' => 'Test Teacher',
+    'email' => 'teacher@sch001.com',
+    'is_active' => '1',
+    'password' => $strongTeacherPassword,
+]);
+$teacherPasswordAfterStrong = (string)$pdo->query("SELECT password FROM users WHERE id = " . $sch1User)->fetchColumn();
+$teacherMustChangeAfterStrong = (int)$pdo->query("SELECT must_change_password FROM users WHERE id = " . $sch1User)->fetchColumn();
+$forcedTeacherChange = http($base . '/dashboard.php', $teacher);
+$teacherPasswordPolicyOk = password_verify($strongTeacherPassword, $teacherPasswordAfterStrong)
+    && $teacherMustChangeAfterStrong === 1
+    && strpos($forcedTeacherChange['url'], '/profile.php') !== false;
+if ($teacherPasswordPolicyOk) $pass++; else $fail++;
+$rows[] = ($teacherPasswordPolicyOk ? 'PASS ' : 'FAIL ')
+    . str_pad('teacher password reset forces next-login change', 42)
+    . ' MUST_CHANGE=' . $teacherMustChangeAfterStrong;
+
 $student = login('student@sch001.com', 'Student@123');
 foreach ([
     'student dashboard' => '/dashboard.php',
