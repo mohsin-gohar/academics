@@ -35,11 +35,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $is_active = isset($_POST['is_active']) ? 1 : 0;
         $password = $_POST['password'] ?? '';
 
-        if (empty($full_name) || empty($email)) {
-            $errors[] = 'Name and email are required.';
-        } elseif (!isValidEmail($email)) {
-            $errors[] = 'Invalid email address.';
-        } else {
+        if (mb_strlen($full_name) < 2 || mb_strlen($full_name) > 100) {
+            $errors[] = 'Name must be between 2 and 100 characters.';
+        }
+        if (!isValidEmail($email) || mb_strlen($email) > 150) {
+            $errors[] = 'Enter a valid email address (maximum 150 characters).';
+        }
+        if (empty($errors)) {
             // Check email uniqueness excluding self
             $chk = $pdo->prepare("SELECT id FROM users WHERE email = ? AND id != ?");
             $chk->execute([$email, $teacherId]);
@@ -47,15 +49,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $errors[] = 'Another user with this email address already exists.';
             } else {
                 if (!empty($password)) {
-                    if (strlen($password) < 8) {
-                        $errors[] = 'Password must be at least 8 characters.';
+                    $passwordErrors = validatePasswordStrength($password);
+                    if ($passwordErrors) {
+                        $errors = array_merge($errors, $passwordErrors);
                     } else {
-                        $upd = $pdo->prepare("UPDATE users SET full_name = ?, email = ?, password = ?, is_active = ? WHERE id = ?");
-                        $upd->execute([$full_name, $email, hashPassword($password), $is_active, $teacherId]);
+                        $upd = $pdo->prepare(
+                            "UPDATE users
+                             SET full_name = ?, email = ?, password = ?, is_active = ?,
+                                 must_change_password = 1, updated_at = NOW()
+                             WHERE id = ? AND role = 'teacher' AND school_id = ?"
+                        );
+                        $upd->execute([$full_name, $email, hashPassword($password), $is_active, $teacherId, $schoolId]);
                     }
                 } else {
-                    $upd = $pdo->prepare("UPDATE users SET full_name = ?, email = ?, is_active = ? WHERE id = ?");
-                    $upd->execute([$full_name, $email, $is_active, $teacherId]);
+                    $upd = $pdo->prepare(
+                        "UPDATE users SET full_name = ?, email = ?, is_active = ?, updated_at = NOW()
+                         WHERE id = ? AND role = 'teacher' AND school_id = ?"
+                    );
+                    $upd->execute([$full_name, $email, $is_active, $teacherId, $schoolId]);
                 }
 
                 if (empty($errors)) {
