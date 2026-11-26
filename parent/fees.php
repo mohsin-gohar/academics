@@ -9,9 +9,8 @@ requireParent();
 $parentId = (int)($_SESSION['user_id'] ?? 0);
 $schoolId = (int)(currentSchoolId() ?? 0);
 
-$stmt = $pdo->prepare("SELECT s.id, s.full_name, s.student_number FROM parent_student ps JOIN students s ON s.id = ps.student_id WHERE ps.parent_id = ?" . ($schoolId > 0 ? " AND ps.school_id = ?" : ""));
-$params = [$parentId];
-if ($schoolId > 0) $params[] = $schoolId;
+$stmt = $pdo->prepare("SELECT s.id, s.full_name, s.student_number FROM parent_student ps JOIN students s ON s.id = ps.student_id WHERE ps.parent_id = ? AND ps.school_id = ?");
+$params = [$parentId, $schoolId];
 $stmt->execute($params);
 $children = $stmt->fetchAll();
 ?>
@@ -29,7 +28,6 @@ $children = $stmt->fetchAll();
         <?php
         $cid = (int)$child['id'];
         $cschool = $schoolId > 0 ? $schoolId : (int)($pdo->query("SELECT school_id FROM students WHERE id = $cid")->fetchColumn() ?: 0);
-        getFeeSummary($pdo, $cschool);
         $invoices = getInvoices($pdo, $cschool, $cid);
         $summary = getStudentFeeSummary($pdo, $cschool, $cid);
         ?>
