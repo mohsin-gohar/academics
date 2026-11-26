@@ -24,7 +24,7 @@ SET @academics_sql = (
                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'leave_requests')
         AND NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS
                         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'leave_requests' AND COLUMN_NAME = 'approved_at'),
-        'ALTER TABLE leave_requests ADD COLUMN approved_at DATETIME NULL AFTER approved_by',
+        'ALTER TABLE leave_requests ADD COLUMN approved_at DATETIME NULL',
         'SELECT 1'
     )
 );
