@@ -163,19 +163,28 @@ class SecurityTest {
         $subscriptionStates = [];
         $this->pdo->beginTransaction();
         try {
-            $sub = $this->pdo->prepare(
-                "INSERT INTO school_subscriptions
-                    (school_id, plan, price, billing_cycle, start_date, end_date, status)
-                 VALUES (2, 'basic', 0, 'monthly', CURDATE(), DATE_ADD(CURDATE(), INTERVAL 30 DAY), 'active')"
-            );
-            $sub->execute();
-            $subscriptionId = (int)$this->pdo->lastInsertId();
             $schoolTwo = school_by_id($this->pdo, 2);
+            $subscriptionCount = $this->pdo->prepare("SELECT COUNT(*) FROM school_subscriptions WHERE school_id = ?");
+            $subscriptionCount->execute([2]);
+            if ((int)$subscriptionCount->fetchColumn() === 0) {
+                $this->pdo->prepare(
+                    "INSERT INTO school_subscriptions
+                        (school_id, plan, price, billing_cycle, start_date, end_date, status)
+                     VALUES (2, 'basic', 0, 'monthly', CURDATE(), DATE_ADD(CURDATE(), INTERVAL 30 DAY), 'active')"
+                )->execute();
+            }
+
             $subscriptionStates['active'] = school_session_access_state($schoolTwo, time(), $this->pdo);
             $subscriptionStates['active_saas'] = saas_school_access_state($schoolTwo, $this->pdo);
-            $this->pdo->prepare("UPDATE school_subscriptions SET status = 'cancelled' WHERE id = ?")->execute([$subscriptionId]);
+
+            $this->pdo->prepare("UPDATE school_subscriptions SET status = 'cancelled' WHERE school_id = 2")->execute();
             $subscriptionStates['cancelled'] = school_session_access_state($schoolTwo, time(), $this->pdo);
-            $this->pdo->prepare("UPDATE school_subscriptions SET status = 'active', end_date = DATE_SUB(CURDATE(), INTERVAL 1 DAY) WHERE id = ?")->execute([$subscriptionId]);
+
+            $this->pdo->prepare(
+                "UPDATE school_subscriptions
+                 SET status = 'active', start_date = CURDATE(), end_date = DATE_SUB(CURDATE(), INTERVAL 1 DAY)
+                 WHERE school_id = 2"
+            )->execute();
             $subscriptionStates['expired'] = school_session_access_state($schoolTwo, time(), $this->pdo);
             $this->pdo->rollBack();
         } catch (Throwable $e) {
