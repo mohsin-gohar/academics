@@ -122,7 +122,7 @@ $recentTasks = $recentTasksStmt->fetchAll();
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <span><i class="fas fa-list-check me-2 text-primary"></i>Recent Tasks</span>
-                <a href="../tasks/index.php" class="btn btn-sm btn-outline-secondary">View all</a>
+                <a href="tasks.php" class="btn btn-sm btn-outline-secondary">View all</a>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
