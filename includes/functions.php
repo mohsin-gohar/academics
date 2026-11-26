@@ -276,7 +276,8 @@ function markAttendance(PDO $pdo, int $schoolId, int $studentId, string $date, s
 {
     if (!array_key_exists($status, getAttendanceStatuses())
         || !preg_match('/^\\d{4}-\\d{2}-\\d{2}$/', $date)
-        || !checkdate((int)substr($date, 5, 2), (int)substr($date, 8, 2), (int)substr($date, 0, 4))) {
+        || !checkdate((int)substr($date, 5, 2), (int)substr($date, 8, 2), (int)substr($date, 0, 4))
+        || ($remarks !== null && mb_strlen($remarks) > 255)) {
         return false;
     }
     $studentCheck = $pdo->prepare("SELECT id FROM students WHERE id = ? AND school_id = ? LIMIT 1");
@@ -819,7 +820,8 @@ function recordPayment(PDO $pdo, int $schoolId, int $invoiceId, float $amount, s
         || !preg_match('/^\\d{4}-\\d{2}-\\d{2}$/', $date)
         || !checkdate((int)substr($date, 5, 2), (int)substr($date, 8, 2), (int)substr($date, 0, 4))
         || ($method !== null && !in_array($method, $validMethods, true))
-        || ($reference !== null && mb_strlen($reference) > 100)) {
+        || ($reference !== null && mb_strlen($reference) > 100)
+        || ($notes !== null && mb_strlen($notes) > 5000)) {
         return false;
     }
 
