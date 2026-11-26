@@ -390,7 +390,7 @@ else:
                 </table>
             </div>
         <?php elseif ($report_type === 'courses'): ?>
-            <?php [$rs, $rp] = school_scope('c.school_id'); $rowsStmt = $pdo->prepare("SELECT c.*, (SELECT COUNT(*) FROM enrollments e WHERE e.course_id=c.id AND e.status='Enrolled') as enrolled FROM courses c WHERE {$rs} ORDER BY c.course_name"); $rowsStmt->execute($rp); $rows = $rowsStmt->fetchAll(); ?>
+            <?php [$rs, $rp] = school_scope('c.school_id'); $rowsStmt = $pdo->prepare("SELECT c.*, (SELECT COUNT(*) FROM enrollments e WHERE e.course_id=c.id AND e.school_id=c.school_id AND e.status='Enrolled') as enrolled FROM courses c WHERE {$rs} ORDER BY c.course_name"); $rowsStmt->execute($rp); $rows = $rowsStmt->fetchAll(); ?>
             <div class="table-responsive">
                 <table class="table table-hover align-middle mb-0">
                     <thead class="table-light"><tr><th>Code</th><th>Name</th><th>Credits</th><th>Instructor</th><th>Status</th><th>Enrolled</th></tr></thead>
@@ -414,7 +414,7 @@ else:
                 </table>
             </div>
         <?php elseif ($report_type === 'enrollments'): ?>
-            <?php [$rs, $rp] = school_scope('e.school_id'); $rowsStmt = $pdo->prepare("SELECT s.student_number, s.full_name, c.course_code, c.course_name, e.enrollment_date, e.status, e.grade FROM enrollments e JOIN students s ON e.student_id=s.id JOIN courses c ON e.course_id=c.id WHERE {$rs} ORDER BY e.enrollment_date DESC"); $rowsStmt->execute($rp); $rows = $rowsStmt->fetchAll(); ?>
+            <?php [$rs, $rp] = school_scope('e.school_id'); $rowsStmt = $pdo->prepare("SELECT s.student_number, s.full_name, c.course_code, c.course_name, e.enrollment_date, e.status, e.grade FROM enrollments e JOIN students s ON e.student_id=s.id AND s.school_id=e.school_id JOIN courses c ON e.course_id=c.id AND c.school_id=e.school_id WHERE {$rs} ORDER BY e.enrollment_date DESC"); $rowsStmt->execute($rp); $rows = $rowsStmt->fetchAll(); ?>
             <div class="table-responsive">
                 <table class="table table-hover align-middle mb-0">
                     <thead class="table-light"><tr><th>Student #</th><th>Student</th><th>Course</th><th>Enrolled</th><th>Status</th><th>Grade</th></tr></thead>
