@@ -13,9 +13,9 @@ $activeAlert = getActiveEmergencyAlert($pdo, $schoolId ? (int)$schoolId : null);
 
 $childrenStmt = $pdo->prepare("
     SELECT st.*, ps.relationship,
-        (SELECT COUNT(*) FROM tasks t WHERE t.student_id = st.id) AS task_total,
-        (SELECT COUNT(*) FROM tasks t WHERE t.student_id = st.id AND t.status = 'Completed') AS task_done,
-        (SELECT COUNT(*) FROM tasks t WHERE t.student_id = st.id AND t.status <> 'Completed' AND t.due_date < CURDATE()) AS task_overdue
+        (SELECT COUNT(*) FROM tasks t WHERE t.student_id = st.id AND t.school_id = st.school_id) AS task_total,
+        (SELECT COUNT(*) FROM tasks t WHERE t.student_id = st.id AND t.school_id = st.school_id AND t.status = 'Completed') AS task_done,
+        (SELECT COUNT(*) FROM tasks t WHERE t.student_id = st.id AND t.school_id = st.school_id AND t.status <> 'Completed' AND t.due_date < CURDATE()) AS task_overdue
     FROM parent_student ps
     JOIN students st ON st.id = ps.student_id
     WHERE ps.parent_id = ? AND ps.school_id = ?
