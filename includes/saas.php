@@ -516,6 +516,31 @@ function saas_create_subscription(PDO $pdo, int $schoolId, array $data): int
 
     try {
         $pdo->beginTransaction();
+
+        if ($status === 'active') {
+            $overlapStmt = $pdo->prepare(
+                "SELECT id, price, payment_method
+                 FROM school_subscriptions
+                 WHERE school_id = ? AND status = 'active'
+                   AND start_date <= ? AND end_date >= ?
+                 FOR UPDATE"
+            );
+            $overlapStmt->execute([$schoolId, $end, $start]);
+            foreach ($overlapStmt->fetchAll(PDO::FETCH_ASSOC) as $existingSubscription) {
+                // A paid upgrade replaces the current free trial. Never overlap
+                // two paid periods, which would inflate MRR and confuse access.
+                if ((float)$existingSubscription['price'] <= 0
+                    || strtolower((string)$existingSubscription['payment_method']) === 'trial') {
+                    $pdo->prepare("UPDATE school_subscriptions SET status = 'cancelled' WHERE id = ?")
+                        ->execute([(int)$existingSubscription['id']]);
+                } else {
+                    throw new InvalidArgumentException(
+                        'An active paid subscription already covers these dates. Cancel it or choose a non-overlapping start date.'
+                    );
+                }
+            }
+        }
+
         $stmt = $pdo->prepare(
             "INSERT INTO school_subscriptions
                 (school_id, plan, price, billing_cycle, start_date, end_date, status, payment_method, transaction_id)
