@@ -9,6 +9,11 @@ requireAuth();
 $schoolId = currentSchoolId();
 $userId = (int)$_SESSION['user_id'];
 $role = getUserRole();
+if ($schoolId === null || $schoolId <= 0) {
+    http_response_code(403);
+    header('Location: ../errors/403.php');
+    exit;
+}
 
 $errors = [];
 $old = ['leave_type' => 'Sick', 'start_date' => '', 'end_date' => '', 'reason' => ''];
@@ -25,14 +30,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $old['leave_type'] = $_POST['leave_type'] ?? $old['leave_type'];
 
         if (!in_array($old['leave_type'], array_keys($leaveTypes), true)) $errors[] = 'Invalid leave type.';
-        if ($old['start_date'] === '') $errors[] = 'Start date is required.';
-        if ($old['end_date'] === '') $errors[] = 'End date is required.';
+        $validStartDate = preg_match('/^\\d{4}-\\d{2}-\\d{2}$/', $old['start_date'])
+            && checkdate((int)substr($old['start_date'], 5, 2), (int)substr($old['start_date'], 8, 2), (int)substr($old['start_date'], 0, 4));
+        $validEndDate = preg_match('/^\\d{4}-\\d{2}-\\d{2}$/', $old['end_date'])
+            && checkdate((int)substr($old['end_date'], 5, 2), (int)substr($old['end_date'], 8, 2), (int)substr($old['end_date'], 0, 4));
+        if (!$validStartDate) $errors[] = 'A valid start date is required.';
+        if (!$validEndDate) $errors[] = 'A valid end date is required.';
         if ($old['reason'] === '') $errors[] = 'Reason is required.';
+        elseif (mb_strlen($old['reason']) > 5000) $errors[] = 'Reason cannot exceed 5000 characters.';
 
-        if (empty($errors)) {
-            if (strtotime($old['end_date']) < strtotime($old['start_date'])) {
-                $errors[] = 'End date must be on or after the start date.';
-            }
+        if (empty($errors) && $old['end_date'] < $old['start_date']) {
+            $errors[] = 'End date must be on or after the start date.';
         }
         if (empty($errors)) {
             $stmt = $pdo->prepare("INSERT INTO leave_requests (school_id, user_id, leave_type, start_date, end_date, reason, status)
