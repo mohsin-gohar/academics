@@ -63,6 +63,14 @@ try {
         exit;
     }
 
+    // Also inspect all current and future CASCADE relationships, including
+    // parent links and modules not explicitly listed in the checks above.
+    if (cascade_dependent_records($pdo, 'students', $id)) {
+        $pdo->rollBack();
+        header('Location: index.php?error=' . urlencode('This student is referenced by other records. Deactivate the account instead of deleting its history.'));
+        exit;
+    }
+
     // No academic, financial, enrollment, task, leave or message history remains;
     // only now is permanent deletion safe.
     $pdo->prepare("DELETE FROM students WHERE id = ?")->execute([$id]);
