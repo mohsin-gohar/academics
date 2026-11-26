@@ -18,7 +18,7 @@ const personas = [
     password: 'School@123',
     routes: [
       '/dashboard.php', '/students/index.php', '/teachers/index.php',
-      '/courses/index.php', '/tasks/index.php', '/attendance/index.php',
+      '/student-services/manage.php', '/courses/index.php', '/tasks/index.php', '/attendance/index.php',
       '/fees/index.php', '/fees/invoices.php', '/leave/index.php',
       '/notes/index.php', '/events/index.php', '/schedule/index.php',
       '/expenses/index.php', '/reports/index.php'
@@ -42,7 +42,8 @@ const personas = [
     routes: [
       '/dashboard.php', '/students/show.php?id=2', '/tasks/index.php',
       '/courses/index.php', '/courses/my.php', '/attendance/my.php',
-      '/grades/my.php', '/fees/my.php', '/notes/index.php', '/reports/index.php'
+      '/grades/my.php', '/fees/my.php', '/notes/index.php',
+      '/student-services/index.php', '/reports/index.php'
     ]
   },
   {
