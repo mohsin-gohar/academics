@@ -12,11 +12,14 @@ requireAdmin();
 $errors = [];
 $form_data = [];
 $schools = [];
+$studentsForParentLink = [];
 
 // Load available schools for school-scoped admins
 try {
     $schoolStmt = $pdo->query("SELECT id, school_name, school_code FROM schools WHERE is_active = 1 ORDER BY school_name");
     $schools = $schoolStmt->fetchAll(PDO::FETCH_ASSOC);
+    $studentStmt = $pdo->query("SELECT id, school_id, full_name, student_number FROM students WHERE status = 'Active' ORDER BY full_name");
+    $studentsForParentLink = $studentStmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
     error_log("Failed to load schools: " . $e->getMessage());
 }
@@ -33,6 +36,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'role' => $_POST['role'] ?? 'student',
         'is_active' => isset($_POST['is_active']) ? 1 : 0,
         'school_id' => isset($_POST['school_id']) ? (int)$_POST['school_id'] : null,
+        'child_student_id' => isset($_POST['child_student_id']) ? (int)$_POST['child_student_id'] : 0,
     ];
 
     $currentSchoolId = currentSchoolId();
@@ -77,6 +81,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    if ($form_data['role'] === 'parent') {
+        if ($form_data['child_student_id'] <= 0) {
+            $errors[] = 'Select the child to link to this parent account.';
+        } else {
+            $childCheck = $pdo->prepare("SELECT id FROM students WHERE id = ? AND school_id = ? AND status = 'Active' LIMIT 1");
+            $childCheck->execute([$form_data['child_student_id'], (int)$form_data['school_id']]);
+            if (!$childCheck->fetchColumn()) {
+                $errors[] = 'Selected child does not belong to the chosen school or is inactive.';
+            }
+        }
+    }
+
     if (empty($errors)) {
         $stmt = $pdo->prepare("SELECT id FROM users WHERE email = ?");
         $stmt->execute([$form_data['email']]);
@@ -97,6 +113,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $form_data['school_id'],
             ]);
             $uid = (int)$pdo->lastInsertId();
+
+            if ($form_data['role'] === 'parent') {
+                $linkStmt = $pdo->prepare("INSERT INTO parent_student (school_id, parent_id, student_id, relationship, is_primary) VALUES (?, ?, ?, 'Parent', 1)");
+                $linkStmt->execute([(int)$form_data['school_id'], $uid, (int)$form_data['child_student_id']]);
+            }
 
             if ($form_data['role'] === 'student') {
                 if (empty($form_data['school_id'])) {
@@ -167,6 +188,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <?php endforeach; ?>
                         </select>
                     </div>
+                    <div class="mb-3" id="parentChildField" style="<?php echo ($form_data['role'] ?? '') === 'parent' ? '' : 'display:none;'; ?>">
+                        <label class="form-label">Link Parent to Child *</label>
+                        <select name="child_student_id" class="form-select" id="childStudentSelect">
+                            <option value="">Select a student</option>
+                            <?php foreach ($studentsForParentLink as $child): ?>
+                                <?php if (!empty($form_data['school_id']) && (int)$child['school_id'] === (int)$form_data['school_id']): ?>
+                                <option value="<?php echo (int)$child['id']; ?>" <?php echo (int)($form_data['child_student_id'] ?? 0) === (int)$child['id'] ? 'selected' : ''; ?>><?php echo e($child['full_name'] . ' (' . $child['student_number'] . ')'); ?></option>
+                                <?php endif; ?>
+                            <?php endforeach; ?>
+                        </select>
+                        <small class="text-muted">A parent account is linked to one child here. Additional children can be linked from the parent management workflow.</small>
+                    </div>
                     <div class="mb-3 form-check">
                         <input type="checkbox" name="is_active" class="form-check-input" id="is_active" <?php echo !isset($form_data['is_active']) || $form_data['is_active'] ? 'checked' : ''; ?>>
                         <label class="form-check-label" for="is_active">Active</label>
@@ -187,6 +220,11 @@ document.getElementById('roleSelect').addEventListener('change', function () {
     const isSuperAdmin = this.value === 'super_admin';
     const showSchool = !isSuperAdmin;
     schoolField.style.display = showSchool ? '' : 'none';
+    const parentField = document.getElementById('parentChildField');
+    const childSelect = document.getElementById('childStudentSelect');
+    const isParent = this.value === 'parent';
+    parentField.style.display = isParent ? '' : 'none';
+    childSelect.required = isParent;
     if (!showSchool) {
         schoolField.querySelector('select').required = false;
     } else {
