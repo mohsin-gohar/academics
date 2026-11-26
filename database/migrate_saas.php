@@ -124,7 +124,7 @@ $pdo->exec("
 $pdo->exec("
     UPDATE schools
     SET plan = CASE
-        WHEN subscription_plan = 'premium' THEN 'enterprise'
+        WHEN subscription_plan IN ('premium', 'enterprise') THEN 'enterprise'
         WHEN subscription_plan = 'pro' THEN 'pro'
         ELSE 'basic'
     END
@@ -165,7 +165,7 @@ foreach ($schools as $school) {
     }
 
     $plan = strtolower((string)($school['subscription_plan'] ?? 'basic'));
-    $plan = $plan === 'premium' ? 'enterprise' : ($plan === 'pro' ? 'pro' : 'basic');
+    $plan = in_array($plan, ['premium', 'enterprise'], true) ? 'enterprise' : ($plan === 'pro' ? 'pro' : 'basic');
     $price = $planPrices[$plan] ?? 50.00;
     // Give existing tenants a full migration grace year from deployment,
     // rather than backdating a subscription to an old school.created_at date.
