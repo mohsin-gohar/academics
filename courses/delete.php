@@ -44,6 +44,14 @@ try {
         }
     }
 
+    // Protect any additional course-dependent module records introduced
+    // by future migrations, not only the known enrollment/grade/timetable tables.
+    if (cascade_dependent_records($pdo, 'courses', $id)) {
+        $pdo->rollBack();
+        header('Location: index.php?error=' . urlencode('This course is referenced by other records. Archive it instead of deleting its history.'));
+        exit;
+    }
+
     // Keep tasks but remove their optional reference to this course.
     $pdo->prepare("UPDATE tasks SET course_id = NULL WHERE course_id = ?")->execute([$id]);
     $pdo->prepare("DELETE FROM courses WHERE id = ? AND school_id <=> ?")->execute([$id, $course['school_id']]);
