@@ -126,7 +126,7 @@ require_once __DIR__ . '/../includes/header.php';
                         <div class="p-3 text-secondary text-center small">No other users found</div>
                     <?php else: ?>
                         <?php foreach ($contacts as $c): ?>
-                            <a href="chat.php?user_id=<?php echo (int)$c['id']; ?>" class="list-group-item list-group-item-action bg-transparent text-white border-secondary <?php echo ($activeContactId === (int)$c['id']) ? 'active bg-primary' : ''; ?>">
+                            <a href="<?php echo e($base); ?>messages/chat.php?user_id=<?php echo (int)$c['id']; ?>" class="list-group-item list-group-item-action bg-transparent text-white border-secondary <?php echo ($activeContactId === (int)$c['id']) ? 'active bg-primary' : ''; ?>">
                                 <div class="d-flex justify-content-between align-items-center">
                                     <span class="fw-bold"><?php echo e($c['full_name']); ?></span>
                                     <span class="badge bg-secondary"><?php echo e(ucfirst($c['role'])); ?></span>
@@ -150,8 +150,8 @@ require_once __DIR__ . '/../includes/header.php';
                         <?php endif; ?>
                     </div>
                     <div>
-                        <a href="received.php" class="btn btn-outline-info btn-sm me-1"><i class="fas fa-inbox me-1"></i>Inbox</a>
-                        <a href="sent.php" class="btn btn-outline-secondary btn-sm"><i class="fas fa-paper-plane me-1"></i>Sent</a>
+                        <a href="<?php echo e($base); ?>messages/received.php" class="btn btn-outline-info btn-sm me-1"><i class="fas fa-inbox me-1"></i>Inbox</a>
+                        <a href="<?php echo e($base); ?>messages/sent.php" class="btn btn-outline-secondary btn-sm"><i class="fas fa-paper-plane me-1"></i>Sent</a>
                     </div>
                 </div>
 
