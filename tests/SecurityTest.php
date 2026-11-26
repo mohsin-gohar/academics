@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../includes/tenant.php';
+require_once __DIR__ . '/../includes/saas.php';
 /**
  * Security, XSS, SQLi & CSV Injection Tests
  */
