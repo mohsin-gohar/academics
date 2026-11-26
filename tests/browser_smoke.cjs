@@ -52,7 +52,7 @@ const personas = [
     routes: [
       '/parent/dashboard.php', '/parent/children.php', '/parent/grades.php',
       '/parent/fees.php', '/parent/attendance.php', '/parent/progress.php',
-      '/parent/messages.php', '/notes/index.php'
+      '/parents/messages.php', '/notes/index.php'
     ]
   }
 ];
