@@ -226,6 +226,57 @@ foreach ([
 ] as $label => $path) page($label, $path, $super);
 
 $schoolAdmin = login('schooladmin@sch001.com', 'School@123');
+
+// School management can link, unlink and re-link guardians, but cannot cross tenants.
+$parentUserIdForLink = (int)$pdo->query("SELECT id FROM users WHERE email='parent@sch001.com'")->fetchColumn();
+$parentLinkForm = http($base . '/students/show.php?id=' . $sch1Student, $schoolAdmin);
+preg_match('/name="csrf_token"\\s+value="([a-f0-9]{64})"/', $parentLinkForm['body'], $parentLinkCsrf);
+$unlinkParentResponse = http($base . '/students/show.php?id=' . $sch1Student, $schoolAdmin, [
+    'csrf_token' => $parentLinkCsrf[1] ?? '',
+    'action' => 'unlink_parent',
+    'parent_id' => $parentUserIdForLink,
+]);
+$parentLinkCountAfterUnlink = (int)$pdo->query(
+    "SELECT COUNT(*) FROM parent_student WHERE school_id = 1 AND parent_id = " . $parentUserIdForLink . " AND student_id = " . $sch1Student
+)->fetchColumn();
+$relinkParentResponse = http($base . '/students/show.php?id=' . $sch1Student, $schoolAdmin, [
+    'csrf_token' => $parentLinkCsrf[1] ?? '',
+    'action' => 'link_parent',
+    'parent_id' => $parentUserIdForLink,
+    'relationship' => 'Mother',
+]);
+$parentLinkRow = $pdo->query(
+    "SELECT relationship FROM parent_student WHERE school_id = 1 AND parent_id = " . $parentUserIdForLink . " AND student_id = " . $sch1Student
+)->fetchColumn();
+$parentLinkWorkflowOk = $unlinkParentResponse['code'] === 200
+    && $parentLinkCountAfterUnlink === 0
+    && $relinkParentResponse['code'] === 200
+    && $parentLinkRow === 'Mother';
+if ($parentLinkWorkflowOk) $pass++; else $fail++;
+$rows[] = ($parentLinkWorkflowOk ? 'PASS ' : 'FAIL ')
+    . str_pad('school admin can manage parent student links', 42);
+
+$crossSchoolParentEmail = 'cross-parent-' . bin2hex(random_bytes(3)) . '@sch002.com';
+$crossSchoolParentInsert = $pdo->prepare(
+    "INSERT INTO users (full_name, email, password, role, is_active, must_change_password, school_id)
+     VALUES ('Cross School Parent', ?, ?, 'parent', 1, 1, 2)"
+);
+$crossSchoolParentInsert->execute([$crossSchoolParentEmail, password_hash('CrossParentPass123!', PASSWORD_DEFAULT)]);
+$crossSchoolParentId = (int)$pdo->lastInsertId();
+$crossParentLinkResponse = http($base . '/students/show.php?id=' . $sch1Student, $schoolAdmin, [
+    'csrf_token' => $parentLinkCsrf[1] ?? '',
+    'action' => 'link_parent',
+    'parent_id' => $crossSchoolParentId,
+    'relationship' => 'Guardian',
+]);
+$crossParentLinkCount = (int)$pdo->query(
+    "SELECT COUNT(*) FROM parent_student WHERE parent_id = " . $crossSchoolParentId . " AND student_id = " . $sch1Student
+)->fetchColumn();
+$crossParentLinkOk = $crossParentLinkResponse['code'] === 200 && $crossParentLinkCount === 0;
+if ($crossParentLinkOk) $pass++; else $fail++;
+$rows[] = ($crossParentLinkOk ? 'PASS ' : 'FAIL ')
+    . str_pad('cross-school parent link is rejected', 42);
+
 foreach ([
     'school admin dashboard' => '/school-admin/dashboard.php',
     'school admin users' => '/admin/users.php',
