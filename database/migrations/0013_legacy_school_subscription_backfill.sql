@@ -8,12 +8,12 @@ INSERT INTO school_subscriptions
 SELECT
     s.id,
     CASE
-        WHEN LOWER(COALESCE(s.subscription_plan, 'basic')) = 'premium' THEN 'enterprise'
+        WHEN LOWER(COALESCE(s.subscription_plan, 'basic')) IN ('premium', 'enterprise') THEN 'enterprise'
         WHEN LOWER(COALESCE(s.subscription_plan, 'basic')) = 'pro' THEN 'pro'
         ELSE 'basic'
     END,
     CASE
-        WHEN LOWER(COALESCE(s.subscription_plan, 'basic')) = 'premium' THEN 500.00
+        WHEN LOWER(COALESCE(s.subscription_plan, 'basic')) IN ('premium', 'enterprise') THEN 500.00
         WHEN LOWER(COALESCE(s.subscription_plan, 'basic')) = 'pro' THEN 150.00
         ELSE 50.00
     END,
