@@ -101,6 +101,44 @@ class SecurityTest {
             'pass' => ($studentStudent && !$studentStaff && !$studentAdmin)
         ];
 
+        // 5. Tenant subscription/session access must remain valid after login.
+        $now = strtotime('2026-11-26 12:00:00');
+        $activeSchool = school_session_access_state([
+            'status' => 'active', 'is_active' => 1, 'trial_ends_at' => null
+        ], $now);
+        $suspendedSchool = school_session_access_state([
+            'status' => 'suspended', 'is_active' => 1, 'trial_ends_at' => null
+        ], $now);
+        $disabledSchool = school_session_access_state([
+            'status' => 'active', 'is_active' => 0, 'trial_ends_at' => null
+        ], $now);
+        $expiredTrial = school_session_access_state([
+            'status' => 'trial', 'is_active' => 1, 'trial_ends_at' => '2026-11-25 23:59:59'
+        ], $now);
+        $validTrial = school_session_access_state([
+            'status' => 'trial', 'is_active' => 1, 'trial_ends_at' => '2026-11-27 00:00:00'
+        ], $now);
+        $results[] = [
+            'name' => 'Active school remains accessible to authenticated sessions',
+            'pass' => $activeSchool['allowed'] === true
+        ];
+        $results[] = [
+            'name' => 'Suspended school is denied to existing authenticated sessions',
+            'pass' => $suspendedSchool['allowed'] === false && $suspendedSchool['reason'] === 'school_suspended'
+        ];
+        $results[] = [
+            'name' => 'Disabled school is denied to existing authenticated sessions',
+            'pass' => $disabledSchool['allowed'] === false && $disabledSchool['reason'] === 'school_inactive'
+        ];
+        $results[] = [
+            'name' => 'Expired trial is denied even when a session was already active',
+            'pass' => $expiredTrial['allowed'] === false && $expiredTrial['reason'] === 'trial_expired'
+        ];
+        $results[] = [
+            'name' => 'Unexpired trial remains accessible to authenticated sessions',
+            'pass' => $validTrial['allowed'] === true
+        ];
+
         return $results;
     }
 }
