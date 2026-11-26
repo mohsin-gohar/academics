@@ -468,6 +468,13 @@ foreach ([
     'parent own child profile' => '/students/show.php?id=' . $sch1Student,
     'parent unlinked student profile guarded' => '/students/show.php?id=' . $otherStudent,
 ] as $label => $path) page($label, $path, $parent);
+$parentNotes = http($base . '/notes/index.php', $parent);
+$parentAudienceOk = strpos($parentNotes['body'], $announcementTitles['parent']) !== false
+    && strpos($parentNotes['body'], $announcementTitles['teacher']) === false
+    && strpos($parentNotes['body'], $announcementTitles['student']) === false;
+if ($parentAudienceOk) $pass++; else $fail++;
+$rows[] = ($parentAudienceOk ? 'PASS ' : 'FAIL ')
+    . str_pad('parent sees only parent-targeted announcements', 42);
 
 $parentCrossProfile = http($base . '/students/show.php?id=' . $otherStudent, $parent);
 $parentCrossProfileOk = strpos($parentCrossProfile['url'], '/parent/children.php') !== false
