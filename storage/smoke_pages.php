@@ -293,6 +293,32 @@ $rows[] = ($crossExpenseOk ? 'PASS ' : 'FAIL ')
     . str_pad('cross-school expense approval is denied', 42)
     . ' HTTP=' . $crossExpenseAttempt['code'] . ' STATUS=' . $crossExpenseStatus;
 
+// Create audience-targeted announcements to verify role-based visibility.
+$announcementForm = http($base . '/notes/create.php', $schoolAdmin);
+preg_match('/name="csrf_token"\\s+value="([a-f0-9]{64})"/', $announcementForm['body'], $announcementCsrf);
+$announcementTag = bin2hex(random_bytes(3));
+$announcementTitles = [
+    'student' => 'CI Student Audience ' . $announcementTag,
+    'teacher' => 'CI Teacher Audience ' . $announcementTag,
+    'parent' => 'CI Parent Audience ' . $announcementTag,
+];
+foreach ($announcementTitles as $targetRole => $title) {
+    http($base . '/notes/create.php', $schoolAdmin, [
+        'csrf_token' => $announcementCsrf[1] ?? '',
+        'title' => $title,
+        'message' => 'Automated role visibility verification.',
+        'target_roles' => $targetRole,
+    ]);
+}
+$announcementCount = (int)$pdo->query(
+    "SELECT COUNT(*) FROM announcements WHERE school_id = 1 AND title LIKE 'CI % Audience " . $announcementTag . "'"
+)->fetchColumn();
+$announcementCreateOk = $announcementCount === 3;
+if ($announcementCreateOk) $pass++; else $fail++;
+$rows[] = ($announcementCreateOk ? 'PASS ' : 'FAIL ')
+    . str_pad('school admin can create audience-targeted announcements', 42)
+    . ' CREATED=' . $announcementCount;
+
 $teacher = login('teacher@sch001.com', 'Teacher@123');
 foreach ([
     'teacher dashboard' => '/dashboard.php',
