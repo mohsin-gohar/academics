@@ -43,7 +43,7 @@ const personas = [
       '/dashboard.php', '/students/show.php?id=2', '/students/photo.php', '/tasks/index.php',
       '/courses/index.php', '/courses/my.php', '/attendance/my.php',
       '/grades/my.php', '/fees/my.php', '/notes/index.php',
-      '/student-services/index.php', '/learning/index.php', '/student-life/index.php?section=eproject', '/student-life/index.php?section=cv', '/student-life/index.php?section=achievement', '/reports/index.php'
+      '/student-services/index.php?type=issue', '/student-services/index.php?type=complaint', '/student-services/index.php?type=request', '/student-services/index.php?type=batch_change', '/student-services/index.php?type=feedback', '/learning/index.php', '/student-life/index.php?section=eproject', '/student-life/index.php?section=cv', '/student-life/index.php?section=job', '/student-life/index.php?section=achievement', '/student-life/index.php?section=badge', '/student-life/index.php?section=league', '/student-life/index.php?section=rank', '/student-life/index.php?section=award', '/student-life/index.php?section=volunteer', '/student-life/index.php?section=event', '/student-life/index.php?section=conduct', '/reports/index.php'
     ]
   },
   {
