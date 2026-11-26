@@ -1274,7 +1274,7 @@ function school_session_access_state(array $school, ?int $now = null, ?PDO $pdo 
     // and within its billing dates. No-row legacy tenants remain accessible
     // until their subscription is explicitly provisioned.
     $schoolId = (int)($school['id'] ?? 0);
-    if ($status === 'active' && $pdo instanceof PDO && $schoolId > 0) {
+    if (in_array($status, ['active', 'trial'], true) && $pdo instanceof PDO && $schoolId > 0) {
         $tableExists = (int)$pdo->query(
             "SELECT COUNT(*) FROM information_schema.TABLES
              WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'school_subscriptions'"
