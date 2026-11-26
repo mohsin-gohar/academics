@@ -299,6 +299,61 @@ class SaasTest {
                 'pass' => $tenantUserCount === 1 && $scopedUserCount === 1 && $leakedUserCount === 0,
             ];
 
+            // Tenant-local identifiers must be unique within a school, not globally.
+            // This is a schema-level regression guard for independently operated tenants.
+            $studentIndex = $this->pdo->query(
+                "SELECT COUNT(*) FROM information_schema.STATISTICS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'students'
+                   AND INDEX_NAME = 'uq_students_number_school' AND NON_UNIQUE = 0
+                   AND COLUMN_NAME IN ('school_id', 'student_number')"
+            )->fetchColumn();
+            $studentIndexColumns = $this->pdo->query(
+                "SELECT COUNT(DISTINCT SEQ_IN_INDEX) FROM information_schema.STATISTICS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'students'
+                   AND INDEX_NAME = 'uq_students_number_school'"
+            )->fetchColumn();
+            $studentGlobalUnique = $this->pdo->query(
+                "SELECT COUNT(*) FROM information_schema.STATISTICS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'students'
+                   AND NON_UNIQUE = 0 AND COLUMN_NAME = 'student_number'
+                   AND INDEX_NAME IN (
+                     SELECT INDEX_NAME FROM information_schema.STATISTICS
+                     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'students'
+                     GROUP BY INDEX_NAME HAVING COUNT(*) = 1
+                   )"
+            )->fetchColumn();
+
+            $courseIndex = $this->pdo->query(
+                "SELECT COUNT(*) FROM information_schema.STATISTICS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'courses'
+                   AND INDEX_NAME = 'uq_courses_code_school' AND NON_UNIQUE = 0
+                   AND COLUMN_NAME IN ('school_id', 'course_code')"
+            )->fetchColumn();
+            $courseIndexColumns = $this->pdo->query(
+                "SELECT COUNT(DISTINCT SEQ_IN_INDEX) FROM information_schema.STATISTICS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'courses'
+                   AND INDEX_NAME = 'uq_courses_code_school'"
+            )->fetchColumn();
+            $courseGlobalUnique = $this->pdo->query(
+                "SELECT COUNT(*) FROM information_schema.STATISTICS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'courses'
+                   AND NON_UNIQUE = 0 AND COLUMN_NAME = 'course_code'
+                   AND INDEX_NAME IN (
+                     SELECT INDEX_NAME FROM information_schema.STATISTICS
+                     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'courses'
+                     GROUP BY INDEX_NAME HAVING COUNT(*) = 1
+                   )"
+            )->fetchColumn();
+            $results[] = [
+                'name' => 'Student numbers and course codes use tenant-scoped composite unique indexes',
+                'pass' => (int)$studentIndex === 2
+                    && (int)$studentIndexColumns === 2
+                    && (int)$studentGlobalUnique === 0
+                    && (int)$courseIndex === 2
+                    && (int)$courseIndexColumns === 2
+                    && (int)$courseGlobalUnique === 0,
+            ];
+
             // 10. Contact intake
             $contactId = saas_contact_store($this->pdo, [
                 'school_id' => (int)$fixture['school_id'],
