@@ -1203,6 +1203,34 @@ function getSchoolEventsList($pdo, $limit = 6, $onlyUpcoming = true, ?int $schoo
  * Safe to call from AJAX/JSON endpoints: responds with 401 JSON instead of an
  * HTML redirect when the request is an XHR / expects JSON.
  */
+/**
+ * Evaluate whether a school tenant may continue using an authenticated session.
+ * Keep this aligned with the access rules used during login.
+ */
+function school_session_access_state(array $school, ?int $now = null): array
+{
+    $now = $now ?? time();
+    $status = strtolower((string)($school['status'] ?? 'active'));
+
+    if ($status === 'suspended') {
+        return ['allowed' => false, 'reason' => 'school_suspended'];
+    }
+    if ((int)($school['is_active'] ?? 1) !== 1 || $status === 'disabled') {
+        return ['allowed' => false, 'reason' => 'school_inactive'];
+    }
+    if ($status === 'trial') {
+        $trialEndsAt = $school['trial_ends_at'] ?? null;
+        if (!empty($trialEndsAt)) {
+            $expiresAt = strtotime((string)$trialEndsAt);
+            if ($expiresAt !== false && $expiresAt < $now) {
+                return ['allowed' => false, 'reason' => 'trial_expired'];
+            }
+        }
+    }
+
+    return ['allowed' => true, 'reason' => ''];
+}
+
 function enforceSession(?PDO $pdo = null): void
 {
     if (!isLoggedIn()) {
@@ -1280,7 +1308,7 @@ function enforceSession(?PDO $pdo = null): void
     }
 
     // 5. Re-read the user row and check account state
-    $stmt = $pdo->prepare("SELECT id, role, is_active, school_id FROM users WHERE id = ? LIMIT 1");
+    $stmt = $pdo->prepare("SELECT id, role, is_active, school_id, must_change_password FROM users WHERE id = ? LIMIT 1");
     $stmt->execute([(int)$_SESSION['user_id']]);
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -1299,14 +1327,15 @@ function enforceSession(?PDO $pdo = null): void
         if (empty($user['school_id'])) {
             $fail('school_id_missing', $isAjax);
         }
-        $sStmt = $pdo->prepare("SELECT id, status, is_active FROM schools WHERE id = ? LIMIT 1");
+        $sStmt = $pdo->prepare("SELECT id, status, is_active, trial_ends_at FROM schools WHERE id = ? LIMIT 1");
         $sStmt->execute([(int)$user['school_id']]);
         $school = $sStmt->fetch(PDO::FETCH_ASSOC);
-        if (!$school || (int)$school['is_active'] !== 1) {
+        if (!$school) {
             $fail('school_inactive', $isAjax);
         }
-        if (in_array(strtolower((string)$school['status']), ['suspended', 'disabled'], true)) {
-            $fail('school_suspended', $isAjax);
+        $schoolAccess = school_session_access_state($school);
+        if (!$schoolAccess['allowed']) {
+            $fail($schoolAccess['reason'], $isAjax);
         }
         $_SESSION['school_id'] = (int)$user['school_id'];
     } else {
@@ -1324,6 +1353,9 @@ function enforceSession(?PDO $pdo = null): void
         }
         $_SESSION['student_id'] = (int)$studentId;
     }
+
+    // Reflect administrator-enforced password changes on existing sessions.
+    $_SESSION['must_change_password'] = ((int)($user['must_change_password'] ?? 0) === 1);
 
     // 8. Cache the successful validation for up to 60 seconds
     $_SESSION['_validated_at'] = $now;
