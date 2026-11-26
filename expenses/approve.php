@@ -15,7 +15,7 @@ if (!validateCsrfToken($_POST['csrf_token'] ?? '')) {
 
 $id = filter_input(INPUT_POST, 'id', FILTER_VALIDATE_INT) ?: 0;
 $action = (string)($_POST['action'] ?? '');
-if ($id <= 0 || !in_array($action, ['approve', 'reject'], true)) {
+if ($id <= 0 || !in_array($action, ['approve', 'reject', 'pay'], true)) {
     http_response_code(400);
     setFlashMessage('danger', 'Invalid expense action.');
     header('Location: index.php');
@@ -46,20 +46,31 @@ try {
         exit;
     }
 
-    if ($expense['status'] !== 'pending') {
+    $expectedStatus = $action === 'pay' ? 'approved' : 'pending';
+    if ($expense['status'] !== $expectedStatus) {
         $pdo->rollBack();
-        setFlashMessage('warning', 'This expense has already been processed.');
+        setFlashMessage('warning', $action === 'pay'
+            ? 'Only an approved expense can be marked as paid.'
+            : 'Only a pending expense can be approved or rejected.');
         header('Location: index.php');
         exit;
     }
 
-    $newStatus = $action === 'approve' ? 'approved' : 'rejected';
-    $update = $pdo->prepare(
-        "UPDATE expenses
-         SET status = ?, approved_by = ?, approved_at = NOW(), updated_at = NOW()
-         WHERE id = ? AND school_id = ? AND status = 'pending'"
-    );
-    $update->execute([$newStatus, $userId, $id, (int)$expense['school_id']]);
+    $newStatus = $action === 'approve' ? 'approved' : ($action === 'reject' ? 'rejected' : 'paid');
+    if ($action === 'pay') {
+        $update = $pdo->prepare(
+            "UPDATE expenses SET status = 'paid', updated_at = NOW()
+             WHERE id = ? AND school_id = ? AND status = 'approved'"
+        );
+        $update->execute([$id, (int)$expense['school_id']]);
+    } else {
+        $update = $pdo->prepare(
+            "UPDATE expenses
+             SET status = ?, approved_by = ?, approved_at = NOW(), updated_at = NOW()
+             WHERE id = ? AND school_id = ? AND status = 'pending'"
+        );
+        $update->execute([$newStatus, $userId, $id, (int)$expense['school_id']]);
+    }
     if ($update->rowCount() !== 1) {
         throw new RuntimeException('Expense was changed by another request.');
     }
