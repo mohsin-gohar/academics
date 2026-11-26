@@ -83,6 +83,9 @@ jobs:
             SELECT 'Legacy Alert','Legacy alert fixture',CURDATE(),id FROM users WHERE email='legacy.teacher@example.test';
           INSERT INTO activity_logs (user_id,action,entity_type,description)
             SELECT id,'legacy_fixture','migration','Legacy upgrade fixture' FROM users WHERE email='legacy.teacher@example.test';
+          INSERT INTO leave_requests (user_id,leave_type,start_date,end_date,reason,status)
+            SELECT id,'Medical',CURDATE(),CURDATE(),'Legacy leave migration fixture','Pending'
+            FROM users WHERE email='legacy.teacher@example.test';
           SQL
           APP_ENV=test DB_NAME_TEST=edusphere DB_NAME=edusphere DB_HOST=127.0.0.1 DB_PORT=3306 DB_USER=root DB_PASS=root php database/migrate.php up
           legacy_school_count=$(mysql --host=127.0.0.1 --user=root --batch --skip-column-names -e "SELECT COUNT(*) FROM edusphere.schools WHERE school_code='LEGACY001'")
@@ -91,6 +94,10 @@ jobs:
           test "$tenant_columns" -ge 10
           migrated_rows=$(mysql --host=127.0.0.1 --user=root --batch --skip-column-names -e "SELECT (SELECT COUNT(*) FROM edusphere.users u JOIN edusphere.schools s ON s.id=u.school_id WHERE u.email='legacy.teacher@example.test') + (SELECT COUNT(*) FROM edusphere.students st JOIN edusphere.schools s ON s.id=st.school_id WHERE st.email='legacy.student@example.test') + (SELECT COUNT(*) FROM edusphere.courses c JOIN edusphere.schools s ON s.id=c.school_id WHERE c.course_code='LEGACY-101') + (SELECT COUNT(*) FROM edusphere.tasks t JOIN edusphere.schools s ON s.id=t.school_id WHERE t.title='Legacy Task') + (SELECT COUNT(*) FROM edusphere.enrollments e JOIN edusphere.schools s ON s.id=e.school_id)")
           test "$migrated_rows" -ge 5
+          legacy_leave_rows=$(mysql --host=127.0.0.1 --user=root --batch --skip-column-names -e "SELECT COUNT(*) FROM edusphere.leave_requests l JOIN edusphere.users u ON u.id=l.user_id WHERE u.email='legacy.teacher@example.test' AND l.leave_type='Medical' AND l.school_id IS NOT NULL")
+          test "$legacy_leave_rows" -eq 1
+          leave_schema_checks=$(mysql --host=127.0.0.1 --user=root --batch --skip-column-names -e "SELECT (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='edusphere' AND TABLE_NAME='leave_requests' AND COLUMN_NAME='approved_at') + (SELECT IF(COLUMN_TYPE LIKE '%Sick%' AND COLUMN_TYPE LIKE '%Paternity%',1,0) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='edusphere' AND TABLE_NAME='leave_requests' AND COLUMN_NAME='leave_type') + (SELECT IF(COLUMN_TYPE LIKE '%Cancelled%',1,0) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='edusphere' AND TABLE_NAME='leave_requests' AND COLUMN_NAME='status')")
+          test "$leave_schema_checks" -eq 3
       - name: PHP syntax check
         run: find . -type f -name '*.php' -not -path './storage/cache/*' -exec php -l {} \;
       - name: Run automated tests
