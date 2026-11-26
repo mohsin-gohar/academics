@@ -239,6 +239,7 @@ document.getElementById('roleSelect').addEventListener('change', function () {
         schoolField.querySelector('select').required = true;
     }
 });
+document.getElementById('roleSelect').dispatchEvent(new Event('change'));
 </script>
 
 <?php require_once '../includes/footer.php'; ?>
