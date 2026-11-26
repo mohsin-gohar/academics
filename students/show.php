@@ -238,6 +238,74 @@ foreach ($tasks as $t) {
     
     <!-- Enrollments & Tasks -->
     <div class="col-lg-8">
+        <?php if (isSchoolManagement()): ?>
+        <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="fas fa-user-shield me-2 text-primary"></i>Parent / Guardian Access</span>
+                <span class="badge bg-secondary"><?php echo count($linkedParents); ?> linked</span>
+            </div>
+            <div class="card-body">
+                <?php if ($linkedParents): ?>
+                    <div class="table-responsive mb-3">
+                        <table class="table table-sm align-middle mb-0">
+                            <thead><tr><th>Parent</th><th>Relationship</th><th>Contact</th><th class="text-end">Action</th></tr></thead>
+                            <tbody>
+                                <?php foreach ($linkedParents as $linkedParent): ?>
+                                <tr>
+                                    <td class="fw-semibold"><?php echo e($linkedParent['full_name']); ?><?php if ((int)$linkedParent['is_primary'] === 1): ?> <span class="badge bg-primary">Primary</span><?php endif; ?></td>
+                                    <td><?php echo e($linkedParent['relationship']); ?></td>
+                                    <td><small><?php echo e($linkedParent['email']); ?></small></td>
+                                    <td class="text-end">
+                                        <form method="post" action="show.php?id=<?php echo (int)$id; ?>" class="d-inline" onsubmit="return confirm('Remove this parent’s access to the student portal?');">
+                                            <?php echo csrfField(); ?>
+                                            <input type="hidden" name="action" value="unlink_parent">
+                                            <input type="hidden" name="parent_id" value="<?php echo (int)$linkedParent['parent_id']; ?>">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger"><i class="fas fa-unlink me-1"></i>Unlink</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                <?php else: ?>
+                    <p class="text-muted small mb-3">No parent or guardian account is linked to this student yet.</p>
+                <?php endif; ?>
+
+                <?php if ($availableParents): ?>
+                    <form method="post" action="show.php?id=<?php echo (int)$id; ?>" class="row g-2 align-items-end">
+                        <?php echo csrfField(); ?>
+                        <input type="hidden" name="action" value="link_parent">
+                        <div class="col-12 col-md-6">
+                            <label class="form-label small fw-semibold">Parent account</label>
+                            <select name="parent_id" class="form-select form-select-sm" required>
+                                <option value="">Select parent account</option>
+                                <?php foreach ($availableParents as $availableParent): ?>
+                                    <option value="<?php echo (int)$availableParent['id']; ?>"><?php echo e($availableParent['full_name'] . ' — ' . $availableParent['email']); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="col-8 col-md-4">
+                            <label class="form-label small fw-semibold">Relationship</label>
+                            <select name="relationship" class="form-select form-select-sm" required>
+                                <option value="Parent">Parent</option>
+                                <option value="Mother">Mother</option>
+                                <option value="Father">Father</option>
+                                <option value="Guardian">Guardian</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                        <div class="col-4 col-md-2">
+                            <button type="submit" class="btn btn-primary btn-sm w-100"><i class="fas fa-link me-1"></i>Link</button>
+                        </div>
+                    </form>
+                <?php else: ?>
+                    <div class="small text-muted">No unlinked active parent accounts are available. <a href="../admin/users.php">Create a parent account</a> first.</div>
+                <?php endif; ?>
+            </div>
+        </div>
+        <?php endif; ?>
+
         <div class="card mb-3">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <span><i class="fas fa-book me-2 text-primary"></i>Enrolled Courses (<?php echo count($enrollments); ?>)</span>
