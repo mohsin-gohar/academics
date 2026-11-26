@@ -326,6 +326,49 @@ if ($schoolAdminAudienceOk) $pass++; else $fail++;
 $rows[] = ($schoolAdminAudienceOk ? 'PASS ' : 'FAIL ')
     . str_pad('school admin sees staff-only announcements', 42);
 
+// Unenrolling a student with graded work must preserve the enrollment and marks.
+$schoolAdminId = (int)$pdo->query("SELECT id FROM users WHERE email='schooladmin@sch001.com'")->fetchColumn();
+$gradedAssessmentTitle = 'CI Enrollment History ' . bin2hex(random_bytes(3));
+$assessmentInsert = $pdo->prepare(
+    "INSERT INTO assessments (school_id, course_id, title, assessment_type, max_marks, weight, due_date, created_by)
+     VALUES (1, 1, ?, 'exam', 100.00, 1.00, CURDATE(), ?)"
+);
+$assessmentInsert->execute([$gradedAssessmentTitle, $schoolAdminId]);
+$gradedAssessmentId = (int)$pdo->lastInsertId();
+$markInsert = $pdo->prepare(
+    "INSERT INTO student_marks (school_id, assessment_id, student_id, marks_obtained, remarks, graded_by)
+     VALUES (1, ?, ?, 91.50, 'Preserve this result', ?)"
+);
+$markInsert->execute([$gradedAssessmentId, $sch1Student, $schoolAdminId]);
+$enrollmentIdStmt = $pdo->prepare("SELECT id FROM enrollments WHERE school_id = 1 AND student_id = ? AND course_id = 1 AND status = 'Enrolled' LIMIT 1");
+$enrollmentIdStmt->execute([$sch1Student]);
+$enrollmentId = (int)$enrollmentIdStmt->fetchColumn();
+$unenrollResponse = $enrollmentId > 0 ? http($base . '/courses/unenroll.php', $schoolAdmin, [
+    'csrf_token' => $writeCsrf[1] ?? '',
+    'id' => $enrollmentId,
+    'course' => 1,
+]) : ['code' => 0, 'url' => ''];
+$enrollmentAfterDrop = $enrollmentId > 0 ? $pdo->query("SELECT status FROM enrollments WHERE id = " . $enrollmentId)->fetchColumn() : null;
+$preservedMarks = (int)$pdo->query("SELECT COUNT(*) FROM student_marks WHERE assessment_id = " . $gradedAssessmentId . " AND student_id = " . $sch1Student)->fetchColumn();
+$dropHistoryOk = $unenrollResponse['code'] === 200 && $enrollmentAfterDrop === 'Dropped' && $preservedMarks === 1;
+if ($dropHistoryOk) $pass++; else $fail++;
+$rows[] = ($dropHistoryOk ? 'PASS ' : 'FAIL ')
+    . str_pad('unenroll preserves graded enrollment history', 42)
+    . ' STATUS=' . (string)$enrollmentAfterDrop . ' MARKS=' . $preservedMarks;
+
+$reenrollResponse = http($base . '/courses/enroll.php', $schoolAdmin, [
+    'csrf_token' => $writeCsrf[1] ?? '',
+    'course_id' => 1,
+    'student_id' => $sch1Student,
+    'enrollment_date' => date('Y-m-d'),
+]);
+$enrollmentAfterReattempt = $pdo->query("SELECT status FROM enrollments WHERE id = " . $enrollmentId)->fetchColumn();
+$reenrollGuardOk = $reenrollResponse['code'] === 200 && $enrollmentAfterReattempt === 'Dropped';
+if ($reenrollGuardOk) $pass++; else $fail++;
+$rows[] = ($reenrollGuardOk ? 'PASS ' : 'FAIL ')
+    . str_pad('re-enrollment blocked after graded withdrawal', 42)
+    . ' STATUS=' . (string)$enrollmentAfterReattempt;
+
 $teacher = login('teacher@sch001.com', 'Teacher@123');
 foreach ([
     'teacher dashboard' => '/dashboard.php',
