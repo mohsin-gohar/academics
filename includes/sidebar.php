@@ -114,6 +114,14 @@ $sidebarPortalLabel = isStudent() ? 'STUDENT PORTAL'
             </a>
         </div>
         <?php endif; ?>
+        <?php if (isAdmin()): ?>
+        <div class="nav-item">
+            <a href="<?php echo $base; ?>student-services/manage.php" class="nav-link <?php echo strpos($_SERVER['PHP_SELF'], 'student-services/manage.php') !== false ? 'active' : ''; ?>">
+                <i class="fas fa-inbox"></i>
+                <span>Student Help Desk</span>
+            </a>
+        </div>
+        <?php endif; ?>
         <?php else: ?>
         <?php
         $myStuId = $_SESSION['student_id'] ?? null;
@@ -161,6 +169,12 @@ $sidebarPortalLabel = isStudent() ? 'STUDENT PORTAL'
             <a href="<?php echo $base; ?>fees/my.php" class="nav-link <?php echo strpos($_SERVER['PHP_SELF'], 'fees/my.php') !== false ? 'active' : ''; ?>">
                 <i class="fas fa-file-invoice-dollar"></i>
                 <span>My Fees</span>
+            </a>
+        </div>
+        <div class="nav-item">
+            <a href="<?php echo $base; ?>student-services/index.php" class="nav-link <?php echo strpos($_SERVER['PHP_SELF'], 'student-services/') !== false ? 'active' : ''; ?>">
+                <i class="fas fa-life-ring"></i>
+                <span>Help Desk &amp; Requests</span>
             </a>
         </div>
         <?php endif; ?>
