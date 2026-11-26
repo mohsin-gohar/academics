@@ -140,7 +140,7 @@ $activeAlert = getActiveEmergencyAlert($pdo, (int)$school['id']);
     <header class="hero">
         <div class="wrap">
             <div>
-                <span class="eyebrow"><i class="fas fa-star"></i> <?php echo e(ucfirst($school['subscription_plan'])); ?> Member School</span>
+                <span class="eyebrow"><i class="fas fa-star"></i> <?php echo e(ucfirst((string)($school['subscription_plan'] ?? 'basic'))); ?> Member School</span>
                 <h1><?php echo e($school['school_name']); ?></h1>
                 <p><?php echo e($school['public_page_description'] ?: 'A place where curiosity is encouraged, character is built, and every learner is prepared for a changing world.'); ?></p>
                 <div class="d-flex gap-2 flex-wrap mt-4">
