@@ -430,6 +430,13 @@ foreach ([
     'student own profile' => '/students/show.php?id=' . $sch1Student,
     'student profile page' => '/profile.php',
 ] as $label => $path) page($label, $path, $student);
+$studentNotes = http($base . '/notes/index.php', $student);
+$studentAudienceOk = strpos($studentNotes['body'], $announcementTitles['student']) !== false
+    && strpos($studentNotes['body'], $announcementTitles['teacher']) === false
+    && strpos($studentNotes['body'], $announcementTitles['parent']) === false;
+if ($studentAudienceOk) $pass++; else $fail++;
+$rows[] = ($studentAudienceOk ? 'PASS ' : 'FAIL ')
+    . str_pad('student sees only student-targeted announcements', 42);
 studentCannotOpenOtherProfile('student cross-school profile redirects to own', $otherStudent, $sch1Student, $student);
 
 // Logout is state-changing: GET must be rejected and a valid CSRF POST must end the session.
