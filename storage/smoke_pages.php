@@ -195,6 +195,42 @@ page('teacher cross-school student denied', '/students/show.php?id=' . $otherStu
 page('teacher cross-school course denied', '/courses/show.php?id=' . $otherCourse, $teacher, 403);
 page('teacher cross-school task denied', '/tasks/show.php?id=' . $otherTask, $teacher, 403);
 
+// Exercise leave creation against the reconciled legacy-compatible enum.
+$leaveForm = http($base . '/leave/create.php', $teacher);
+preg_match('/name="csrf_token"\\s+value="([a-f0-9]{64})"/', $leaveForm['body'], $leaveCsrf);
+$leaveDate = date('Y-m-d', strtotime('+1 day'));
+$leaveSubmit = http($base . '/leave/create.php', $teacher, [
+    'csrf_token' => $leaveCsrf[1] ?? '',
+    'leave_type' => 'Sick',
+    'start_date' => $leaveDate,
+    'end_date' => $leaveDate,
+    'reason' => 'CI smoke leave request',
+]);
+$leaveCreated = (int)$pdo->query(
+    "SELECT COUNT(*) FROM leave_requests WHERE user_id = " . $sch1User
+    . " AND school_id = 1 AND leave_type = 'Sick' AND reason = 'CI smoke leave request' AND status = 'Pending'"
+)->fetchColumn();
+$leaveCreateOk = $leaveCreated === 1 && $leaveSubmit['code'] === 200;
+if ($leaveCreateOk) $pass++; else $fail++;
+$rows[] = ($leaveCreateOk ? 'PASS ' : 'FAIL ')
+    . str_pad('teacher can submit a valid tenant leave request', 42)
+    . ' CREATED=' . $leaveCreated . ' HTTP=' . $leaveSubmit['code'];
+
+$leaveCountBeforeInvalid = (int)$pdo->query("SELECT COUNT(*) FROM leave_requests WHERE user_id = " . $sch1User)->fetchColumn();
+$invalidLeaveSubmit = http($base . '/leave/create.php', $teacher, [
+    'csrf_token' => $leaveCsrf[1] ?? '',
+    'leave_type' => 'Sick',
+    'start_date' => '2026-02-31',
+    'end_date' => '2026-02-31',
+    'reason' => 'Invalid date smoke request',
+]);
+$leaveCountAfterInvalid = (int)$pdo->query("SELECT COUNT(*) FROM leave_requests WHERE user_id = " . $sch1User)->fetchColumn();
+$invalidLeaveOk = $leaveCountAfterInvalid === $leaveCountBeforeInvalid;
+if ($invalidLeaveOk) $pass++; else $fail++;
+$rows[] = ($invalidLeaveOk ? 'PASS ' : 'FAIL ')
+    . str_pad('impossible leave dates are rejected', 42)
+    . ' ROWS=' . $leaveCountBeforeInvalid . '->' . $leaveCountAfterInvalid;
+
 $student = login('student@sch001.com', 'Student@123');
 foreach ([
     'student dashboard' => '/dashboard.php',
