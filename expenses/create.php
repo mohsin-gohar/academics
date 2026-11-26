@@ -54,7 +54,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $targetSchool = $schoolStmt->fetch(PDO::FETCH_ASSOC);
             if (!$targetSchool || (int)$targetSchool['is_active'] !== 1
                 || in_array(strtolower((string)$targetSchool['status']), ['suspended', 'disabled'], true)
-                || (function_exists('saas_school_is_accessible') && !saas_school_is_accessible($targetSchool))) {
+                || (function_exists('saas_school_is_accessible') && !saas_school_is_accessible($targetSchool, $pdo))) {
                 $errors[] = 'The selected school is not currently active.';
             }
         }
