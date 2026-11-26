@@ -218,6 +218,18 @@ $rows[] = ($expenseApproveOk ? 'PASS ' : 'FAIL ')
     . str_pad('school admin can approve a pending expense', 42)
     . ' STATUS=' . (string)$expenseAfterApprove;
 
+$expensePayResponse = $expenseId > 0 ? http($base . '/expenses/approve.php', $schoolAdmin, [
+    'csrf_token' => $expenseCsrf[1] ?? '',
+    'id' => $expenseId,
+    'action' => 'pay',
+]) : ['code' => 0, 'url' => ''];
+$expenseAfterPay = $expenseId > 0 ? $pdo->query("SELECT status FROM expenses WHERE id = " . $expenseId)->fetchColumn() : null;
+$expensePayOk = $expensePayResponse['code'] === 200 && $expenseAfterPay === 'paid';
+if ($expensePayOk) $pass++; else $fail++;
+$rows[] = ($expensePayOk ? 'PASS ' : 'FAIL ')
+    . str_pad('school admin can mark an approved expense paid', 42)
+    . ' STATUS=' . (string)$expenseAfterPay;
+
 $invalidExpenseTitle = 'CI Invalid Expense ' . bin2hex(random_bytes(3));
 $invalidExpenseSubmit = http($base . '/expenses/create.php', $schoolAdmin, [
     'csrf_token' => $expenseCsrf[1] ?? '',
