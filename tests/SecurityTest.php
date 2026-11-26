@@ -157,6 +157,49 @@ class SecurityTest {
             'pass' => count($courseDependencies) > 0
         ];
 
+        // 7. A tenant with subscription records must have one currently active
+        // subscription; cancelled/expired billing must revoke existing access.
+        $subscriptionStates = [];
+        $this->pdo->beginTransaction();
+        try {
+            $sub = $this->pdo->prepare(
+                "INSERT INTO school_subscriptions
+                    (school_id, plan, price, billing_cycle, start_date, end_date, status)
+                 VALUES (2, 'basic', 0, 'monthly', CURDATE(), DATE_ADD(CURDATE(), INTERVAL 30 DAY), 'active')"
+            );
+            $sub->execute();
+            $subscriptionId = (int)$this->pdo->lastInsertId();
+            $schoolTwo = school_by_id($this->pdo, 2);
+            $subscriptionStates['active'] = school_session_access_state($schoolTwo, time(), $this->pdo);
+            $subscriptionStates['active_saas'] = saas_school_access_state($schoolTwo, $this->pdo);
+            $this->pdo->prepare("UPDATE school_subscriptions SET status = 'cancelled' WHERE id = ?")->execute([$subscriptionId]);
+            $subscriptionStates['cancelled'] = school_session_access_state($schoolTwo, time(), $this->pdo);
+            $this->pdo->prepare("UPDATE school_subscriptions SET status = 'active', end_date = DATE_SUB(CURDATE(), INTERVAL 1 DAY) WHERE id = ?")->execute([$subscriptionId]);
+            $subscriptionStates['expired'] = school_session_access_state($schoolTwo, time(), $this->pdo);
+            $this->pdo->rollBack();
+        } catch (Throwable $e) {
+            if ($this->pdo->inTransaction()) $this->pdo->rollBack();
+            throw $e;
+        }
+        $results[] = [
+            'name' => 'Active subscription permits school access',
+            'pass' => ($subscriptionStates['active']['allowed'] ?? false) === true
+        ];
+        $results[] = [
+            'name' => 'Cancelled subscription revokes school access',
+            'pass' => ($subscriptionStates['cancelled']['allowed'] ?? true) === false
+                && ($subscriptionStates['cancelled']['reason'] ?? '') === 'subscription_inactive'
+        ];
+        $results[] = [
+            'name' => 'Expired subscription date revokes school access',
+            'pass' => ($subscriptionStates['expired']['allowed'] ?? true) === false
+                && ($subscriptionStates['expired']['reason'] ?? '') === 'subscription_inactive'
+        ];
+        $results[] = [
+            'name' => 'SaaS login access state uses the same subscription policy',
+            'pass' => ($subscriptionStates['active_saas']['allowed'] ?? false) === true
+        ];
+
         return $results;
     }
 }
