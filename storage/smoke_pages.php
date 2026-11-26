@@ -266,6 +266,11 @@ foreach ([
     'parent announcements' => '/parent/announcements.php',
     'parent tasks' => '/tasks/index.php',
     'parent events' => '/events/index.php',
+    'parent grades' => '/parent/grades.php',
+    'parent fees' => '/parent/fees.php',
+    'parent attendance' => '/parent/attendance.php',
+    'parent own child profile' => '/students/show.php?id=' . $sch1Student,
+    'parent unlinked student profile guarded' => '/students/show.php?id=' . $otherStudent,
 ] as $label => $path) page($label, $path, $parent);
 
 // A school must retain at least one active school administrator.
