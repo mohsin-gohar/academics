@@ -31,7 +31,7 @@ foreach ($schools as $school) {
 $totalUsers = (int)$pdo->query("SELECT COUNT(*) FROM users")->fetchColumn();
 $totalStudents = (int)$pdo->query("SELECT COUNT(*) FROM students")->fetchColumn();
 $totalTasks = (int)$pdo->query("SELECT COUNT(*) FROM tasks")->fetchColumn();
-$activeSubscriptions = (int)$pdo->query("SELECT COUNT(*) FROM school_subscriptions WHERE status = 'active' AND end_date >= CURDATE()")->fetchColumn();
+$activeSubscriptions = (int)$pdo->query("SELECT COUNT(*) FROM school_subscriptions WHERE status = 'active' AND start_date <= CURDATE() AND end_date >= CURDATE()")->fetchColumn();
 $mrr = saas_monthly_recurring_revenue($pdo);
 
 $recentSchools = array_slice($schools, 0, 6);
@@ -39,7 +39,7 @@ $expiring = $pdo->query("
     SELECT ss.*, s.school_name, s.school_code
     FROM school_subscriptions ss
     JOIN schools s ON s.id = ss.school_id
-    WHERE ss.status = 'active' AND ss.end_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 30 DAY)
+    WHERE ss.status = 'active' AND ss.start_date <= CURDATE() AND ss.end_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 30 DAY)
     ORDER BY ss.end_date ASC
     LIMIT 6
 ")->fetchAll();
