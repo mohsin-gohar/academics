@@ -430,6 +430,12 @@ foreach ([
     'student own profile' => '/students/show.php?id=' . $sch1Student,
     'student profile page' => '/profile.php',
 ] as $label => $path) page($label, $path, $student);
+$studentDashboardAudience = http($base . '/dashboard.php', $student);
+$studentDashboardAudienceOk = strpos($studentDashboardAudience['body'], $announcementTitles['student']) !== false
+    && strpos($studentDashboardAudience['body'], $announcementTitles['teacher']) === false;
+if ($studentDashboardAudienceOk) $pass++; else $fail++;
+$rows[] = ($studentDashboardAudienceOk ? 'PASS ' : 'FAIL ')
+    . str_pad('student dashboard filters announcement audience', 42);
 $studentNotes = http($base . '/notes/index.php', $student);
 $studentAudienceOk = strpos($studentNotes['body'], $announcementTitles['student']) !== false
     && strpos($studentNotes['body'], $announcementTitles['teacher']) === false
@@ -468,6 +474,12 @@ foreach ([
     'parent own child profile' => '/students/show.php?id=' . $sch1Student,
     'parent unlinked student profile guarded' => '/students/show.php?id=' . $otherStudent,
 ] as $label => $path) page($label, $path, $parent);
+$parentDashboardAudience = http($base . '/parent/dashboard.php', $parent);
+$parentDashboardAudienceOk = strpos($parentDashboardAudience['body'], $announcementTitles['parent']) !== false
+    && strpos($parentDashboardAudience['body'], $announcementTitles['teacher']) === false;
+if ($parentDashboardAudienceOk) $pass++; else $fail++;
+$rows[] = ($parentDashboardAudienceOk ? 'PASS ' : 'FAIL ')
+    . str_pad('parent dashboard filters announcement audience', 42);
 $parentNotes = http($base . '/notes/index.php', $parent);
 $parentAudienceOk = strpos($parentNotes['body'], $announcementTitles['parent']) !== false
     && strpos($parentNotes['body'], $announcementTitles['teacher']) === false
