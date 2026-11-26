@@ -20,10 +20,26 @@ require_record_school($task);
 
 // Permission check: staff can see own, admin all, student only assigned
 if (isStudent()) {
-    $stmt = $pdo->prepare("SELECT id FROM students WHERE user_id = ?");
-    $stmt->execute([$user_id]);
+    $stmt = $pdo->prepare("SELECT id FROM students WHERE user_id = ? AND school_id = ? LIMIT 1");
+    $stmt->execute([$user_id, (int)$task['school_id']]);
     $st = $stmt->fetch();
-    if (!$st || $task['student_id'] != $st['id']) {
+    if (!$st || (int)$task['student_id'] !== (int)$st['id']) {
+        http_response_code(403);
+        header('Location: ../errors/403.php'); exit;
+    }
+} elseif (isParent()) {
+    $link = $pdo->prepare("SELECT 1 FROM parent_student WHERE parent_id = ? AND student_id = ? AND school_id = ? LIMIT 1");
+    $link->execute([(int)$user_id, (int)($task['student_id'] ?? 0), (int)$task['school_id']]);
+    if (!$task['student_id'] || !$link->fetchColumn()) {
+        http_response_code(403);
+        header('Location: ../errors/403.php'); exit;
+    }
+} elseif (isTeacher()) {
+    $access = $pdo->prepare("SELECT 1 FROM courses c WHERE c.id = ? AND c.school_id = ? AND c.instructor_id = ? LIMIT 1");
+    $access->execute([(int)($task['course_id'] ?? 0), (int)$task['school_id'], (int)$user_id]);
+    $created = (int)($task['user_id'] ?? 0) === (int)$user_id;
+    if (!$created && !$access->fetchColumn()) {
+        http_response_code(403);
         header('Location: ../errors/403.php'); exit;
     }
 }
