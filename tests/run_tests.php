@@ -23,6 +23,7 @@ require_once __DIR__ . '/SecurityTest.php';
 require_once __DIR__ . '/EventsAlertsTest.php';
 require_once __DIR__ . '/SaasTest.php';
 require_once __DIR__ . '/StudentServicesTest.php';
+require_once __DIR__ . '/StudentPortfolioTest.php';
 
 // Expanded modular suites
 require_once __DIR__ . '/test_auth.php';
@@ -51,6 +52,7 @@ $suites = [
     'Advanced Features: Attendance, Grades, Fees, Timetable (test_features)' => new TestFeaturesSuite($pdo),
     'SaaS Plans, Trials & Subscriptions' => new SaasTest($pdo),
     'Student Help Desk, Study Resources & Lab Practice' => new StudentServicesTest($pdo),
+    'Student Portfolio, eProjects & Activities' => new StudentPortfolioTest($pdo),
 ];
 
 $totalTests = 0;
