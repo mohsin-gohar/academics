@@ -89,9 +89,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if (!$errors) {
                 $legacyPlan = saas_legacy_plan($plan);
-                if ($status === 'trial' && !isValidIsoDate($trialEnds)) {
-                    $errors[] = 'A valid trial end date is required for trial schools.';
-                } elseif ($trialEnds !== '' && !isValidIsoDate($trialEnds)) {
+                if ($status === 'trial' && $trialEnds === '') {
+                    $trialEnds = date('Y-m-d', strtotime('+30 days'));
+                }
+                if ($trialEnds !== '' && !isValidIsoDate($trialEnds)) {
                     $errors[] = 'Trial end date is invalid.';
                 }
 
