@@ -59,7 +59,7 @@ try {
     $schoolId = $row['school_id'] !== null ? (int)$row['school_id'] : null;
     if ($schoolId !== null) {
         $school = school_by_id($pdo, $schoolId);
-        if (!$school || !saas_school_is_accessible($school)) {
+        if (!$school || !saas_school_is_accessible($school, $pdo)) {
             $pdo->rollBack();
             header('Location: login.php?error=' . urlencode('This school portal is not available right now.'));
             exit;
