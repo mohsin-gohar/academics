@@ -21,8 +21,8 @@ if (isParent()) {
 
 // Student can only view their own profile - gracefully redirect instead of 403
 if (!isStaff() && !isParent()) {
-    $stmt = $pdo->prepare("SELECT id FROM students WHERE user_id = ?");
-    $stmt->execute([$_SESSION['user_id']]);
+    $stmt = $pdo->prepare("SELECT id FROM students WHERE user_id = ? AND school_id = ? LIMIT 1");
+    $stmt->execute([$_SESSION['user_id'], (int)(currentSchoolId() ?? 0)]);
     $ownId = (int)$stmt->fetchColumn();
     if ($ownId && $id !== $ownId) {
         header('Location: show.php?id=' . $ownId);

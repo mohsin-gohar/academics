@@ -11,15 +11,13 @@ if (!isStudent()) {
 }
 
 $schoolId = (int)(currentSchoolId() ?? 0);
-$studentId = (int)($_SESSION['student_id'] ?? 0);
+$userId = (int)($_SESSION['user_id'] ?? 0);
+$studentLookup = $pdo->prepare('SELECT id FROM students WHERE user_id = ? AND school_id = ? LIMIT 1');
+$studentLookup->execute([$userId, $schoolId]);
+$studentId = (int)$studentLookup->fetchColumn();
 if ($schoolId <= 0 || $studentId <= 0) {
-    // resolve from user
-    $stmt = $pdo->prepare("SELECT id, school_id FROM students WHERE user_id = ? LIMIT 1");
-    $stmt->execute([(int)($_SESSION['user_id'] ?? 0)]);
-    $row = $stmt->fetch();
-    $studentId = (int)($row['id'] ?? 0);
-    $schoolId = (int)($row['school_id'] ?? 0);
-    $_SESSION['student_id'] = $studentId;
+    http_response_code(404);
+    exit('Your student record could not be found in this school.');
 }
 if ($schoolId <= 0 || $studentId <= 0) {
     header('Location: ../dashboard.php');
@@ -34,8 +32,8 @@ if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $to)) $to = date('Y-m-d');
 $summary = getStudentAttendanceSummary($pdo, $schoolId, $studentId, $from, $to);
 $records = getAttendanceRecords($pdo, $schoolId, $from, $to, $studentId);
 
-$stmt = $pdo->prepare("SELECT full_name, student_number FROM students WHERE id = ?");
-$stmt->execute([$studentId]);
+$stmt = $pdo->prepare("SELECT full_name, student_number FROM students WHERE id = ? AND school_id = ?");
+$stmt->execute([$studentId, $schoolId]);
 $stu = $stmt->fetch();
 ?>
 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">

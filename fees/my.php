@@ -8,14 +8,14 @@ requireAuth();
 if (!isStudent()) { header('Location: ../dashboard.php'); exit; }
 
 $schoolId = (int)(currentSchoolId() ?? 0);
-$studentId = (int)($_SESSION['student_id'] ?? 0);
+$userId = (int)($_SESSION['user_id'] ?? 0);
+$studentLookup = $pdo->prepare('SELECT id FROM students WHERE user_id = ? AND school_id = ? LIMIT 1');
+$studentLookup->execute([$userId, $schoolId]);
+$studentId = (int)$studentLookup->fetchColumn();
 if ($schoolId <= 0 || $studentId <= 0) {
-    $stmt = $pdo->prepare("SELECT id, school_id FROM students WHERE user_id = ? LIMIT 1");
-    $stmt->execute([(int)($_SESSION['user_id'] ?? 0)]);
-    $row = $stmt->fetch();
-    if ($row) { $studentId = (int)$row['id']; $schoolId = (int)$row['school_id']; $_SESSION['student_id'] = $studentId; }
+    http_response_code(404);
+    exit('Your student record could not be found in this school.');
 }
-if ($schoolId <= 0 || $studentId <= 0) { header('Location: ../dashboard.php'); exit; }
 
 getFeeSummary($pdo, $schoolId);
 $invoices = getInvoices($pdo, $schoolId, $studentId);
