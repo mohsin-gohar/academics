@@ -12,10 +12,15 @@ if ($schoolId <= 0) { header('Location: ../dashboard.php'); exit; }
 $assessmentId = (int)($_GET['assessment_id'] ?? $_POST['assessment_id'] ?? 0);
 if ($assessmentId <= 0) { header('Location: index.php'); exit; }
 
-$stmt = $pdo->prepare("SELECT a.*, c.course_name, c.course_code FROM assessments a JOIN courses c ON c.id = a.course_id AND c.school_id = a.school_id WHERE a.id = ? AND a.school_id = ?");
+$stmt = $pdo->prepare("SELECT a.*, c.course_name, c.course_code, c.instructor_id FROM assessments a JOIN courses c ON c.id = a.course_id AND c.school_id = a.school_id WHERE a.id = ? AND a.school_id = ?");
 $stmt->execute([$assessmentId, $schoolId]);
 $assessment = $stmt->fetch();
 if (!$assessment) { header('Location: index.php'); exit; }
+if (isTeacher() && (int)($assessment['instructor_id'] ?? 0) !== (int)$_SESSION['user_id']) {
+    http_response_code(403);
+    header('Location: ../errors/403.php');
+    exit;
+}
 
 // enrolled students
 $stmt = $pdo->prepare("SELECT st.id, st.full_name, st.student_number FROM students st JOIN enrollments e ON e.student_id = st.id AND e.school_id = st.school_id WHERE e.course_id = ? AND e.school_id = ? AND st.school_id = ? AND e.status = 'Enrolled' ORDER BY st.full_name ASC");
