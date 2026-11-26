@@ -184,9 +184,13 @@ foreach ($tasks as $t) {
         <div class="card">
             <div class="card-body text-center">
                 <div class="mb-3">
+                    <?php if (!empty($student['profile_image'])): ?>
+                    <img src="photo_view.php?id=<?php echo (int)$student['id']; ?>" alt="<?php echo e($student['full_name']); ?> profile photo" class="rounded-circle" width="80" height="80" style="object-fit:cover;">
+                    <?php else: ?>
                     <div class="rounded-circle bg-primary text-white d-inline-flex align-items-center justify-content-center" style="width:80px;height:80px;font-size:2rem;">
                         <?php echo strtoupper(substr($student['full_name'], 0, 1)); ?>
                     </div>
+                    <?php endif; ?>
                 </div>
                 <h4 class="mb-1"><?php echo e($student['full_name']); ?></h4>
                 <p class="text-muted mb-2"><?php echo e($student['student_number']); ?></p>
