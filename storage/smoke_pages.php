@@ -217,6 +217,51 @@ $rows[] = ($expenseApproveOk ? 'PASS ' : 'FAIL ')
     . str_pad('school admin can approve a pending expense', 42)
     . ' STATUS=' . (string)$expenseAfterApprove;
 
+$invalidExpenseTitle = 'CI Invalid Expense ' . bin2hex(random_bytes(3));
+$invalidExpenseSubmit = http($base . '/expenses/create.php', $schoolAdmin, [
+    'csrf_token' => $expenseCsrf[1] ?? '',
+    'title' => $invalidExpenseTitle,
+    'description' => 'Invalid precision test',
+    'amount' => '100.001',
+    'expense_date' => date('Y-m-d'),
+    'category' => 'Other',
+    'payment_method' => 'cash',
+    'reference' => '',
+    'received_by' => '',
+]);
+$invalidExpenseCount = (int)$pdo->query("SELECT COUNT(*) FROM expenses WHERE school_id = 1 AND title = " . $pdo->quote($invalidExpenseTitle))->fetchColumn();
+$invalidExpenseOk = $invalidExpenseCount === 0 && strpos($invalidExpenseSubmit['body'], 'two decimal places') !== false;
+if ($invalidExpenseOk) $pass++; else $fail++;
+$rows[] = ($invalidExpenseOk ? 'PASS ' : 'FAIL ')
+    . str_pad('expense rejects unsupported decimal precision', 42);
+
+$rejectExpenseTitle = 'CI Rejected Expense ' . bin2hex(random_bytes(3));
+$rejectExpenseSubmit = http($base . '/expenses/create.php', $schoolAdmin, [
+    'csrf_token' => $expenseCsrf[1] ?? '',
+    'title' => $rejectExpenseTitle,
+    'description' => 'Expense rejection workflow test',
+    'amount' => '25.00',
+    'expense_date' => date('Y-m-d'),
+    'category' => 'Other',
+    'payment_method' => 'cash',
+    'reference' => '',
+    'received_by' => '',
+]);
+$rejectExpenseIdStmt = $pdo->prepare("SELECT id FROM expenses WHERE school_id = 1 AND title = ? ORDER BY id DESC LIMIT 1");
+$rejectExpenseIdStmt->execute([$rejectExpenseTitle]);
+$rejectExpenseId = (int)$rejectExpenseIdStmt->fetchColumn();
+$rejectExpenseResponse = $rejectExpenseId > 0 ? http($base . '/expenses/approve.php', $schoolAdmin, [
+    'csrf_token' => $expenseCsrf[1] ?? '',
+    'id' => $rejectExpenseId,
+    'action' => 'reject',
+]) : ['code' => 0, 'url' => ''];
+$rejectExpenseStatus = $rejectExpenseId > 0 ? $pdo->query("SELECT status FROM expenses WHERE id = " . $rejectExpenseId)->fetchColumn() : null;
+$rejectExpenseOk = $rejectExpenseResponse['code'] === 200 && $rejectExpenseStatus === 'rejected';
+if ($rejectExpenseOk) $pass++; else $fail++;
+$rows[] = ($rejectExpenseOk ? 'PASS ' : 'FAIL ')
+    . str_pad('school admin can reject a pending expense', 42)
+    . ' STATUS=' . (string)$rejectExpenseStatus;
+
 $crossExpenseStmt = $pdo->prepare(
     "INSERT INTO expenses (school_id, title, amount, expense_date, category, status, created_by)
      VALUES (2, 'CI Cross Tenant Expense', 10.00, CURDATE(), 'Other', 'pending', 1)"
