@@ -40,7 +40,12 @@ if ($canManage && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         } elseif ($error === '' && $action === 'lab') {
             $instructions = trim((string)($_POST['instructions'] ?? ''));
             $dueDate = trim((string)($_POST['due_date'] ?? ''));
-            $dateValid = $dueDate === '' || (bool)DateTime::createFromFormat('Y-m-d', $dueDate);
+            $dateParts = $dueDate === '' ? [] : explode('-', $dueDate);
+            $dateValid = $dueDate === '' || (
+                count($dateParts) === 3
+                && preg_match('/^\\d{4}-\\d{2}-\\d{2}$/', $dueDate)
+                && checkdate((int)$dateParts[1], (int)$dateParts[2], (int)$dateParts[0])
+            );
             if ($instructions === '' || mb_strlen($instructions) > 20000 || !$dateValid) {
                 $error = 'Provide lab instructions and a valid optional due date.';
             } else {
