@@ -15,15 +15,20 @@ enforceSession($pdo);
 $schoolId = currentSchoolId();
 if (!$schoolId) { header('Location: ../dashboard.php'); exit; }
 $userRole = getUserRole();
+$targetRole = in_array($userRole, ['school_admin', 'admin', 'teacher'], true) ? 'teacher' : $userRole;
 
-// Fetch announcements (strictly scoped to this school)
+// Only active announcements addressed to this user's audience are visible.
 $sql = "SELECT a.*, u.full_name as author_name
         FROM announcements a
         LEFT JOIN users u ON a.created_by = u.id
         WHERE a.school_id = ?
+          AND a.is_active = 1
+          AND a.start_date <= NOW()
+          AND (a.end_date IS NULL OR a.end_date >= NOW())
+          AND (a.target_roles = 'all' OR a.target_roles = ?)
         ORDER BY a.created_at DESC";
 $stmt = $pdo->prepare($sql);
-$stmt->execute([$schoolId]);
+$stmt->execute([$schoolId, $targetRole]);
 $notes = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 require_once __DIR__ . '/../includes/header.php';
