@@ -178,12 +178,70 @@ $rows[] = ($invalidStatusOk ? 'PASS ' : 'FAIL ')
     . str_pad('invalid task status is rejected without mutation', 42)
     . ' STATUS=' . $ownTaskStatusBeforeInvalid . '->' . $ownTaskStatusAfterInvalid;
 
+// Expense creation and approval are a complete, tenant-scoped workflow.
+$expenseForm = http($base . '/expenses/create.php', $schoolAdmin);
+preg_match('/name="csrf_token"\\s+value="([a-f0-9]{64})"/', $expenseForm['body'], $expenseCsrf);
+$expenseTitle = 'CI Smoke Expense ' . bin2hex(random_bytes(3));
+$expenseSubmit = http($base . '/expenses/create.php', $schoolAdmin, [
+    'csrf_token' => $expenseCsrf[1] ?? '',
+    'title' => $expenseTitle,
+    'description' => 'Expense creation and approval smoke test',
+    'amount' => '1250.50',
+    'expense_date' => date('Y-m-d'),
+    'category' => 'Supplies',
+    'payment_method' => 'cash',
+    'reference' => 'CI-EXPENSE',
+    'received_by' => '',
+]);
+$expenseIdStmt = $pdo->prepare("SELECT id FROM expenses WHERE school_id = 1 AND title = ? AND created_by = ? ORDER BY id DESC LIMIT 1");
+$expenseIdStmt->execute([$expenseTitle, (int)$pdo->query("SELECT id FROM users WHERE email='schooladmin@sch001.com'")->fetchColumn()]);
+$expenseId = (int)$expenseIdStmt->fetchColumn();
+$expensePending = $expenseId > 0 ? (string)$pdo->query("SELECT status FROM expenses WHERE id = " . $expenseId)->fetchColumn() : '';
+$expenseCreateOk = $expenseSubmit['code'] === 200 && $expensePending === 'pending';
+if ($expenseCreateOk) $pass++; else $fail++;
+$rows[] = ($expenseCreateOk ? 'PASS ' : 'FAIL ')
+    . str_pad('school admin can submit a pending expense', 42)
+    . ' STATUS=' . $expensePending;
+
+$expenseApprove = $expenseId > 0 ? http($base . '/expenses/approve.php', $schoolAdmin, [
+    'csrf_token' => $expenseCsrf[1] ?? '',
+    'id' => $expenseId,
+    'action' => 'approve',
+]) : ['code' => 0, 'url' => ''];
+$expenseAfterApprove = $expenseId > 0 ? $pdo->query("SELECT status FROM expenses WHERE id = " . $expenseId)->fetchColumn() : null;
+$expenseApprover = $expenseId > 0 ? (int)$pdo->query("SELECT approved_by FROM expenses WHERE id = " . $expenseId)->fetchColumn() : 0;
+$expenseApproveOk = $expenseApprove['code'] === 200 && $expenseAfterApprove === 'approved'
+    && $expenseApprover === (int)$pdo->query("SELECT id FROM users WHERE email='schooladmin@sch001.com'")->fetchColumn();
+if ($expenseApproveOk) $pass++; else $fail++;
+$rows[] = ($expenseApproveOk ? 'PASS ' : 'FAIL ')
+    . str_pad('school admin can approve a pending expense', 42)
+    . ' STATUS=' . (string)$expenseAfterApprove;
+
+$crossExpenseStmt = $pdo->prepare(
+    "INSERT INTO expenses (school_id, title, amount, expense_date, category, status, created_by)
+     VALUES (2, 'CI Cross Tenant Expense', 10.00, CURDATE(), 'Other', 'pending', 1)"
+);
+$crossExpenseStmt->execute();
+$crossExpenseId = (int)$pdo->lastInsertId();
+$crossExpenseAttempt = http($base . '/expenses/approve.php', $schoolAdmin, [
+    'csrf_token' => $expenseCsrf[1] ?? '',
+    'id' => $crossExpenseId,
+    'action' => 'approve',
+]);
+$crossExpenseStatus = (string)$pdo->query("SELECT status FROM expenses WHERE id = " . $crossExpenseId)->fetchColumn();
+$crossExpenseOk = $crossExpenseAttempt['code'] === 403 && $crossExpenseStatus === 'pending';
+if ($crossExpenseOk) $pass++; else $fail++;
+$rows[] = ($crossExpenseOk ? 'PASS ' : 'FAIL ')
+    . str_pad('cross-school expense approval is denied', 42)
+    . ' HTTP=' . $crossExpenseAttempt['code'] . ' STATUS=' . $crossExpenseStatus;
+
 $teacher = login('teacher@sch001.com', 'Teacher@123');
 foreach ([
     'teacher dashboard' => '/dashboard.php',
     'teacher students' => '/students/index.php',
     'teacher tasks' => '/tasks/index.php',
     'teacher task create' => '/tasks/create.php',
+    'teacher expenses create denied' => '/expenses/create.php',
     'teacher events' => '/events/index.php',
     'teacher event create' => '/events/create.php',
     'teacher courses' => '/courses/index.php',
