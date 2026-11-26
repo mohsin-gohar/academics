@@ -123,6 +123,18 @@ jobs:
           done
           cat /tmp/academics-php-server.log
           exit 1
+      - name: Setup Node.js for real-browser checks
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install Playwright and Chromium
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+      - name: Verify authenticated browser pages and responsive layouts
+        env:
+          ACADEMICS_BASE: http://127.0.0.1:8090
+        run: node tests/browser_smoke.cjs
       - name: Verify role-based portal pages
         env:
           ACADEMICS_BASE: http://127.0.0.1:8090
