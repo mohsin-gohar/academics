@@ -2,8 +2,8 @@
 /**
  * Browser Smoke Tests — Critical Route Status Code Validation with Authenticated Sessions
  * 
- * Logs in as each of six roles via cURL auth flow, captures server-issued session
- * cookies using cookie jars, then tests critical routes with those authenticated sessions.
+ * Logs in as each of six roles via the application's auth flow using cURL cookie jars,
+ * captures server-issued session cookies, then tests critical routes with those authenticated sessions.
  * Verifies both allowed and forbidden routes per role.
  * 
  * Viewport widths (320, 360, 375, 390, 414, 430, 768, 1024, 1280, 1440, 1920)
@@ -39,7 +39,7 @@ foreach ($loginCredentials as $role => $creds) {
     $cookieJar = tempnam(sys_get_temp_dir(), 'cookie_');
     $ch = curl_init();
 
-    // Step 1: Get the login page to receive any initial cookies
+    // Step 1: GET the login page to receive initial cookies and CSRF token
     curl_setopt($ch, CURLOPT_URL, $baseUrl . '/auth/login.php');
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
@@ -49,18 +49,28 @@ foreach ($loginCredentials as $role => $creds) {
     $headerResponse = curl_exec($ch);
     $headerCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 
-    // Step 2: Perform login POST
+    // Step 2: Extract CSRF token from the login page HTML
+    $csrfToken = '';
+    if (preg_match('/name="csrf_token"\s+value="([^"]+)"/i', $headerResponse, $m)) {
+        $csrfToken = $m[1];
+    }
+    // Also check for meta tag format
+    if (empty($csrfToken) && preg_match('/content=["\']?([^"\']+)["\']?\s+name=["\']csrf["\']/i', $headerResponse, $m)) {
+        $csrfToken = $m[1];
+    }
+
+    // Step 2: POST to login_process.php with credentials and CSRF token
     $ch2 = curl_init();
-    curl_setopt($ch2, CURLOPT_URL, $baseUrl . '/auth/login.php');
+    curl_setopt($ch2, CURLOPT_URL, $baseUrl . '/auth/login_process.php');
     curl_setopt($ch2, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch2, CURLOPT_FOLLOWLOCATION, true);
     curl_setopt($ch2, CURLOPT_POST, true);
-    curl_setopt($ch2, CURLOPT_POSTFIELDS, "email={$email}&password={$password}");
+    curl_setopt($ch2, CURLOPT_POSTFIELDS, "email={$email}&password={$password}&csrf_token={$csrfToken}");
     curl_setopt($ch2, CURLOPT_COOKIEJAR, $cookieJar);
     curl_setopt($ch2, CURLOPT_COOKIEFILE, $cookieJar);
     $loginResponse = curl_exec($ch2);
     $loginHttpCode = curl_getinfo($ch2, CURLINFO_HTTP_CODE);
-    $redirectUrl = '';
+    // Capture the redirect URL after login
     if (preg_match('/Location: (.+)/i', $loginResponse, $m)) {
         $redirectUrl = trim($m[1]);
     }
@@ -70,15 +80,16 @@ foreach ($loginCredentials as $role => $creds) {
     $cookieContent = file_get_contents($cookieJar);
     unlink($cookieJar);
 
-    // Parse the PHPSESSID or session cookie from the cookie file
+    // Parse the session cookie from the cookie file
     $cookieString = '';
-    if (preg_match('/session_name\s*=\s*["\']?([^";]+)["\']?/i', $cookieContent, $m)) {
-        $cookieString = $m[1] . '=' . trim(explode(';', $cookieContent)[0]);
-    } elseif (preg_match('/PHPSESSID\s*=\s*["\']?([^";]+)["\']?/i', $cookieContent, $m)) {
+    // Try PHPSESSID first, then session_name format
+    if (preg_match('/PHPSESSID\s*=\s*["\']?([^";]+)["\']?/i', $cookieContent, $m)) {
         $cookieString = 'PHPSESSID=' . trim($m[1]);
+    } elseif (preg_match('/session_name\s*=\s*["\']?([^";]+)["\']?/i', $cookieContent, $m)) {
+        $cookieString = $m[1] . '=' . trim(explode(';', $cookieContent)[0]);
     }
 
-    // Determine if login succeeded (302 redirect to dashboard, or 200 with session)
+    // Determine if login succeeded
     $loginSucceeded = ($loginHttpCode === 302 && strpos($redirectUrl, 'dashboard') !== false)
         || ($loginHttpCode === 200 && !empty($cookieString));
 
@@ -91,7 +102,7 @@ foreach ($loginCredentials as $role => $creds) {
 
     echo "Role {$role}: login HTTP={$loginHttpCode}" . ($loginSucceeded ? " [LOGIN OK]" : " [LOGIN FAILED]") . "\n";
     if (!$loginSucceeded && !empty($cookieString)) {
-        echo "  Cookie set: {$cookieString}\n";
+        echo "  Cookie: {$cookieString}\n  Redirect: {$redirectUrl}\n";
     }
 }
 
@@ -142,7 +153,7 @@ $roleRoutes = [
 
 // Also define forbidden routes (403 expected) per role
 $roleForbidden = [
-    'super_admin' => [],  // super_admin can access everything permitted
+    'super_admin' => [],
     'school_admin' => [],
     'admin' => [],
     'teacher' => ['/admin/users.php' => 403, '/admin/settings.php' => 403],
@@ -224,6 +235,34 @@ foreach ($unauthRoutes as $route => $expectedCode) {
 }
 
 // ============================================================
+// LOGOUT TEST
+// ============================================================
+
+echo "\n=== Logout Tests ===\n";
+foreach ($loginCredentials as $role => $creds) {
+    if (!isset($roleResults[$role]) || !$roleResults[$role]['succeeded']) {
+        echo "[SKIP] Role {$role} login failed; skipping logout test.\n";
+        continue;
+    }
+    
+    $cookieString = $roleResults[$role]['cookieString'];
+    
+    // Test logout endpoint
+    $ch = curl_init($baseUrl . '/auth/logout.php');
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
+    curl_setopt($ch, CURLOPT_COOKIE, $cookieString);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    
+    $passed = ($httpCode === 302 || $httpCode === 200); // logout should redirect or show success
+    $status = $passed ? "PASS" : "FAIL";
+    echo "[$status] {$role} logout returned {$httpCode}\n";
+    if (!$passed) $allPassed = false;
+}
+
+// ============================================================
 // VIEWPORT WIDTH DOCUMENTATION (HONEST CLAIMS)
 // ============================================================
 
@@ -250,6 +289,7 @@ if ($allPassed) {
     echo "\nVERIFICATION SCOPE:\n";
     echo "- Authenticated route status code verification: DONE for " . count($testedRoles) . " roles\n";
     echo "- Forbidden route (403) verification: DONE for relevant roles\n";
+    echo "- Logout handling: DONE\n";
     echo "- Viewport layout/UI testing: NOT performed (requires Playwright/Selenium)\n";
     echo "- This test verifies HTTP status codes; it does NOT verify CSS,\n";
     echo "  layout, or viewport rendering.\n";
