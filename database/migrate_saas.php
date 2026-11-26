@@ -125,6 +125,7 @@ $pdo->exec("
     UPDATE schools
     SET plan = CASE
         WHEN subscription_plan = 'premium' THEN 'enterprise'
+        WHEN subscription_plan = 'pro' THEN 'pro'
         ELSE 'basic'
     END
     WHERE plan IS NULL OR plan = '' OR plan = 'basic'
