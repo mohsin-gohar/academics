@@ -164,6 +164,20 @@ $rows[] = ($crossTenantWriteOk ? 'PASS ' : 'FAIL ')
     . ' HTTP=' . $crossTenantTaskWrite['code']
     . ' STATUS=' . $otherTaskStatusBefore . '->' . $otherTaskStatusAfter;
 
+$ownTaskStatusBeforeInvalid = (string)$pdo->query("SELECT status FROM tasks WHERE id = " . $sch1Task)->fetchColumn();
+$invalidTaskStatusWrite = http($base . '/tasks/update_status.php', $schoolAdmin, [
+    'id' => $sch1Task,
+    'status' => 'Unexpected Status',
+    'csrf_token' => $writeCsrf[1] ?? '',
+]);
+$ownTaskStatusAfterInvalid = (string)$pdo->query("SELECT status FROM tasks WHERE id = " . $sch1Task)->fetchColumn();
+$invalidStatusOk = strpos($invalidTaskStatusWrite['url'], 'error=') !== false
+    && $ownTaskStatusAfterInvalid === $ownTaskStatusBeforeInvalid;
+if ($invalidStatusOk) $pass++; else $fail++;
+$rows[] = ($invalidStatusOk ? 'PASS ' : 'FAIL ')
+    . str_pad('invalid task status is rejected without mutation', 42)
+    . ' STATUS=' . $ownTaskStatusBeforeInvalid . '->' . $ownTaskStatusAfterInvalid;
+
 $teacher = login('teacher@sch001.com', 'Teacher@123');
 foreach ([
     'teacher dashboard' => '/dashboard.php',
