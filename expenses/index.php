@@ -30,6 +30,12 @@ $userFilter = (isset($_GET['user_id']) && $_GET['user_id'] !== '') ? (int)$_GET[
 $from = trim($_GET['from'] ?? '');
 $to = trim($_GET['to'] ?? '');
 
+if (!in_array($status, ['', 'pending', 'approved', 'rejected', 'paid'], true)) $status = '';
+if (!in_array($category, ['', 'Utilities', 'Supplies', 'Maintenance', 'Travel', 'Salaries', 'Other'], true)) $category = '';
+if ($from !== '' && !isValidIsoDate($from)) $from = '';
+if ($to !== '' && !isValidIsoDate($to)) $to = '';
+if ($from !== '' && $to !== '' && $from > $to) { [$from, $to] = [$to, $from]; }
+
 if (!empty($status)) { $where[] = 'e.status = ?'; $params[] = $status; }
 if (!empty($category)) { $where[] = 'e.category = ?'; $params[] = $category; }
 if (!empty($userFilter) && isSchoolManagement()) { $where[] = 'e.created_by = ?'; $params[] = $userFilter; }
@@ -47,6 +53,19 @@ $stmt = $pdo->prepare("SELECT COUNT(*) AS total FROM expenses e WHERE $whereClau
 $stmt->execute($params);
 $total = (int)$stmt->fetch()['total'];
 $pagination = getPagination($total, $perPage, $page);
+$page = (int)$pagination['current_page'];
+$offset = (int)$pagination['offset'];
+
+$summaryStmt = $pdo->prepare(
+    "SELECT COALESCE(SUM(e.amount), 0) AS total_amount,
+            COALESCE(SUM(e.status = 'pending'), 0) AS pending_count,
+            COALESCE(SUM(e.status = 'approved'), 0) AS approved_count
+     FROM expenses e WHERE $whereClause"
+);
+$summaryStmt->execute($params);
+$expenseSummary = $summaryStmt->fetch(PDO::FETCH_ASSOC) ?: [
+    'total_amount' => 0, 'pending_count' => 0, 'approved_count' => 0
+];
 
 // ---- Fetch ----
 $sql = "SELECT e.*, u.full_name AS creator_name, a.full_name AS approver_name
@@ -72,7 +91,7 @@ if (isSchoolManagement()) {
     $stmt->execute([$schoolId]);
     $users = $stmt->fetchAll();
 }
-$totalAmount = (float)array_reduce($expenses, fn($c, $r) => $c + (float)($r['amount'] ?? 0), 0);
+$totalAmount = (float)$expenseSummary['total_amount'];
 ?>
 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
     <div>
@@ -99,7 +118,7 @@ $totalAmount = (float)array_reduce($expenses, fn($c, $r) => $c + (float)($r['amo
         <div class="card border-0 shadow-sm">
             <div class="card-body text-center">
                 <div class="text-muted small">Pending</div>
-                <div class="fw-bold fs-4 text-warning"><?php echo (int)array_reduce($expenses, fn($c, $r) => $c + (($r['status'] ?? '') === 'pending'), 0); ?></div>
+                <div class="fw-bold fs-4 text-warning"><?php echo (int)$expenseSummary['pending_count']; ?></div>
             </div>
         </div>
     </div>
@@ -107,7 +126,7 @@ $totalAmount = (float)array_reduce($expenses, fn($c, $r) => $c + (float)($r['amo
         <div class="card border-0 shadow-sm">
             <div class="card-body text-center">
                 <div class="text-muted small">Approved</div>
-                <div class="fw-bold fs-4 text-success"><?php echo (int)array_reduce($expenses, fn($c, $r) => $c + (($r['status'] ?? '') === 'approved'), 0); ?></div>
+                <div class="fw-bold fs-4 text-success"><?php echo (int)$expenseSummary['approved_count']; ?></div>
             </div>
         </div>
     </div>
