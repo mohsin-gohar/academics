@@ -177,10 +177,21 @@ $sidebarPortalLabel = isStudent() ? 'STUDENT PORTAL'
                 <span>Help Desk &amp; Requests</span>
             </a>
         </div>
+        <div class="nav-item">
+            <a href="<?php echo $base; ?>learning/index.php" class="nav-link <?php echo strpos($_SERVER['PHP_SELF'], 'learning/') !== false ? 'active' : ''; ?>">
+                <i class="fas fa-flask"></i>
+                <span>Study Material &amp; Labs</span>
+            </a>
+        </div>
         <?php endif; ?>
         <?php endif; ?>
 
         <?php if (!isParent() && !isStudent()): ?>
+        <div class="nav-item">
+            <a href="<?php echo $base; ?>learning/index.php" class="nav-link <?php echo strpos($_SERVER['PHP_SELF'], 'learning/') !== false ? 'active' : ''; ?>">
+                <i class="fas fa-flask"></i><span>Study Material &amp; Labs</span>
+            </a>
+        </div>
         <div class="nav-item">
             <a href="<?php echo $base; ?>reports/index.php" class="nav-link <?php echo strpos($_SERVER['PHP_SELF'], 'reports/') !== false ? 'active' : ''; ?>">
                 <i class="fas fa-user-check"></i>
