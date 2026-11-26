@@ -94,6 +94,7 @@ $sch1User = (int)$pdo->query("SELECT id FROM users WHERE email='teacher@sch001.c
 $otherStudent = (int)$pdo->query("SELECT id FROM students WHERE email = 'student@sch002.com' AND school_id = 2 LIMIT 1")->fetchColumn();
 $otherCourse = (int)$pdo->query("SELECT id FROM courses WHERE course_code = 'TEST201' AND school_id = 2 LIMIT 1")->fetchColumn();
 $otherTask = (int)$pdo->query("SELECT id FROM tasks WHERE title = 'Second School Task' AND school_id = 2 LIMIT 1")->fetchColumn();
+$sch1Task = (int)$pdo->query("SELECT id FROM tasks WHERE title = 'Test Assigned Task' AND school_id = 1 LIMIT 1")->fetchColumn();
 $otherEvent = (int)$pdo->query("SELECT id FROM school_events WHERE title = 'Second School Event' AND school_id = 2 LIMIT 1")->fetchColumn();
 if ($otherStudent <= 0 || $otherStudent === $sch1Student || $otherCourse <= 0 || $otherTask <= 0 || $otherEvent <= 0) {
     fwrite(STDERR, "Cross-tenant smoke fixtures are missing or overlap the primary school fixtures.\n");
@@ -235,12 +236,28 @@ $rows[] = ($lastAdminGuardOk ? 'PASS ' : 'FAIL ') . str_pad('last school admin c
 $schoolAdminDashboard = http($base . '/dashboard.php', $schoolAdmin);
 preg_match('/name="csrf_token"\\s+value="([a-f0-9]{64})"/', $schoolAdminDashboard['body'], $schoolAdminCsrf);
 $studentUserId = (int)$pdo->query("SELECT id FROM users WHERE email='student@sch001.com'")->fetchColumn();
+$studentDashboardBeforeDisable = http($base . '/dashboard.php', $student);
+preg_match('/name="csrf_token"\\s+value="([a-f0-9]{64})"/', $studentDashboardBeforeDisable['body'], $studentCsrf);
+$sch1TaskStatusBeforeDisable = (string)$pdo->query("SELECT status FROM tasks WHERE id = " . $sch1Task)->fetchColumn();
 $toggleStudentOnce = http($base . '/admin/toggle_user.php', $schoolAdmin, [
     'id' => $studentUserId,
     'csrf_token' => $schoolAdminCsrf[1] ?? '',
 ]);
 $inactiveUser = (int)$pdo->query("SELECT is_active FROM users WHERE id = " . $studentUserId)->fetchColumn();
 $inactiveProfile = (string)$pdo->query("SELECT status FROM students WHERE user_id = " . $studentUserId)->fetchColumn();
+$revokedSessionWrite = http($base . '/tasks/update_status.php', $student, [
+    'id' => $sch1Task,
+    'status' => 'Completed',
+    'csrf_token' => $studentCsrf[1] ?? '',
+]);
+$sch1TaskStatusAfterRevokedWrite = (string)$pdo->query("SELECT status FROM tasks WHERE id = " . $sch1Task)->fetchColumn();
+$revocationOk = strpos($revokedSessionWrite['url'], '/auth/login.php') !== false
+    && $sch1TaskStatusAfterRevokedWrite === $sch1TaskStatusBeforeDisable;
+if ($revocationOk) $pass++; else $fail++;
+$rows[] = ($revocationOk ? 'PASS ' : 'FAIL ')
+    . str_pad('deactivated session cannot mutate records', 42)
+    . ' URL=' . $revokedSessionWrite['url']
+    . ' TASK=' . $sch1TaskStatusBeforeDisable . '->' . $sch1TaskStatusAfterRevokedWrite;
 $toggleStudentTwice = http($base . '/admin/toggle_user.php', $schoolAdmin, [
     'id' => $studentUserId,
     'csrf_token' => $schoolAdminCsrf[1] ?? '',
