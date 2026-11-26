@@ -89,6 +89,7 @@ if (isStudent()) {
             </div>
         </div>
     </div>
+    <?php if (isStaff() || isStudent()): ?>
     <div class="col-lg-4">
         <div class="card">
             <div class="card-header"><i class="fas fa-cog me-2"></i>Quick Status Update</div>
@@ -107,6 +108,7 @@ if (isStudent()) {
             </div>
         </div>
     </div>
+    <?php endif; ?>
 </div>
 
 <?php require_once '../includes/footer.php'; ?>
