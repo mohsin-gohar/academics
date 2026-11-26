@@ -146,7 +146,7 @@
         <?php endif; ?>
         <?php endif; ?>
 
-        <?php if (!isParent()): ?>
+        <?php if (!isParent() && !isStudent()): ?>
         <div class="nav-item">
             <a href="<?php echo $base; ?>reports/index.php" class="nav-link <?php echo strpos($_SERVER['PHP_SELF'], 'reports/') !== false ? 'active' : ''; ?>">
                 <i class="fas fa-user-check"></i>
@@ -155,7 +155,7 @@
         </div>
         <?php endif; ?>
 
-        <?php if (!isParent()): ?>
+        <?php if (!isParent() && !isStudent()): ?>
         <div class="nav-item">
             <a href="<?php echo $base; ?>courses/index.php" class="nav-link <?php echo strpos($_SERVER['PHP_SELF'], 'courses/') !== false ? 'active' : ''; ?>">
                 <i class="fas fa-book-open"></i>
