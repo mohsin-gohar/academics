@@ -287,6 +287,7 @@ foreach ([
     'teacher students' => '/students/index.php',
     'teacher tasks' => '/tasks/index.php',
     'teacher task create' => '/tasks/create.php',
+    'teacher expenses list' => '/expenses/index.php',
     'teacher expenses create denied' => '/expenses/create.php',
     'teacher events' => '/events/index.php',
     'teacher event create' => '/events/create.php',
