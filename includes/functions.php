@@ -1249,7 +1249,7 @@ function getSchoolEventsList($pdo, $limit = 6, $onlyUpcoming = true, ?int $schoo
  * Evaluate whether a school tenant may continue using an authenticated session.
  * Keep this aligned with the access rules used during login.
  */
-function school_session_access_state(array $school, ?int $now = null): array
+function school_session_access_state(array $school, ?int $now = null, ?PDO $pdo = null): array
 {
     $now = $now ?? time();
     $status = strtolower((string)($school['status'] ?? 'active'));
@@ -1266,6 +1266,32 @@ function school_session_access_state(array $school, ?int $now = null): array
             $expiresAt = strtotime((string)$trialEndsAt);
             if ($expiresAt !== false && $expiresAt < $now) {
                 return ['allowed' => false, 'reason' => 'trial_expired'];
+            }
+        }
+    }
+
+    // Once a school has subscription records, at least one must be active
+    // and within its billing dates. No-row legacy tenants remain accessible
+    // until their subscription is explicitly provisioned.
+    $schoolId = (int)($school['id'] ?? 0);
+    if ($status === 'active' && $pdo instanceof PDO && $schoolId > 0) {
+        $tableExists = (int)$pdo->query(
+            "SELECT COUNT(*) FROM information_schema.TABLES
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'school_subscriptions'"
+        )->fetchColumn() > 0;
+        if ($tableExists) {
+            $totalStmt = $pdo->prepare("SELECT COUNT(*) FROM school_subscriptions WHERE school_id = ?");
+            $totalStmt->execute([$schoolId]);
+            if ((int)$totalStmt->fetchColumn() > 0) {
+                $activeStmt = $pdo->prepare(
+                    "SELECT COUNT(*) FROM school_subscriptions
+                     WHERE school_id = ? AND status = 'active'
+                       AND start_date <= CURDATE() AND end_date >= CURDATE()"
+                );
+                $activeStmt->execute([$schoolId]);
+                if ((int)$activeStmt->fetchColumn() === 0) {
+                    return ['allowed' => false, 'reason' => 'subscription_inactive'];
+                }
             }
         }
     }
@@ -1369,7 +1395,7 @@ function enforceSession(?PDO $pdo = null): void
         if (!$school) {
             $fail('school_inactive', $isAjax);
         }
-        $schoolAccess = school_session_access_state($school);
+        $schoolAccess = school_session_access_state($school, null, $pdo);
         if (!$schoolAccess['allowed']) {
             $fail($schoolAccess['reason'], $isAjax);
         }
