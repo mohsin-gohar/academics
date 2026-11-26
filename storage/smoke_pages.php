@@ -300,13 +300,13 @@ foreach ([
     'teacher tasks' => '/tasks/index.php',
     'teacher task create' => '/tasks/create.php',
     'teacher expenses list' => '/expenses/index.php',
-    'teacher expenses create denied' => '/expenses/create.php',
     'teacher events' => '/events/index.php',
     'teacher event create' => '/events/create.php',
     'teacher courses' => '/courses/index.php',
     'teacher reports' => '/reports/index.php?type=students',
     // Teachers must not access school-administration emergency controls.
 ] as $label => $path) page($label, $path, $teacher);
+page('teacher expenses create denied', '/expenses/create.php', $teacher, 403);
 page('teacher emergency denied', '/admin/emergency_alert.php', $teacher, 403);
 page('teacher cross-school student denied', '/students/show.php?id=' . $otherStudent, $teacher, 403);
 page('teacher cross-school course denied', '/courses/show.php?id=' . $otherCourse, $teacher, 403);
