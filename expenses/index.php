@@ -86,10 +86,16 @@ $expenses = $stmt->fetchAll();
 
 // ---- Users for filter (management) ----
 $users = [];
-if (isSchoolManagement()) {
-    $stmt = $pdo->prepare("SELECT u.id, u.full_name, u.role FROM users u WHERE u.school_id = ? ORDER BY u.full_name ASC");
+if (isSuperAdmin()) {
+    $users = $pdo->query(
+        "SELECT u.id, u.full_name, u.role, s.school_name
+         FROM users u JOIN schools s ON s.id = u.school_id
+         ORDER BY s.school_name, u.full_name"
+    )->fetchAll(PDO::FETCH_ASSOC);
+} elseif (isSchoolManagement() && $schoolId) {
+    $stmt = $pdo->prepare("SELECT id, full_name, role FROM users WHERE school_id = ? ORDER BY full_name ASC");
     $stmt->execute([$schoolId]);
-    $users = $stmt->fetchAll();
+    $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 $totalAmount = (float)$expenseSummary['total_amount'];
 ?>
@@ -164,7 +170,7 @@ $totalAmount = (float)$expenseSummary['total_amount'];
                     <option value="">All Users</option>
                     <?php foreach ($users as $u): ?>
                     <option value="<?php echo (int)$u['id']; ?>" <?php echo $userFilter === (int)$u['id'] ? 'selected' : ''; ?>>
-                        <?php echo e($u['full_name']) . ' (' . e(tenant_role_label($u['role'])) . ')'; ?>
+                        <?php echo e($u['full_name']) . ' (' . e(tenant_role_label($u['role'])) . ')' . (!empty($u['school_name']) ? ' — ' . e($u['school_name']) : ''); ?>
                     </option>
                     <?php endforeach; ?>
                 </select>
