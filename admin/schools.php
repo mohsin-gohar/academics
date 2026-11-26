@@ -128,7 +128,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                              VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
                         );
                         $st->execute([
-                            $name, $code, $subdomain, $email ?: null, $phone ?: null, $address ?: null,
+                            $name, $code, $subdomain, $email, $phone ?: null, $address ?: null,
                             $owner ?: null, $motto ?: null, $website ?: null, $primary, $secondary,
                             $plan, $status, $trialValue, $active, $legacyPlan,
                         ]);
