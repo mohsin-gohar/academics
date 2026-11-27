@@ -6,7 +6,8 @@
 $page_title = 'Add Expense';
 require_once '../includes/header.php';
 requireSchoolManagement();
-requirePost();
+
+// GET renders the form; only a POST may write.
 
 $schoolId = currentSchoolId();
 $userId = (int)$_SESSION['user_id'];
