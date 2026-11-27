@@ -68,6 +68,9 @@ check('student activation changes revoke existing sessions', str_contains($stude
 $toggleUser = (string)file_get_contents($root . '/admin/toggle_user.php');
 check('user activation changes revoke all existing sessions', str_contains($toggleUser, 'session_version = session_version + 1'));
 
+$deleteUser = (string)file_get_contents($root . '/admin/delete_user.php');
+check('user deletion checks all cascading foreign-key records', str_contains($deleteUser, 'information_schema.KEY_COLUMN_USAGE') && str_contains($deleteUser, "REFERENCED_TABLE_NAME = 'users'"));
+
 $functions = (string)file_get_contents($root . '/includes/functions.php');
 check('live session checks trial expiry', str_contains($functions, 'trial_expired'));
 check('live session checks session_version', str_contains($functions, 'session_revoked'));
