@@ -54,6 +54,9 @@ foreach ($sources as $relative) {
 $login = (string)file_get_contents($root . '/auth/login_process.php');
 check('login does not treat school-less admin as platform admin', !str_contains($login, "role'] === 'admin' && \$schoolId === null"));
 
+$editUser = (string)file_get_contents($root . '/admin/edit_user.php');
+check('editing account activation revokes existing sessions', str_contains($editUser, "(int)$lockedUser['is_active'] !== (int)$form_data['is_active']") && str_contains($editUser, 'session_version = session_version + 1'));
+
 $toggleUser = (string)file_get_contents($root . '/admin/toggle_user.php');
 check('user activation changes revoke all existing sessions', str_contains($toggleUser, 'session_version = session_version + 1'));
 
