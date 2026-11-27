@@ -45,6 +45,8 @@ jobs:
           php-version: '8.2'
           extensions: mbstring, pdo, pdo_mysql, openssl, json, curl
           coverage: none
+      - name: Invite and session regression (no database)
+        run: php tests/security_invite_regression.php
       - name: Wait for MySQL
         run: |
           until mysqladmin ping --host=127.0.0.1 --user=root --password=root --silent; do

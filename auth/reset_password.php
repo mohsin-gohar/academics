@@ -32,7 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $token) {
         // Validate password strength
         $strengthErrors = validatePasswordStrength($password);
         if (!empty($strengthErrors)) {
-            $error = implode('<br>', $strengthErrors);
+            $error = implode(' ', $strengthErrors);
         } elseif ($password !== $confirm) {
             $error = 'Passwords do not match.';
         } else {
@@ -75,7 +75,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $token) {
             </div>
             <div class="auth-body">
                 <?php if ($error): ?>
-                    <div class="alert alert-danger"><i class="fas fa-exclamation-circle me-2"></i><?php echo $error; ?></div>
+                    <div class="alert alert-danger"><i class="fas fa-exclamation-circle me-2"></i><?php echo e($error); ?></div>
                 <?php endif; ?>
                 <?php if ($success): ?>
                     <div class="alert alert-success"><i class="fas fa-check-circle me-2"></i><?php echo $success; ?></div>

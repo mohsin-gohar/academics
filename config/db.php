@@ -303,11 +303,12 @@ try {
     die("Database connection failed. Please check your configuration and ensure migrations have been applied.");
 }
 
-// Self-heal demo accounts for local development only (skip during migrations).
-if ($isLocalDev && !defined('MIGRATION_RUNNING')) {
+// Known demo passwords are not inserted automatically.
+// Opt in only on a private localhost lab: ALLOW_DEMO_ACCOUNTS=1
+if ($isLocalDev && !defined('MIGRATION_RUNNING') && getenv('ALLOW_DEMO_ACCOUNTS') === '1') {
     try {
         $demoAccounts = [
-            ['System Administrator', 'admin@edusphere.com', '$2y$10$mmx/UMwzNmkfhEKRGUYctuNSrl/xrRLp4f8o3R5M1ksN1c2J45tQu', 'admin'],
+            ['System Administrator', 'admin@edusphere.com', '$2y$10$mmx/UMwzNmkfhEKRGUYctuNSrl/xrRLp4f8o3R5M1ksN1c2J45tQu', 'super_admin'],
             ['Demo Teacher', 'teacher@edusphere.com', '$2y$10$QHDpb.tWT6fuT4va4VjzcO6SQfC1MTOl6kNAm4yjTytXQN3JJ/SXe', 'teacher'],
             ['Demo Student', 'student@edusphere.com', '$2y$10$k6JdjbAJbgtIGbf1I.fnE.wfB4TW1ditc8qgSGdj5VUIg9k/qlqzS', 'student'],
         ];

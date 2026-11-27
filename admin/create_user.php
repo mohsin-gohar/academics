@@ -29,7 +29,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $form_data = [
         'full_name' => trim($_POST['full_name'] ?? ''),
         'email' => strtolower(trim($_POST['email'] ?? '')),
-        'password' => $_POST['password'] ?? '',
         'role' => $_POST['role'] ?? 'student',
         'is_active' => isset($_POST['is_active']) ? 1 : 0,
         'school_id' => isset($_POST['school_id']) ? (int)$_POST['school_id'] : null,
@@ -41,12 +40,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (mb_strlen($form_data['full_name']) < 2 || mb_strlen($form_data['full_name']) > 100) $errors[] = 'Full name must be between 2 and 100 characters.';
     if (empty($form_data['email'])) $errors[] = 'Email is required.';
     elseif (!isValidEmail($form_data['email'])) $errors[] = 'Invalid email.';
-    if (empty($form_data['password'])) {
-        $errors[] = 'Password is required.';
-    } else {
-        $pwErrors = validatePasswordStrength($form_data['password']);
-        if ($pwErrors) $errors[] = implode(' ', $pwErrors);
-    }
     if (!in_array($form_data['role'], ['super_admin','school_admin','admin','teacher','student','parent'])) $errors[] = 'Invalid role.';
 
     // Only super_admin can create super_admin users
@@ -86,7 +79,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($errors)) {
         try {
             $pdo->beginTransaction();
-            $hashed = password_hash($form_data['password'], PASSWORD_DEFAULT);
+            $hashed = hashUnusablePassword();
             $stmt = $pdo->prepare("INSERT INTO users (full_name, email, password, role, is_active, school_id, must_change_password) VALUES (?, ?, ?, ?, ?, ?, 1)");
             $stmt->execute([
                 $form_data['full_name'],
@@ -112,7 +105,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $pdo->commit();
             logActivity($pdo, (int)$_SESSION['user_id'], 'create', 'user', $uid, 'Created user: ' . $form_data['full_name'] . ' (' . $form_data['role'] . ')');
-            header('Location: users.php?success=' . urlencode('User created successfully!'));
+            $sent = ((int)$form_data['is_active'] === 1) && deliverAccountSetupLink($pdo, $form_data['email']);
+            setFlashMessage('success', accountProvisionedMessage($form_data['email'], $sent));
+            header('Location: users.php');
             exit;
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) $pdo->rollBack();
@@ -142,8 +137,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <input type="email" name="email" class="form-control" value="<?php echo e($form_data['email'] ?? ''); ?>" required>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Password *</label>
-                        <input type="password" name="password" class="form-control" required minlength="10">
+                        <p class="form-text mb-0">No password is set on this form. An active account receives a one-time setup email and must choose a password before use.</p>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Role *</label>

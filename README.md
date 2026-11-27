@@ -306,7 +306,7 @@ Academics is seeded with demo accounts covering every role. School-scoped accoun
 | **Parent (SCH001)** | `parent@sch001.com` | `Parent@123` | Parent portal: linked children, progress, announcements, tasks. |
 | **School Admin (SCH002)** | `schooladmin@sch002.com` | `School@123` | Full access inside Beaconhouse Model School only. |
 
-Legacy demo accounts `teacher@edusphere.com` / `Teacher@123` and `student@edusphere.com` / `Student@123` remain available under the `SCH001` tenant.
+These demo passwords exist only in local seed data. The application does **not** insert them on startup unless `ALLOW_DEMO_ACCOUNTS=1` is set on localhost. Do not use them on any shared or production server. New staff and student accounts get an emailed setup link; the password is never shown in the page, URL, or logs.
 
 ---
 

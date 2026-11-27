@@ -32,7 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $form_data = [
         'full_name' => trim($_POST['full_name'] ?? ''),
         'email' => strtolower(trim($_POST['email'] ?? '')),
-        'password' => (string)($_POST['password'] ?? ''),
+        'send_setup_link' => isset($_POST['send_setup_link']),
         'role' => (string)($_POST['role'] ?? 'student'),
         'is_active' => isset($_POST['is_active']) ? 1 : 0,
         'school_id' => isset($_POST['school_id']) && $_POST['school_id'] !== ''
@@ -48,10 +48,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     if (!in_array($form_data['role'], ['super_admin', 'school_admin', 'admin', 'teacher', 'student', 'parent'], true)) {
         $errors[] = 'Invalid role.';
-    }
-    if ($form_data['password'] !== '') {
-        $passwordErrors = validatePasswordStrength($form_data['password']);
-        foreach ($passwordErrors as $passwordError) $errors[] = $passwordError;
     }
     if ($form_data['role'] === 'super_admin' && !$isSuperAdmin) {
         $errors[] = 'Only platform super administrators can assign super admin role.';
@@ -129,12 +125,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new InvalidArgumentException('A student profile cannot be moved to another school from this screen.');
             }
 
-            if ($form_data['password'] !== '') {
-                $hashed = password_hash($form_data['password'], PASSWORD_DEFAULT);
-                if ($hashed === false) throw new RuntimeException('Password hashing failed.');
+            $versionSql = '';
+            $resetPassword = !empty($form_data['send_setup_link']);
+            if ($resetPassword || (string)$lockedUser['role'] !== (string)$form_data['role']) {
+                if (dbTableHasColumn($pdo, 'users', 'session_version')) {
+                    $versionSql = ', session_version = session_version + 1';
+                }
+            }
+            if ($resetPassword) {
+                $hashed = hashUnusablePassword();
                 $updateUser = $pdo->prepare(
                     "UPDATE users SET full_name = ?, email = ?, password = ?, role = ?, is_active = ?,
-                     school_id = ?, must_change_password = 1, updated_at = NOW() WHERE id = ?"
+                     school_id = ?, must_change_password = 1, updated_at = NOW(){$versionSql} WHERE id = ?"
                 );
                 $updateUser->execute([
                     $form_data['full_name'], $form_data['email'], $hashed, $form_data['role'],
@@ -143,7 +145,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 $updateUser = $pdo->prepare(
                     "UPDATE users SET full_name = ?, email = ?, role = ?, is_active = ?,
-                     school_id = ?, updated_at = NOW() WHERE id = ?"
+                     school_id = ?, updated_at = NOW(){$versionSql} WHERE id = ?"
                 );
                 $updateUser->execute([
                     $form_data['full_name'], $form_data['email'], $form_data['role'],
@@ -184,6 +186,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             $pdo->commit();
+            $sent = false;
+            if ($resetPassword && (int)$form_data['is_active'] === 1) {
+                $sent = deliverAccountSetupLink($pdo, $form_data['email']);
+            }
             logActivity(
                 $pdo,
                 $_SESSION['user_id'],
@@ -192,7 +198,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $id,
                 'Updated user: ' . $form_data['full_name'] . ' (' . $form_data['role'] . ')'
             );
-            header('Location: users.php?success=' . urlencode('User updated successfully!'));
+            if ($resetPassword) {
+                setFlashMessage('success', accountProvisionedMessage($form_data['email'], $sent));
+                header('Location: users.php');
+            } else {
+                header('Location: users.php?success=' . urlencode('User updated successfully!'));
+            }
             exit;
         } catch (InvalidArgumentException $e) {
             if ($pdo->inTransaction()) $pdo->rollBack();
@@ -224,10 +235,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <label class="form-label">Email *</label>
                         <input type="email" name="email" class="form-control" value="<?php echo e($form_data['email']); ?>" required>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Password (leave blank to keep)</label>
-                        <input type="password" name="password" class="form-control" minlength="10">
-                        <div class="form-text">Must be at least 10 characters with upper, lower, number, and special character</div>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" name="send_setup_link" class="form-check-input" id="send_setup_link" <?php echo !empty($form_data['send_setup_link']) ? 'checked' : ''; ?>>
+                        <label class="form-check-label" for="send_setup_link">Email a new setup link and sign out their other sessions</label>
+                        <div class="form-text">This replaces the current password. The new password is never shown.</div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Role *</label>

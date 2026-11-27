@@ -1,4 +1,8 @@
 <?php
+if (PHP_SAPI !== 'cli') {
+    http_response_code(404);
+    exit;
+}
 require 'config/db.php';
 $pdo->exec("UPDATE courses SET school_id = 2 WHERE id = 2");
 echo "Updated course 2 school_id to 2\n";

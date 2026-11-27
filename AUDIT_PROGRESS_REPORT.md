@@ -1,5 +1,11 @@
 # Academics Project — Exhaustive Audit & Production Readiness Report (Final Version)
 
+> Historical note (2026-11-27): the "94% production-ready" verdict below was not
+> independently reproduced in this repair. Browser viewport QA and the MySQL
+> suite were not re-executed here. Do not treat those checkmarks as fresh evidence.
+> See branch `repair/enterprise-hardening-20261127` for the verified invite,
+> session, and unauthenticated-script fixes.
+
 ## Branch: `repair/production-completion-2026` ✅
 **Pulled from**: `https://github.com/mohsin-gohar/academics`
 **Latest commit**: `21e690d86295aa998f4aa439b5710e365d2086d6` ✅

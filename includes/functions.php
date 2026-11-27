@@ -403,8 +403,11 @@ function consumePasswordResetToken(PDO $pdo, string $raw, string $newPassword): 
         $passwordHash = password_hash($newPassword, PASSWORD_DEFAULT);
         if ($passwordHash === false) throw new RuntimeException('Password hashing failed.');
 
+        $versionSql = dbTableHasColumn($pdo, 'users', 'session_version')
+            ? ', session_version = session_version + 1'
+            : '';
         $userStmt = $pdo->prepare(
-            "UPDATE users SET password = ?, must_change_password = 0
+            "UPDATE users SET password = ?, must_change_password = 0{$versionSql}
              WHERE email = ? AND is_active = 1"
         );
         $userStmt->execute([$passwordHash, $token['email']]);
@@ -436,9 +439,9 @@ function consumePasswordResetToken(PDO $pdo, string $raw, string $newPassword): 
  * Order of preference:
  *   1. SMTP (configured via MAIL_* env vars)
  *   2. PHP mail() wrapper
- *   3. Local dev fallback: append link to storage/logs/reset-links.log
  *
- * Never returns the raw token to the caller; the response is always generic.
+ * Never returns the raw token to the caller and never writes it to a log.
+ * The HTTP response is always generic.
  */
 function sendPasswordResetEmail(string $email, string $token): bool
 {
@@ -605,22 +608,8 @@ function sendPasswordResetEmail(string $email, string $token): bool
         }
     }
 
-    // Local development fallback: the log directory is blocked by .htaccess.
-    $isLocalDev = (getenv('APP_ENV') ?? 'local') === 'local'
-        && in_array($_SERVER['HTTP_HOST'] ?? 'localhost', ['localhost', '127.0.0.1', '::1'], true);
-    if ($isLocalDev) {
-        try {
-            $logDir = dirname(__DIR__) . '/storage/logs';
-            if (!is_dir($logDir)) @mkdir($logDir, 0700, true);
-            $logFile = $logDir . '/reset-links.log';
-            $entry = date('Y-m-d H:i:s') . ' | ' . $email . ' | ' . $resetLink . "\n";
-            file_put_contents($logFile, $entry, FILE_APPEND | LOCK_EX);
-            return true;
-        } catch (Throwable $e) {
-            error_log('Local reset link logging failed: ' . $e->getMessage());
-        }
-    }
-
+    // Do not write reset links to disk. A link in a log is a password.
+    // If SMTP and mail() both fail, the caller shows a generic delivery error.
     return false;
 }
 
@@ -899,6 +888,8 @@ function requireAuth() {
         header('Location: ' . getBasePath() . 'auth/login.php');
         exit;
     }
+    // Every authenticated gate re-checks account, role, school and session version.
+    enforceSession();
 }
 
 // Require specific role
@@ -1185,6 +1176,65 @@ function getSchoolEventsList($pdo, $limit = 6, $onlyUpcoming = true, ?int $schoo
     }
 }
 
+// Only a platform super administrator is unbounded by a school.
+// A school-scoped "admin" with a NULL school_id is not a platform operator.
+function isPlatformOperator(string $role, $schoolId = null): bool
+{
+    return $role === 'super_admin';
+}
+
+function dbTableHasColumn(PDO $pdo, string $table, string $column): bool
+{
+    static $cache = [];
+    $key = $table . '.' . $column;
+    if (array_key_exists($key, $cache)) {
+        return $cache[$key];
+    }
+    if (!preg_match('/^[A-Za-z0-9_]+$/', $table) || !preg_match('/^[A-Za-z0-9_]+$/', $column)) {
+        return $cache[$key] = false;
+    }
+    try {
+        $stmt = $pdo->prepare(
+            "SELECT COUNT(*) FROM information_schema.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?"
+        );
+        $stmt->execute([$table, $column]);
+        return $cache[$key] = ((int)$stmt->fetchColumn() > 0);
+    } catch (Throwable $e) {
+        return $cache[$key] = false;
+    }
+}
+
+function hashUnusablePassword(): string
+{
+    $hash = password_hash(bin2hex(random_bytes(32)), PASSWORD_DEFAULT);
+    if ($hash === false) {
+        throw new RuntimeException('Password hashing failed.');
+    }
+    return $hash;
+}
+
+/**
+ * Email a single-use setup/reset link. The raw token is never returned.
+ */
+function deliverAccountSetupLink(PDO $pdo, string $email): bool
+{
+    $token = createPasswordResetToken($pdo, $email);
+    if ($token === null) {
+        return false;
+    }
+    return sendPasswordResetEmail($email, $token);
+}
+
+function accountProvisionedMessage(string $email, bool $setupEmailSent): string
+{
+    $who = filter_var($email, FILTER_VALIDATE_EMAIL) ? $email : 'the new account';
+    if ($setupEmailSent) {
+        return 'Account created for ' . $who . '. A one-time setup link was emailed. It expires in one hour. The password is not shown.';
+    }
+    return 'Account created for ' . $who . ', but the setup email could not be sent. Ask them to use Forgot password. No password was displayed or logged.';
+}
+
 // Enforce session validation on every request (C4: live session invalidation)
 /**
  * Re-validate the authenticated session against the database on every request.
@@ -1196,9 +1246,8 @@ function getSchoolEventsList($pdo, $limit = 6, $onlyUpcoming = true, ?int $schoo
  *   - students.id       (must exist and be scoped to the user's school)
  *   - schools.is_active / schools.status (suspended/disabled -> immediate logout)
  *
- * Results are cached for at most 60 seconds per session, keyed to a fingerprint
- * of user_id + role + school_id, so a normal page load doesn't hit the DB beyond
- * once a minute but a suspension/deactivation is enforced within 60s.
+ * Results are not cached. Deactivation, suspension, trial expiry, role changes
+ * and password changes take effect on the next request.
  *
  * Safe to call from AJAX/JSON endpoints: responds with 401 JSON instead of an
  * HTML redirect when the request is an XHR / expects JSON.
@@ -1261,26 +1310,16 @@ function enforceSession(?PDO $pdo = null): void
         $fail('invalid_role', $isAjax);
     }
 
-    // 3. Without a DB handle, only the structural checks above can run
-    //    (e.g. during the login POST before $pdo is available).
-    if (!$pdo) {
+    // 3. Without a DB handle, only the structural checks above can run.
+    if (!$pdo instanceof PDO) {
         return;
     }
 
-    // 4. Up to 60s of caching keyed to the session fingerprint.
-    $now = time();
-    $validatedAt = (int)($_SESSION['_validated_at'] ?? 0);
-    $fingerprint = hash('sha256',
-        (string)($_SESSION['user_id'] ?? '') . '|' .
-        (string)($_SESSION['user_role'] ?? '') . '|' .
-        (string)($_SESSION['school_id'] ?? '')
-    );
-    if ($validatedAt > 0 && ($now - $validatedAt) < 60 && ($_SESSION['_validated_fp'] ?? '') === $fingerprint) {
-        return;
+    $userColumns = 'id, role, is_active, school_id';
+    if (dbTableHasColumn($pdo, 'users', 'session_version')) {
+        $userColumns .= ', session_version';
     }
-
-    // 5. Re-read the user row and check account state
-    $stmt = $pdo->prepare("SELECT id, role, is_active, school_id FROM users WHERE id = ? LIMIT 1");
+    $stmt = $pdo->prepare("SELECT {$userColumns} FROM users WHERE id = ? LIMIT 1");
     $stmt->execute([(int)$_SESSION['user_id']]);
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -1293,20 +1332,38 @@ function enforceSession(?PDO $pdo = null): void
         $fail('role_changed', $isAjax);
     }
 
-    // 6. School-scoped roles must have a live, non-suspended school
+    if (array_key_exists('session_version', $user)) {
+        $liveVersion = (int)$user['session_version'];
+        if (!isset($_SESSION['session_version']) || (int)$_SESSION['session_version'] !== $liveVersion) {
+            $fail('session_revoked', $isAjax);
+        }
+    }
+
+    // School-scoped roles must have a live, non-suspended, non-expired school.
     $schoolScoped = in_array((string)$user['role'], ['school_admin', 'admin', 'teacher', 'student', 'parent'], true);
     if ($schoolScoped) {
         if (empty($user['school_id'])) {
             $fail('school_id_missing', $isAjax);
         }
-        $sStmt = $pdo->prepare("SELECT id, status, is_active FROM schools WHERE id = ? LIMIT 1");
+        $schoolColumns = 'id, status, is_active';
+        if (dbTableHasColumn($pdo, 'schools', 'trial_ends_at')) {
+            $schoolColumns .= ', trial_ends_at';
+        }
+        $sStmt = $pdo->prepare("SELECT {$schoolColumns} FROM schools WHERE id = ? LIMIT 1");
         $sStmt->execute([(int)$user['school_id']]);
         $school = $sStmt->fetch(PDO::FETCH_ASSOC);
         if (!$school || (int)$school['is_active'] !== 1) {
             $fail('school_inactive', $isAjax);
         }
-        if (in_array(strtolower((string)$school['status']), ['suspended', 'disabled'], true)) {
+        $schoolStatus = strtolower((string)($school['status'] ?? 'active'));
+        if (in_array($schoolStatus, ['suspended', 'disabled'], true)) {
             $fail('school_suspended', $isAjax);
+        }
+        if ($schoolStatus === 'trial' && !empty($school['trial_ends_at'])) {
+            $trialEnds = strtotime((string)$school['trial_ends_at']);
+            if ($trialEnds !== false && $trialEnds < time()) {
+                $fail('trial_expired', $isAjax);
+            }
         }
         $_SESSION['school_id'] = (int)$user['school_id'];
     } else {
@@ -1324,14 +1381,6 @@ function enforceSession(?PDO $pdo = null): void
         }
         $_SESSION['student_id'] = (int)$studentId;
     }
-
-    // 8. Cache the successful validation for up to 60 seconds
-    $_SESSION['_validated_at'] = $now;
-    $_SESSION['_validated_fp'] = hash('sha256',
-        (string)$_SESSION['user_id'] . '|' .
-        (string)$_SESSION['user_role'] . '|' .
-        (string)($_SESSION['school_id'] ?? '')
-    );
 }
 
 // Force a first-login password change when users.must_change_password is set.
