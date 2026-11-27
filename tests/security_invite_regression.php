@@ -54,6 +54,9 @@ foreach ($sources as $relative) {
 $login = (string)file_get_contents($root . '/auth/login_process.php');
 check('login does not treat school-less admin as platform admin', !str_contains($login, "role'] === 'admin' && \$schoolId === null"));
 
+$toggleUser = (string)file_get_contents($root . '/admin/toggle_user.php');
+check('user activation changes revoke all existing sessions', str_contains($toggleUser, 'session_version = session_version + 1'));
+
 $functions = (string)file_get_contents($root . '/includes/functions.php');
 check('live session checks trial expiry', str_contains($functions, 'trial_expired'));
 check('live session checks session_version', str_contains($functions, 'session_revoked'));
