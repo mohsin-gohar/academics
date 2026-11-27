@@ -38,7 +38,7 @@ jobs:
       DB_NAME_TEST: edusphere_test
     steps:
       - name: Checkout latest code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
@@ -134,7 +134,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: 🚚 Checkout latest code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 2
 
