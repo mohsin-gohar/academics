@@ -153,7 +153,6 @@ jobs:
             **/.github*/**
             **/tests/**
             **/.env*
-            **/database/**
             **/storage/*.php
             **/storage/cache/**
             **/storage/logs/**
