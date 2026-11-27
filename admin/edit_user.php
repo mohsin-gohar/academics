@@ -130,7 +130,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $versionSql = '';
             $resetPassword = !empty($form_data['send_setup_link']);
-            if ($resetPassword || (string)$lockedUser['role'] !== (string)$form_data['role']) {
+            if ($resetPassword
+                || (string)$lockedUser['role'] !== (string)$form_data['role']
+                || (int)$lockedUser['is_active'] !== (int)$form_data['is_active']) {
                 if (dbTableHasColumn($pdo, 'users', 'session_version')) {
                     $versionSql = ', session_version = session_version + 1';
                 }
