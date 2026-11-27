@@ -682,8 +682,12 @@ CREATE TABLE IF NOT EXISTS `user_invites` (
 
 SET FOREIGN_KEY_CHECKS = 1;
 
--- No public default platform administrator is seeded. Provision the first
--- super administrator with the CLI-only database/create_super_admin.php tool.
+-- ============================================================================
+-- SEED DATA: Default Super Admin (only for fresh installs)
+-- ============================================================================
+-- Password: ChangeMe@123 (bcrypt hash) - MUST BE CHANGED ON FIRST LOGIN
+INSERT IGNORE INTO `users` (`full_name`, `email`, `password`, `role`, `is_active`, `must_change_password`, `school_id`)
+VALUES ('Platform Super Admin', 'superadmin@academics.app', '$2y$10$mmx/UMwzNmkfhEKRGUYctuNSrl/xrRLp4f8o3R5M1ksN1c2J45tQu', 'super_admin', 1, 1, NULL);
 
 -- Default application settings
 INSERT IGNORE INTO `application_settings` (`setting_key`, `setting_value`, `description`) VALUES
