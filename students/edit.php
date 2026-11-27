@@ -34,7 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($form_data['full_name'])) $errors[] = 'Full name is required.';
     if (empty($form_data['email'])) $errors[] = 'Email is required.';
     elseif (!isValidEmail($form_data['email'])) $errors[] = 'Invalid email address.';
-    if (!in_array($form_data['status'], ['Active', 'Inactive', 'Graduated', 'Suspended'], true)) {
+    if (!in_array($form_data['status'], ['Active', 'Inactive', 'Graduated', 'Suspended', 'Withdrawn'], true)) {
         $errors[] = 'Invalid student status.';
     }
     if (!preg_match('/^\\d{4}-\\d{2}-\\d{2}$/', $form_data['enrollment_date'])
@@ -158,6 +158,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <option value="Inactive" <?php echo $form_data['status'] === 'Inactive' ? 'selected' : ''; ?>>Inactive</option>
                                 <option value="Graduated" <?php echo $form_data['status'] === 'Graduated' ? 'selected' : ''; ?>>Graduated</option>
                                 <option value="Suspended" <?php echo $form_data['status'] === 'Suspended' ? 'selected' : ''; ?>>Suspended</option>
+                                <option value="Withdrawn" <?php echo $form_data['status'] === 'Withdrawn' ? 'selected' : ''; ?>>Withdrawn</option>
                             </select>
                         </div>
                         <div class="col-12">
