@@ -68,10 +68,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $form_data['address'] ?: null, $form_data['enrollment_date'], $form_data['status'], $id,
                 (int)$student['school_id']
             ]);
-            // Update linked user
+            // Lock the linked account and revoke its existing sessions whenever
+            // the student status changes account access.
             $accountActive = in_array($form_data['status'], ['Active', 'Graduated'], true) ? 1 : 0;
+            $userLock = $pdo->prepare(
+                "SELECT is_active FROM users WHERE id = ? AND school_id = ? FOR UPDATE"
+            );
+            $userLock->execute([(int)$student['user_id'], (int)$student['school_id']]);
+            $currentUserActive = $userLock->fetchColumn();
+            if ($currentUserActive === false) {
+                throw new RuntimeException('The linked student account no longer exists.');
+            }
+            $versionSql = dbTableHasColumn($pdo, 'users', 'session_version')
+                && (int)$currentUserActive !== $accountActive
+                ? ', session_version = session_version + 1'
+                : '';
             $stmt = $pdo->prepare(
-                "UPDATE users SET full_name=?, email=?, is_active=?, updated_at=NOW()
+                "UPDATE users SET full_name=?, email=?, is_active=?{$versionSql}, updated_at=NOW()
                  WHERE id=? AND school_id = ?"
             );
             $stmt->execute([
