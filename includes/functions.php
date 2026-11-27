@@ -1012,20 +1012,41 @@ function rate_limit_exceeded(PDO $pdo, string $bucket, string $identifier, int $
         return true;
     }
     $key = hash('sha256', $identifier);
-    // Insert before counting so concurrent requests cannot all pass the same
-    // pre-insert count. A request is allowed only while its own attempt remains
-    // within the configured window quota.
+    // Serialize requests for this bucket/identifier. Without a per-key lock,
+    // simultaneous requests can all observe the same count and bypass quota.
+    $lockName = 'rl:' . substr(hash('sha256', $bucket . ':' . $key), 0, 61);
+    $locked = false;
     try {
+        $lock = $pdo->prepare('SELECT GET_LOCK(?, 2)');
+        $lock->execute([$lockName]);
+        $locked = (int)$lock->fetchColumn() === 1;
+        if (!$locked) {
+            return true;
+        }
+
+        // Use the database clock so connection time zones cannot shift the window.
         $pdo->prepare("DELETE FROM rate_limits WHERE bucket = ? AND created_at < DATE_SUB(NOW(), INTERVAL ? SECOND)")
             ->execute([$bucket, $windowSeconds]);
-        $pdo->prepare("INSERT INTO rate_limits (bucket, identifier) VALUES (?, ?)")->execute([$bucket, $key]);
         $stmt = $pdo->prepare("SELECT COUNT(*) FROM rate_limits WHERE bucket = ? AND identifier = ? AND created_at >= DATE_SUB(NOW(), INTERVAL ? SECOND)");
         $stmt->execute([$bucket, $key, $windowSeconds]);
-        return (int)$stmt->fetchColumn() > $maxAttempts;
+        if ((int)$stmt->fetchColumn() >= $maxAttempts) {
+            return true;
+        }
+        $pdo->prepare("INSERT INTO rate_limits (bucket, identifier) VALUES (?, ?)")->execute([$bucket, $key]);
+        return false;
     } catch (PDOException $e) {
         // If the limiter cannot be trusted, deny the protected operation.
         error_log('Rate limit check failed closed: ' . $e->getMessage());
         return true;
+    } finally {
+        if ($locked) {
+            try {
+                $release = $pdo->prepare('SELECT RELEASE_LOCK(?)');
+                $release->execute([$lockName]);
+            } catch (Throwable $e) {
+                error_log('Rate limit lock release failed: ' . $e->getMessage());
+            }
+        }
     }
 }
 
