@@ -58,6 +58,7 @@ $functions = (string)file_get_contents($root . '/includes/functions.php');
 check('live session checks trial expiry', str_contains($functions, 'trial_expired'));
 check('live session checks session_version', str_contains($functions, 'session_revoked'));
 check('live session is not cached for 60 seconds', !str_contains($functions, '60 seconds'));
+check('live session fails closed when database validation is unavailable', str_contains($functions, "\$fail('session_validation_unavailable', \$isAjax)"));
 
 check('today is an allowed attendance date', isOnOrBeforeToday(date('Y-m-d'), date('Y-m-d')));
 check('tomorrow is not an allowed attendance or payment date', !isOnOrBeforeToday(date('Y-m-d', strtotime('+1 day')), date('Y-m-d')));
