@@ -87,7 +87,8 @@ try {
             "SELECT COUNT(*) FROM student_marks WHERE student_id = ?",
             "SELECT COUNT(*) FROM invoices WHERE student_id = ?",
             "SELECT COUNT(*) FROM enrollments WHERE student_id = ?",
-            "SELECT COUNT(*) FROM tasks WHERE student_id = ?"
+            "SELECT COUNT(*) FROM tasks WHERE student_id = ?",
+            "SELECT COUNT(*) FROM parent_student WHERE student_id = ?"
         ] as $historySql) {
             $historyStmt = $pdo->prepare($historySql);
             $historyStmt->execute([$studentId]);
