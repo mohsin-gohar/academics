@@ -123,9 +123,10 @@ foreach ([
 ] as $label => $path) page($label, $path, $super);
 
 $superStudents = http($base . '/students/index.php', $super);
-$superSearch = http($base . '/search.php?q=' . rawurlencode('Second School Student'), $super);
+$superSearch = http($base . '/search.php?q=' . rawurlencode('sch002'), $super);
 $superEvents = http($base . '/events/index.php', $super);
-$platformLeak = str_contains($superStudents['body'], 'Second School Student')
+$platformLeak = str_contains($superStudents['body'], 'student@sch002.com')
+    || str_contains($superSearch['body'], 'student@sch002.com')
     || str_contains($superSearch['body'], 'Second School Student')
     || str_contains($superEvents['body'], 'Second School Event');
 $platformOk = !$platformLeak
