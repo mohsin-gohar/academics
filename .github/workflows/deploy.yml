@@ -97,6 +97,8 @@ jobs:
         run: find . -type f -name '*.php' -not -path './storage/cache/*' -exec php -l {} \;
       - name: Run automated tests
         run: php tests/run_tests.php
+      - name: Payment concurrency across two processes
+        run: php tests/concurrency_payment_test.php
       - name: Start PHP web server for portal smoke tests
         run: |
           php -S 127.0.0.1:8090 > /tmp/academics-php-server.log 2>&1 &
