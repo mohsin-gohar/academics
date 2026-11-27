@@ -96,7 +96,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             logActivity($pdo, $_SESSION['user_id'], 'update', 'student', $id, 'Updated student: ' . $form_data['full_name']);
             header('Location: show.php?id=' . $id . '&success=' . urlencode('Student updated successfully!'));
             exit;
-        } catch (PDOException $e) {
+        } catch (Throwable $e) {
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();
             }
