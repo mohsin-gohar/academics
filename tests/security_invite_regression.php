@@ -60,6 +60,8 @@ check('editing account activation revokes existing sessions', str_contains($edit
 $teacherEdit = (string)file_get_contents($root . '/teachers/edit.php');
 check('teacher activation changes revoke existing sessions', str_contains($teacherEdit, '$statusChanged') && str_contains($teacherEdit, 'session_version = session_version + 1'));
 
+check('student edit supports the Withdrawn lifecycle status', str_contains((string)file_get_contents($root . '/students/edit.php'), "'Withdrawn'"));
+
 $studentEdit = (string)file_get_contents($root . '/students/edit.php');
 check('student activation changes revoke existing sessions', str_contains($studentEdit, '$currentUserActive') && str_contains($studentEdit, 'session_version = session_version + 1'));
 
