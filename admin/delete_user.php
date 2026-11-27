@@ -46,6 +46,32 @@ try {
         }
     }
 
+    // Discover every ON DELETE CASCADE reference to users so future modules
+    // cannot silently lose business records when an account is removed.
+    $cascadeRefs = $pdo->prepare(
+        "SELECT TABLE_NAME, COLUMN_NAME
+         FROM information_schema.KEY_COLUMN_USAGE
+         WHERE REFERENCED_TABLE_SCHEMA = DATABASE()
+           AND REFERENCED_TABLE_NAME = 'users'
+           AND REFERENCED_COLUMN_NAME = 'id'
+           AND TABLE_NAME NOT IN ('students', 'user_redis_cache', 'notifications', 'push_subscriptions')"
+    );
+    $cascadeRefs->execute();
+    foreach ($cascadeRefs->fetchAll(PDO::FETCH_ASSOC) as $reference) {
+        $table = (string)$reference['TABLE_NAME'];
+        $column = (string)$reference['COLUMN_NAME'];
+        if (!preg_match('/^[A-Za-z0-9_]+$/', $table) || !preg_match('/^[A-Za-z0-9_]+$/', $column)) {
+            throw new RuntimeException('Unexpected foreign-key identifier while checking account history.');
+        }
+        $historyStmt = $pdo->prepare("SELECT COUNT(*) FROM `{$table}` WHERE `{$column}` = ?");
+        $historyStmt->execute([$id]);
+        if ((int)$historyStmt->fetchColumn() > 0) {
+            $pdo->rollBack();
+            header('Location: users.php?error=' . urlencode('This account is linked to school records. Deactivate it instead of permanently deleting it.'));
+            exit;
+        }
+    }
+
     $stmt = $pdo->prepare("SELECT id FROM students WHERE user_id = ? FOR UPDATE");
     $stmt->execute([$id]);
     $student = $stmt->fetch(PDO::FETCH_ASSOC);
