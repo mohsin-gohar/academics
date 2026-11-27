@@ -1355,9 +1355,10 @@ function enforceSession(?PDO $pdo = null): void
         $fail('invalid_role', $isAjax);
     }
 
-    // 3. Without a DB handle, only the structural checks above can run.
+    // 3. Authentication must fail closed if the database cannot be reached.
+    // Structural session keys alone are never sufficient authorization.
     if (!$pdo instanceof PDO) {
-        return;
+        $fail('session_validation_unavailable', $isAjax);
     }
 
     $userColumns = 'id, role, is_active, school_id';
