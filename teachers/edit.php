@@ -45,14 +45,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($chk->fetch()) {
                 $errors[] = 'Another user with this email address already exists.';
             } else {
+                $statusChanged = (int)$teacher['is_active'] !== $is_active;
+                $versionSql = dbTableHasColumn($pdo, 'users', 'session_version')
+                    && ($sendSetup || $statusChanged)
+                    ? ', session_version = session_version + 1'
+                    : '';
                 if ($sendSetup) {
-                    $versionSql = dbTableHasColumn($pdo, 'users', 'session_version')
-                        ? ', session_version = session_version + 1'
-                        : '';
                     $upd = $pdo->prepare("UPDATE users SET full_name = ?, email = ?, password = ?, is_active = ?, must_change_password = 1{$versionSql} WHERE id = ? AND school_id = ?");
                     $upd->execute([$full_name, $email, hashUnusablePassword(), $is_active, $teacherId, $schoolId]);
                 } else {
-                    $upd = $pdo->prepare("UPDATE users SET full_name = ?, email = ?, is_active = ? WHERE id = ? AND school_id = ?");
+                    $upd = $pdo->prepare("UPDATE users SET full_name = ?, email = ?, is_active = ?{$versionSql} WHERE id = ? AND school_id = ?");
                     $upd->execute([$full_name, $email, $is_active, $teacherId, $schoolId]);
                 }
 
