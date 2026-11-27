@@ -46,7 +46,7 @@ try {
         }
     }
 
-    $update = $pdo->prepare("UPDATE users SET is_active = ?, updated_at = NOW() WHERE id = ?");
+    $update = $pdo->prepare("UPDATE users SET is_active = ?, session_version = session_version + 1, updated_at = NOW() WHERE id = ?");
     $update->execute([$newStatus, $id]);
 
     // Keep student profile visibility aligned with account approval/activation.
