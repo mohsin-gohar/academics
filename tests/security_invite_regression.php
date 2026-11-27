@@ -57,5 +57,25 @@ check('live session checks trial expiry', str_contains($functions, 'trial_expire
 check('live session checks session_version', str_contains($functions, 'session_revoked'));
 check('live session is not cached for 60 seconds', !str_contains($functions, '60 seconds'));
 
+check('today is an allowed attendance date', isOnOrBeforeToday(date('Y-m-d'), date('Y-m-d')));
+check('tomorrow is not an allowed attendance or payment date', !isOnOrBeforeToday(date('Y-m-d', strtotime('+1 day')), date('Y-m-d')));
+check('a past date is allowed', isOnOrBeforeToday('2020-01-15', '2026-11-27'));
+
+foreach ([
+    'tasks/create.php' => "FROM students WHERE status = 'Active' ORDER BY full_name",
+    'tasks/index.php' => "FROM students WHERE status = 'Active' ORDER BY full_name",
+    'students/index.php' => "FROM courses WHERE status = 'Active' ORDER BY course_name",
+    'parent/fees.php' => 'SELECT school_id FROM students WHERE id = $cid',
+    'parent/grades.php' => 'SELECT school_id FROM students WHERE id = $cid',
+    'parent/attendance.php' => 'SELECT school_id FROM students WHERE id = $cid',
+] as $relative => $forbidden) {
+    $src = (string)file_get_contents($root . '/' . $relative);
+    check($relative . ' does not use an unscoped list', !str_contains($src, $forbidden));
+}
+
+$seed = (string)file_get_contents($root . '/database/seed.sql');
+check('seed aborts on production-like database names', str_contains($seed, "REGEXP 'prod|live|production'"));
+check('seed no longer claims the broken edusphere_% guard', !str_contains($seed, "NOT LIKE 'edusphere_%'"));
+
 echo "\nPassed: {$passed}  Failed: {$failed}\n";
 exit($failed === 0 ? 0 : 1);

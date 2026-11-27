@@ -293,20 +293,44 @@ http://localhost/student-task-manager/auth/login.php?school=greenvalley
 
 ---
 
-## 6. Default Demo Accounts & Roles
+## 6. Local lab accounts (not production)
 
-Academics is seeded with demo accounts covering every role. School-scoped accounts belong to the demo tenants (`SCH001` and `SCH002`):
+`database/seed.sql` is a **local lab reset**. Do not import it on a shared or production database. Every seeded account has `must_change_password = 1`.
 
-| Role | Email Address | Password | Permissions & Scope |
+| Role | Email | Lab password | Scope |
 | :--- | :--- | :--- | :--- |
-| **Platform Super Admin** | `admin@edusphere.com` | `Admin@123` | Platform-wide: schools, plans, subscriptions, contact inbox, users, settings, audit logs. |
-| **School Admin (SCH001)** | `schooladmin@sch001.com` | `School@123` | Full access inside Academics International School only. |
-| **Teacher (SCH001)** | `teacher@sch001.com` | `Teacher@123` | Academic access inside the school: courses, students, tasks, events. |
-| **Student (SCH001)** | `student@sch001.com` | `Student@123` | Student access: own profile, courses, assigned tasks. |
-| **Parent (SCH001)** | `parent@sch001.com` | `Parent@123` | Parent portal: linked children, progress, announcements, tasks. |
-| **School Admin (SCH002)** | `schooladmin@sch002.com` | `School@123` | Full access inside Beaconhouse Model School only. |
+| Platform super admin | `superadmin@academics.app` | `Admin@123` | Platform only, must change password |
+| School admin | `admin@edusphere.com` | `Admin@123` | Demo School only |
+| Teacher | `teacher@edusphere.com` | `Teacher@123` | Demo School only |
+| Student | `student@edusphere.com` | `Student@123` | Demo School only |
+| Parent | `parent@edusphere.com` | `Parent@123` | Demo School only |
 
-These demo passwords exist only in local seed data. The application does **not** insert them on startup unless `ALLOW_DEMO_ACCOUNTS=1` is set on localhost. Do not use them on any shared or production server. New staff and student accounts get an emailed setup link; the password is never shown in the page, URL, or logs.
+The application does **not** insert these accounts on startup unless `ALLOW_DEMO_ACCOUNTS=1` and the request is localhost. New staff and students created in the app do not receive a password on screen. They get a one-time setup email.
+
+### Production accounts and email
+
+Set these in the server environment (never commit them):
+
+```dotenv
+APP_ENV=production
+APP_URL=https://your-domain.com
+APP_DOMAIN=your-domain.com
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_NAME=academics
+DB_USER=academics_app
+DB_PASS=change-me
+
+MAIL_HOST=smtp.example.com
+MAIL_PORT=587
+MAIL_ENCRYPTION=tls
+MAIL_USERNAME=mailer@your-domain.com
+MAIL_PASSWORD=change-me
+MAIL_FROM_ADDRESS=noreply@your-domain.com
+MAIL_FROM_NAME=Academics
+```
+
+Password reset and new-account setup use `APP_URL` + `/auth/reset_password.php?token=...`. The token is stored only as a SHA-256 hash, expires in one hour, and is single-use. If SMTP is not configured, the screen says the email could not be sent. The password is not written to the page, the URL, or a log file. Full notes: [docs/OPERATIONS.md](docs/OPERATIONS.md).
 
 ---
 

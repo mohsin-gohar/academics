@@ -53,8 +53,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $content = trim($_POST['content'] ?? '');
         $type = in_array(getUserRole(), ['parent', 'student']) ? 'Parent' : 'Teacher';
 
-        if ($receiver_id <= 0 || empty($content)) {
+        if ($receiver_id <= 0 || $content === '') {
             $errors[] = 'Message content and recipient are required.';
+        } elseif (mb_strlen($content) > 4000) {
+            $errors[] = 'Message cannot exceed 4000 characters.';
         } elseif (!chat_can_message($pdo, $userId, $receiver_id, $isPlatformAdmin)) {
             http_response_code(403);
             $errors[] = 'You cannot message that user.';
@@ -89,16 +91,16 @@ if ($activeContactId === 0 && !empty($contacts)) {
 
 // Mark messages as read from active contact
 if ($activeContactId > 0) {
-    $markRead = $pdo->prepare("UPDATE messages SET read_status = 1 WHERE receiver_id = ? AND sender_id = ?");
-    $markRead->execute([$userId, $activeContactId]);
+    $markRead = $pdo->prepare("UPDATE messages SET read_status = 1 WHERE receiver_id = ? AND sender_id = ? AND (school_id = ? OR school_id IS NULL)");
+    $markRead->execute([$userId, $activeContactId, $schoolId]);
 
-    // Fetch conversation messages
     $msgStmt = $pdo->prepare("SELECT m.*, u.full_name as sender_name
                               FROM messages m
                               JOIN users u ON m.sender_id = u.id
                               WHERE ((m.sender_id = ? AND m.receiver_id = ?) OR (m.sender_id = ? AND m.receiver_id = ?))
+                                AND (m.school_id = ? OR m.school_id IS NULL)
                               ORDER BY m.created_at ASC");
-    $msgStmt->execute([$userId, $activeContactId, $activeContactId, $userId]);
+    $msgStmt->execute([$userId, $activeContactId, $activeContactId, $userId, $schoolId]);
     $messages = $msgStmt->fetchAll(PDO::FETCH_ASSOC);
 
     // Active contact details

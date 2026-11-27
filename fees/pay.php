@@ -33,6 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         foreach (array_keys($old) as $k) { if (isset($_POST[$k])) $old[$k] = trim((string)$_POST[$k]); }
         if (!is_numeric($old['amount']) || (float)$old['amount'] <= 0) $errors[] = 'Amount must be positive.';
         if ($old['payment_date'] === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $old['payment_date'])) $errors[] = 'Valid date required.';
+        elseif (!isOnOrBeforeToday($old['payment_date'])) $errors[] = 'Payment date cannot be in the future.';
 
         // H4: block payments against cancelled invoices or invoices already settled.
         if ($invoice['status'] === 'cancelled') {

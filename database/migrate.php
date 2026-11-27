@@ -8,6 +8,11 @@
  * Safe for empty databases and production upgrades.
  */
 
+if (PHP_SAPI !== 'cli') {
+    http_response_code(404);
+    exit;
+}
+
 // Bootstrap minimal environment - skip demo accounts during migration
 define('MIGRATION_RUNNING', true);
 require_once __DIR__ . '/../config/db.php';

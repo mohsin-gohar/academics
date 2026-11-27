@@ -272,11 +272,21 @@ function getAttendanceStatuses(): array
     return ['present' => 'Present', 'absent' => 'Absent', 'late' => 'Late', 'excused' => 'Excused'];
 }
 
+function isOnOrBeforeToday(string $date, ?string $today = null): bool
+{
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+        return false;
+    }
+    $today = $today ?: date('Y-m-d');
+    return $date <= $today;
+}
+
 function markAttendance(PDO $pdo, int $schoolId, int $studentId, string $date, string $status, ?string $remarks, ?int $markedBy): bool
 {
     if (!array_key_exists($status, getAttendanceStatuses())
         || !preg_match('/^\\d{4}-\\d{2}-\\d{2}$/', $date)
-        || !checkdate((int)substr($date, 5, 2), (int)substr($date, 8, 2), (int)substr($date, 0, 4))) {
+        || !checkdate((int)substr($date, 5, 2), (int)substr($date, 8, 2), (int)substr($date, 0, 4))
+        || !isOnOrBeforeToday($date)) {
         return false;
     }
     $studentCheck = $pdo->prepare("SELECT id FROM students WHERE id = ? AND school_id = ? LIMIT 1");
@@ -786,6 +796,7 @@ function recordPayment(PDO $pdo, int $schoolId, int $invoiceId, float $amount, s
     if ($amount <= 0 || abs($amount - round($amount, 2)) > 0.00001
         || !preg_match('/^\\d{4}-\\d{2}-\\d{2}$/', $date)
         || !checkdate((int)substr($date, 5, 2), (int)substr($date, 8, 2), (int)substr($date, 0, 4))
+        || !isOnOrBeforeToday($date)
         || ($method !== null && !in_array($method, $validMethods, true))
         || ($reference !== null && mb_strlen($reference) > 100)) {
         return false;

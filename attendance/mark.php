@@ -14,7 +14,8 @@ if ($schoolId <= 0) {
 
 $date = trim((string)($_GET['date'] ?? $_POST['date'] ?? date('Y-m-d')));
 if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)
-    || !checkdate((int)substr($date, 5, 2), (int)substr($date, 8, 2), (int)substr($date, 0, 4))) {
+    || !checkdate((int)substr($date, 5, 2), (int)substr($date, 8, 2), (int)substr($date, 0, 4))
+    || !isOnOrBeforeToday($date)) {
     $date = date('Y-m-d');
 }
 
