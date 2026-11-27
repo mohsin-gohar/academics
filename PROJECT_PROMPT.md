@@ -18,12 +18,19 @@ php -S localhost:8000 -t F:/student-task-manager
 # Open: http://localhost:8000/auth/login.php
 ```
 
-### Default Login Credentials
-| Role | Email | Password | Access Level |
-|------|-------|----------|-------------|
-| Admin | admin@edusphere.com | Admin@123 | Full system access |
-| Staff/Teacher | teacher@edusphere.com | Teacher@123 | Students, courses, tasks, events, reports |
-| Student | student@edusphere.com | Student@123 | Own profile, own reports, own tasks |
+### Lab login credentials
+
+These accounts exist only after importing `database/seed.sql` into a local lab database named `edusphere`. They are not production accounts. Every lab password must be changed on first login. `admin@edusphere.com` is the Demo School administrator, not the platform super admin.
+
+| Role | Email | Lab password | Access |
+|------|-------|--------------|--------|
+| Platform super admin | superadmin@academics.app | Admin@123 | Schools, plans, subscriptions. No school records. |
+| School admin | admin@edusphere.com | Admin@123 | Demo School only |
+| Teacher | teacher@edusphere.com | Teacher@123 | Demo School only |
+| Student | student@edusphere.com | Student@123 | Own Demo School records |
+| Parent | parent@edusphere.com | Parent@123 | Linked Demo School children |
+
+New staff and students created in the app do not receive a password on screen. They get a one-time setup link by email. See `docs/OPERATIONS.md`.
 ## 🔐 Authentication & Authorization
 
 ### Security Features
@@ -60,9 +67,9 @@ Student → Own profile, own reports, own tasks only
 - Student list with search, status filter, course filter
 - Pagination (10 items per page)
 - Student profile with enrollments and tasks
-- Add/edit/delete students (staff only)
+- Add/edit/deactivate students (staff only)
 - Auto-generates student numbers (STU-YYYY-NNNN)
-- Default password: Student@123
+- No default password is shown. The student receives a one-time setup link.
 
 ### 3. Courses Module
 - Course list with search and status filter

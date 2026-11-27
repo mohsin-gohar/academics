@@ -15,13 +15,8 @@ require_record_school($course);
 $errors = [];
 $form_data = $course;
 
-$instructorSql = "SELECT id, full_name, role FROM users WHERE role IN ('teacher', 'admin') AND is_active = 1";
-$instructorParams = [];
-if (!isSuperAdmin()) {
-    $instructorSql .= " AND school_id = ?";
-    $instructorParams[] = currentSchoolId();
-}
-$instructorSql .= " ORDER BY full_name";
+$instructorSql = "SELECT id, full_name, role FROM users WHERE role IN ('teacher', 'admin', 'school_admin') AND is_active = 1 AND school_id = ? ORDER BY full_name";
+$instructorParams = [(int)($course['school_id'] ?? 0)];
 $stmt = $pdo->prepare($instructorSql);
 $stmt->execute($instructorParams);
 $instructors = $stmt->fetchAll();
@@ -50,7 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($form_data['instructor_id'] !== null) {
         $instructorCheck = $pdo->prepare(
             "SELECT id FROM users
-             WHERE id = ? AND school_id = ? AND role IN ('teacher', 'admin') AND is_active = 1"
+             WHERE id = ? AND school_id = ? AND role IN ('teacher', 'admin', 'school_admin') AND is_active = 1"
         );
         $instructorCheck->execute([$form_data['instructor_id'], (int)$course['school_id']]);
         if (!$instructorCheck->fetchColumn()) {
@@ -66,11 +61,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (empty($errors)) {
         try {
-            $stmt = $pdo->prepare("UPDATE courses SET course_code=?, course_name=?, description=?, credits=?, instructor_id=?, schedule=?, capacity=?, status=?, updated_at=NOW() WHERE id=?");
+            $stmt = $pdo->prepare("UPDATE courses SET course_code=?, course_name=?, description=?, credits=?, instructor_id=?, schedule=?, capacity=?, status=?, updated_at=NOW() WHERE id=? AND school_id=?");
             $stmt->execute([
                 $form_data['course_code'], $form_data['course_name'], $form_data['description'] ?: null,
                 $form_data['credits'], $form_data['instructor_id'], $form_data['schedule'] ?: null,
-                $form_data['capacity'], $form_data['status'], $id
+                $form_data['capacity'], $form_data['status'], $id, (int)$course['school_id']
             ]);
             logActivity($pdo, $_SESSION['user_id'], 'update', 'course', $id, 'Updated course: ' . $form_data['course_name']);
             header('Location: show.php?id=' . $id . '&success=' . urlencode('Course updated successfully!'));

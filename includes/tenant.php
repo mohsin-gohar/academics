@@ -83,19 +83,16 @@ function tenant_scoped_roles(): array {
 
 /**
  * Build a SQL scope fragment for a school-owned column.
- * Super admins see everything (1=1); school users only their school.
+ * No signed-in school means no rows. Platform admins do not inherit every tenant.
  *
  * @return array{0:string,1:array}
  */
 function school_scope(string $column, ?PDO $pdo = null): array {
-    if (isSuperAdmin()) {
-        return ['1=1', []];
-    }
     $sid = currentSchoolId();
-    if ($sid === null) {
+    if ($sid === null || (int)$sid <= 0) {
         return ['1=0', []];
     }
-    return ["$column = ?", [$sid]];
+    return ["$column = ?", [(int)$sid]];
 }
 
 /**
@@ -111,9 +108,8 @@ function apply_school_scope(array &$where, array &$params, string $column, ?PDO 
  * Stop cross-school access to a single record.
  */
 function require_record_school(array $record, string $column = 'school_id'): void {
-    if (isSuperAdmin()) return;
-    $recordSchool = isset($record[$column]) ? (int)$record[$column] : null;
-    if ($recordSchool === null || $recordSchool !== currentSchoolId()) {
+    $recordSchool = isset($record[$column]) ? (int)$record[$column] : 0;
+    if (!can_access_school($recordSchool > 0 ? $recordSchool : null)) {
         http_response_code(403);
         header('Location: ' . getBasePath() . 'errors/403.php');
         exit;
@@ -122,8 +118,8 @@ function require_record_school(array $record, string $column = 'school_id'): voi
 
 /** True when the record belongs to the current actor's school. */
 function can_access_school(?int $schoolId): bool {
-    if (isSuperAdmin()) return true;
-    return $schoolId !== null && $schoolId === currentSchoolId();
+    $sid = currentSchoolId();
+    return $schoolId !== null && $sid !== null && (int)$schoolId === (int)$sid;
 }
 
 /** Role-aware post-login destination. */

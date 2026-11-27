@@ -38,8 +38,9 @@ $perPage = max(5, min(50, (int)($_GET['per_page'] ?? 10)));
 
 // Determine base scope according to role and school tenant
 $stId = null;
-if (isSuperAdmin()) {
-    $baseWhere = '1=1';
+$schoolId = currentSchoolId();
+if (!$schoolId) {
+    $baseWhere = '1=0';
     $baseParams = [];
 } elseif (isAdmin()) {
     $baseWhere = 't.school_id = ?';
@@ -49,8 +50,8 @@ if (isSuperAdmin()) {
     $baseParams = [currentSchoolId(), $user_id];
 } else {
     // Student sees their assigned tasks within their own school
-    $stStmt = $pdo->prepare("SELECT id FROM students WHERE user_id = ?");
-    $stStmt->execute([$user_id]);
+    $stStmt = $pdo->prepare("SELECT id FROM students WHERE user_id = ? AND school_id = ?");
+    $stStmt->execute([$user_id, (int)$schoolId]);
     $stId = $stStmt->fetchColumn();
     if ($stId) {
         $baseWhere = 't.school_id = ? AND t.student_id = ?';

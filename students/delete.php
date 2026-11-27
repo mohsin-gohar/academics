@@ -65,9 +65,9 @@ try {
 
     // No academic, financial, enrollment, task, leave or message history remains;
     // only now is permanent deletion safe.
-    $pdo->prepare("DELETE FROM students WHERE id = ?")->execute([$id]);
+    $pdo->prepare("DELETE FROM students WHERE id = ? AND school_id = ?")->execute([$id, (int)$student['school_id']]);
     if ($student['user_id']) {
-        $pdo->prepare("DELETE FROM users WHERE id = ?")->execute([$student['user_id']]);
+        $pdo->prepare("DELETE FROM users WHERE id = ? AND school_id = ?")->execute([(int)$student['user_id'], (int)$student['school_id']]);
     }
     $pdo->commit();
     logActivity($pdo, $_SESSION['user_id'], 'delete', 'student', $id, 'Deleted student: ' . $student['full_name']);

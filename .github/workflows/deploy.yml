@@ -116,6 +116,13 @@ jobs:
         env:
           ACADEMICS_BASE: http://127.0.0.1:8090
         run: php storage/smoke_pages.php
+      - name: Browser workflows for all six roles
+        env:
+          ACADEMICS_BASE: http://127.0.0.1:8090
+        run: |
+          npm install --no-save @playwright/test@1.49.1
+          npx playwright install --with-deps chromium
+          npx playwright test --config=tests/e2e/playwright.config.js
       - name: Show PHP server diagnostics on failure
         if: failure()
         run: cat /tmp/academics-php-server.log

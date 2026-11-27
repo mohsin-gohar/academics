@@ -136,7 +136,7 @@ try {
         }
     } elseif (isAdmin()) {
         // Admin: can update any task, but still verify school context if set
-        if ($taskSchoolId !== null && $userSchoolId !== (int)$taskSchoolId && !isSuperAdmin()) {
+        if ($taskSchoolId !== null && ($userSchoolId === null || $userSchoolId !== (int)$taskSchoolId)) {
             // School admin trying to access a different school's task
             http_response_code(403);
             echo json_encode(['success' => false, 'message' => 'You do not have permission to update this task.']);

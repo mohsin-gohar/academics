@@ -31,7 +31,7 @@ $stmt->execute($params);
 $total = $stmt->fetch()['total'];
 $pagination = getPagination($total, $perPage, $page);
 
-$stmt = $pdo->prepare("SELECT * FROM users WHERE $whereClause ORDER BY created_at DESC LIMIT ? OFFSET ?");
+$stmt = $pdo->prepare("SELECT id, full_name, email, role, is_active, last_login, created_at, school_id FROM users WHERE $whereClause ORDER BY created_at DESC LIMIT ? OFFSET ?");
 $params[] = $perPage;
 $params[] = $offset;
 $stmt->execute($params);

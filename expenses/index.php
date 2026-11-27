@@ -14,9 +14,11 @@ $role = getUserRole();
 // ---- Scope ----
 $where = [];
 $params = [];
-if (!isSuperAdmin()) {
+if ($schoolId) {
     $where[] = 'e.school_id = ?';
     $params[] = $schoolId;
+} else {
+    $where[] = '1=0';
 }
 if ($role !== 'admin' && $role !== 'school_admin' && $role !== 'super_admin') {
     $where[] = 'e.created_by = ?';

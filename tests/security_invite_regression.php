@@ -6,6 +6,8 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/tenant.php';
+startSecureSession();
 
 $failed = 0;
 $passed = 0;
@@ -76,6 +78,36 @@ foreach ([
 $seed = (string)file_get_contents($root . '/database/seed.sql');
 check('seed aborts on production-like database names', str_contains($seed, "REGEXP 'prod|live|production'"));
 check('seed no longer claims the broken edusphere_% guard', !str_contains($seed, "NOT LIKE 'edusphere_%'"));
+
+$tenant = (string)file_get_contents($root . '/includes/tenant.php');
+check('school scope never opens every tenant', !str_contains($tenant, "return ['1=1', []];"));
+check('record access does not exempt platform admins', !str_contains($tenant, "if (isSuperAdmin()) return;"));
+
+$search = (string)file_get_contents($root . '/search.php');
+check('search does not dump every school when school id is missing', !str_contains($search, 'full_name LIKE ? OR student_number LIKE ? OR email LIKE ? ORDER BY full_name LIMIT 20'));
+
+$leave = (string)file_get_contents($root . '/leave/index.php');
+check('parent leave matches the child user, not the student primary key', str_contains($leave, 'st.user_id = lr.user_id') && !str_contains($leave, 'ps.student_id = lr.user_id'));
+
+$fetchTasks = (string)file_get_contents($root . '/ajax/fetch_tasks.php');
+check('task fetch is not unscoped for platform admins', !str_contains($fetchTasks, "\$baseWhere = '1=1'"));
+
+$usersPage = (string)file_get_contents($root . '/admin/users.php');
+check('user list does not select password hashes', !str_contains($usersPage, 'SELECT * FROM users'));
+
+$_SESSION['user_role'] = 'super_admin';
+unset($_SESSION['school_id']);
+[$platformSql] = school_scope('s.school_id');
+check('platform admin without a school gets no operational rows', $platformSql === '1=0');
+$_SESSION['user_role'] = 'school_admin';
+$_SESSION['school_id'] = 4;
+[$schoolSql, $schoolParams] = school_scope('s.school_id');
+check('school scope binds the signed-in school', $schoolSql === 's.school_id = ?' && $schoolParams === [4]);
+check('another school is not accessible', can_access_school(9) === false);
+check('the signed-in school is accessible', can_access_school(4) === true);
+$_SESSION['user_role'] = 'super_admin';
+unset($_SESSION['school_id']);
+check('platform admin cannot open another school record by id', can_access_school(4) === false);
 
 echo "\nPassed: {$passed}  Failed: {$failed}\n";
 exit($failed === 0 ? 0 : 1);

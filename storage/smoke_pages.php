@@ -122,6 +122,16 @@ foreach ([
     'super school detail' => '/super-admin/school.php?id=1',
 ] as $label => $path) page($label, $path, $super);
 
+$superStudents = http($base . '/students/index.php', $super);
+$superSearch = http($base . '/search.php?q=' . rawurlencode('Second School Student'), $super);
+$superEvents = http($base . '/events/index.php', $super);
+$platformLeak = str_contains($superStudents['body'], 'Second School Student')
+    || str_contains($superSearch['body'], 'Second School Student')
+    || str_contains($superEvents['body'], 'Second School Event');
+if (!$platformLeak && $superStudents['code'] === 200 && $superSearch['code'] === 200) $pass++; else $fail++;
+$rows[] = (!$platformLeak ? 'PASS ' : 'FAIL ') . str_pad('super admin operational pages stay inside no school', 42)
+    . ' students=' . $superStudents['code'] . ' search=' . $superSearch['code'];
+
 $schoolAdmin = login('schooladmin@sch001.com', 'School@123');
 foreach ([
     'school admin dashboard' => '/school-admin/dashboard.php',

@@ -1,8 +1,8 @@
 <?php
 /**
  * Main Application Dashboard — EduStudy-inspired, role-aware.
- * All metrics are scoped to the current school unless the viewer is a
- * platform super admin. Task visibility follows the same rules as tasks/index.php.
+ * Operational metrics stay inside the signed-in school. A platform admin
+ * with no school context sees no other tenant's students, tasks, or events.
  */
 $page_title = 'Dashboard';
 require_once 'includes/header.php';
@@ -37,7 +37,7 @@ if ($scopeSchoolId) {
 }
 
 /* -------------------------------------------------------------------------
- * Upcoming events (school-scoped; super admin sees the platform feed)
+ * Upcoming events for the signed-in school only.
  * ---------------------------------------------------------------------- */
 if ($scopeSchoolId) {
     $stmt = $pdo->prepare("SELECT * FROM school_events
@@ -46,11 +46,7 @@ if ($scopeSchoolId) {
     $stmt->execute([$scopeSchoolId]);
     $upcomingEvents = $stmt->fetchAll();
 } else {
-    $stmt = $pdo->query("SELECT e.*, s.school_name FROM school_events e
-        LEFT JOIN schools s ON s.id = e.school_id
-        WHERE e.event_date >= CURDATE() AND e.status <> 'Cancelled'
-        ORDER BY e.event_date ASC LIMIT 4");
-    $upcomingEvents = $stmt->fetchAll();
+    $upcomingEvents = [];
 }
 
 /* -------------------------------------------------------------------------
@@ -58,8 +54,8 @@ if ($scopeSchoolId) {
  * ---------------------------------------------------------------------- */
 $studentId = 0;
 if ($isStudentUser) {
-    $stmt = $pdo->prepare("SELECT id FROM students WHERE user_id = ? LIMIT 1");
-    $stmt->execute([$user_id]);
+    $stmt = $pdo->prepare("SELECT id FROM students WHERE user_id = ? AND school_id = ? LIMIT 1");
+    $stmt->execute([$user_id, $scopeSchoolId]);
     $studentId = (int)($stmt->fetchColumn() ?: 0);
 }
 
@@ -92,8 +88,8 @@ if ($isStudentUser && $studentId) {
 $taskWhere  = [];
 $taskParams = [];
 
-if ($isSuper) {
-    $taskWhere[] = '1=1';
+if ($isSuper || !$scopeSchoolId) {
+    $taskWhere[] = '1=0';
 } elseif ($isParentUser) {
     $taskWhere[] = 't.school_id = ?';
     $taskParams[] = $scopeSchoolId;
@@ -101,9 +97,10 @@ if ($isSuper) {
     $taskParams[] = $user_id;
     $taskParams[] = $scopeSchoolId;
 } elseif ($isStudentUser) {
-    if ($studentId) {
-        $taskWhere[] = 't.student_id = ?';
+    if ($studentId && $scopeSchoolId) {
+        $taskWhere[] = 't.student_id = ? AND t.school_id = ?';
         $taskParams[] = $studentId;
+        $taskParams[] = $scopeSchoolId;
     } else {
         $taskWhere[] = '1=0';
     }
@@ -139,12 +136,8 @@ $totalStudents = $activeStudents = $totalTeachers = $totalParents = 0;
 $totalCourses = $totalEnrollments = 0;
 
 if ($isSuper) {
-    $totalStudents    = $countRows('students', "status = 'Active'");
-    $activeStudents   = $totalStudents;
-    $totalTeachers    = $countRows('users', "role = 'teacher' AND is_active = 1");
-    $totalParents     = $countRows('users', "role = 'parent' AND is_active = 1");
-    $totalCourses     = $countRows('courses', "status = 'Active'");
-    $totalEnrollments = $countRows('enrollments', '1=1');
+    $totalStudents = $activeStudents = $totalTeachers = $totalParents = 0;
+    $totalCourses = $totalEnrollments = 0;
 } elseif ($scopeSchoolId) {
     $totalStudents    = $countRows('students', "status = 'Active' AND school_id = ?", [$scopeSchoolId]);
     $activeStudents   = $totalStudents;
@@ -199,10 +192,9 @@ foreach ($stmt->fetchAll() as $row) {
     if ($idx >= 0 && $idx < 12) $monthlyCompleted[$idx] = (int)$row['c'];
 }
 
-if ($isStaffUser) {
-    $sql = "SELECT MONTH(created_at) AS m, COUNT(*) AS c FROM enrollments WHERE YEAR(created_at) = ?";
-    $params = [$currentYear];
-    if ($scopeSchoolId) { $sql .= " AND school_id = ?"; $params[] = $scopeSchoolId; }
+if ($isStaffUser && $scopeSchoolId) {
+    $sql = "SELECT MONTH(created_at) AS m, COUNT(*) AS c FROM enrollments WHERE YEAR(created_at) = ? AND school_id = ?";
+    $params = [$currentYear, $scopeSchoolId];
     $sql .= " GROUP BY MONTH(created_at)";
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
@@ -232,13 +224,15 @@ $recentTasks = $stmt->fetchAll();
  * Top performers (school-scoped)
  * ---------------------------------------------------------------------- */
 $perfSql = "SELECT s.id, s.full_name, s.student_number,
-        (SELECT COUNT(*) FROM tasks t WHERE t.student_id = s.id AND t.status = 'Completed') AS done,
-        (SELECT COUNT(*) FROM tasks t WHERE t.student_id = s.id) AS total
+        (SELECT COUNT(*) FROM tasks t WHERE t.student_id = s.id AND t.status = 'Completed' AND t.school_id = s.school_id) AS done,
+        (SELECT COUNT(*) FROM tasks t WHERE t.student_id = s.id AND t.school_id = s.school_id) AS total
     FROM students s WHERE s.status = 'Active'";
 $perfParams = [];
 if ($scopeSchoolId) {
     $perfSql .= " AND s.school_id = ?";
     $perfParams[] = $scopeSchoolId;
+} else {
+    $perfSql .= " AND 1=0";
 }
 $perfSql .= " ORDER BY done DESC, total ASC, s.full_name ASC LIMIT 4";
 $stmt = $pdo->prepare($perfSql);

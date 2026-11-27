@@ -34,8 +34,8 @@ if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $to)) $to = date('Y-m-d');
 $summary = getStudentAttendanceSummary($pdo, $schoolId, $studentId, $from, $to);
 $records = getAttendanceRecords($pdo, $schoolId, $from, $to, $studentId);
 
-$stmt = $pdo->prepare("SELECT full_name, student_number FROM students WHERE id = ?");
-$stmt->execute([$studentId]);
+$stmt = $pdo->prepare("SELECT full_name, student_number FROM students WHERE id = ? AND school_id = ?");
+$stmt->execute([$studentId, $schoolId]);
 $stu = $stmt->fetch();
 ?>
 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">

@@ -32,7 +32,7 @@ if (!$expense) {
 }
 
 // School scoping: only within the actor's school (super admin sees all)
-if (!isSuperAdmin() && (int)$expense['school_id'] !== $schoolId) {
+if ((int)$expense['school_id'] !== (int)$schoolId || (int)$schoolId <= 0) {
     http_response_code(403);
     header('Location: ../errors/403.php');
     exit;
@@ -45,8 +45,8 @@ if ($expense['status'] !== 'Pending') {
 }
 
 $newStatus = $action === 'approve' ? 'Approved' : 'Rejected';
-$stmt = $pdo->prepare("UPDATE expenses SET status = ?, approved_by = ?, approved_at = NOW() WHERE id = ?");
-$stmt->execute([$newStatus, $userId, $id]);
+$stmt = $pdo->prepare("UPDATE expenses SET status = ?, approved_by = ?, approved_at = NOW() WHERE id = ? AND school_id = ? AND status = 'Pending'");
+$stmt->execute([$newStatus, $userId, $id, (int)$expense['school_id']]);
 
 recordActivity($pdo, $userId, $action . '_expense', 'expense', (int)$id, "Expense #{$id} {$newStatus}");
 

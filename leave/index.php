@@ -11,19 +11,22 @@ $schoolId = currentSchoolId();
 $userId = (int)$_SESSION['user_id'];
 $role = getUserRole();
 
-// ---- Scope ----
+// ---- Scope: one school, and parents only see leave filed by a linked child ----
 $where = [];
 $params = [];
-if (!isSuperAdmin()) {
+if ($schoolId) {
     $where[] = 'lr.school_id = ?';
     $params[] = $schoolId;
+} else {
+    $where[] = '1=0';
 }
-// Parent: only see leave requests for linked children via parent_student table
 if ($role === 'parent') {
-    $where[] = ' EXISTS (SELECT 1 FROM parent_student ps WHERE ps.student_id = lr.user_id AND ps.parent_id = ? AND ps.school_id = ?)';
+    $where[] = 'EXISTS (
+        SELECT 1 FROM parent_student ps
+        JOIN students st ON st.id = ps.student_id AND st.school_id = ps.school_id
+        WHERE st.user_id = lr.user_id AND ps.parent_id = ? AND ps.school_id = lr.school_id
+    )';
     $params[] = $userId;
-    $where[] = 'lr.school_id = ?';
-    $params[] = $schoolId;
 }
 if ($role === 'student') {
     $where[] = 'lr.user_id = ?';

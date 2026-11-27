@@ -677,6 +677,9 @@ function recordMark(PDO $pdo, int $schoolId, int $assessmentId, int $studentId, 
     if ($marks !== null && ($marks < 0 || $marks > $max)) {
         return false;
     }
+    if ($remarks !== null && mb_strlen($remarks) > 500) {
+        return false;
+    }
 
     $stmt = $pdo->prepare("INSERT INTO student_marks (school_id, assessment_id, student_id, marks_obtained, remarks, graded_by, graded_at)
         VALUES (?,?,?,?,?,?,NOW())
@@ -798,7 +801,8 @@ function recordPayment(PDO $pdo, int $schoolId, int $invoiceId, float $amount, s
         || !checkdate((int)substr($date, 5, 2), (int)substr($date, 8, 2), (int)substr($date, 0, 4))
         || !isOnOrBeforeToday($date)
         || ($method !== null && !in_array($method, $validMethods, true))
-        || ($reference !== null && mb_strlen($reference) > 100)) {
+        || ($reference !== null && mb_strlen($reference) > 100)
+        || ($notes !== null && mb_strlen($notes) > 500)) {
         return false;
     }
 
@@ -1167,19 +1171,18 @@ function getActiveEmergencyAlert($pdo, $schoolId = null) {
     }
 }
 
-// Get upcoming school events and holidays
-// $schoolId null = platform-wide feed (super admin); otherwise tenant-scoped.
+// Upcoming events for one school. A missing school id returns nothing —
+// never the calendar of every tenant.
 function getSchoolEventsList($pdo, $limit = 6, $onlyUpcoming = true, ?int $schoolId = null) {
+    if ($schoolId === null || $schoolId <= 0) {
+        return [];
+    }
     try {
         $where = $onlyUpcoming ? "event_date >= CURDATE() AND status != 'Cancelled'" : "1=1";
-        $params = [];
-        if ($schoolId !== null) {
-            $where .= " AND e.school_id = ?";
-            $params[] = (int)$schoolId;
-        }
+        $where .= " AND e.school_id = ?";
         $stmt = $pdo->prepare("SELECT e.*, u.full_name as author_name FROM school_events e LEFT JOIN users u ON e.created_by = u.id WHERE $where ORDER BY e.event_date ASC LIMIT ?");
-        foreach ($params as $i => $p) $stmt->bindValue($i + 1, $p, PDO::PARAM_INT);
-        $stmt->bindValue(count($params) + 1, (int)$limit, PDO::PARAM_INT);
+        $stmt->bindValue(1, (int)$schoolId, PDO::PARAM_INT);
+        $stmt->bindValue(2, (int)$limit, PDO::PARAM_INT);
         $stmt->execute();
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     } catch (PDOException $e) {

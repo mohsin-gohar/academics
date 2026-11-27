@@ -6,12 +6,8 @@ requireStaff();
 $errors = [];
 $form_data = [];
 
-$instructorSql = "SELECT id, full_name, role FROM users WHERE role IN ('teacher', 'admin') AND is_active = 1";
-$instructorParams = [];
-if (!isSuperAdmin()) {
-    $instructorSql .= " AND school_id = ?";
-    $instructorParams[] = currentSchoolId();
-}
+$instructorSql = "SELECT id, full_name, role FROM users WHERE role IN ('teacher', 'admin', 'school_admin') AND is_active = 1 AND school_id = ?";
+$instructorParams = [(int)(currentSchoolId() ?? 0)];
 $instructorSql .= " ORDER BY full_name";
 $instructorStmt = $pdo->prepare($instructorSql);
 $instructorStmt->execute($instructorParams);
@@ -47,7 +43,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($form_data['instructor_id'] !== null && $courseSchoolId !== null) {
         $instructorCheck = $pdo->prepare(
             "SELECT id FROM users
-             WHERE id = ? AND school_id = ? AND role IN ('teacher', 'admin') AND is_active = 1"
+             WHERE id = ? AND school_id = ? AND role IN ('teacher', 'admin', 'school_admin') AND is_active = 1"
         );
         $instructorCheck->execute([$form_data['instructor_id'], $courseSchoolId]);
         if (!$instructorCheck->fetchColumn()) {

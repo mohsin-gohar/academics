@@ -36,7 +36,7 @@ try {
         exit('Leave request not found.');
     }
 
-    if (!isSuperAdmin() && (int) $leave['school_id'] !== (int) $schoolId) {
+    if ((int) $leave['school_id'] !== (int) $schoolId || (int)$schoolId <= 0) {
         $pdo->rollBack();
         http_response_code(403);
         header('Location: ../errors/403.php');
@@ -54,9 +54,9 @@ try {
     $update = $pdo->prepare(
         "UPDATE leave_requests
          SET status = ?, approved_by = ?, approved_at = NOW()
-         WHERE id = ? AND status = 'Pending'"
+         WHERE id = ? AND school_id = ? AND status = 'Pending'"
     );
-    $update->execute([$newStatus, $userId, $id]);
+    $update->execute([$newStatus, $userId, $id, (int)$leave['school_id']]);
 
     if ($update->rowCount() !== 1) {
         throw new RuntimeException('Leave request was changed by another request.');

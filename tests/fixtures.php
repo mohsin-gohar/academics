@@ -43,6 +43,7 @@ function ensureTestFixture(PDO $pdo): void
             [7, 'Test Parent', 'parent@sch001.com', 'Parent@123', 'parent', 1],
             [8, 'Second School Admin', 'schooladmin@sch002.com', 'School@123', 'school_admin', 2],
             [9, 'Second School Student', 'student@sch002.com', 'Student@123', 'student', 2],
+            [10, 'Test Campus Admin', 'admin@sch001.com', 'Admin@123', 'admin', 1],
         ];
         $userStmt = $pdo->prepare(
             "INSERT INTO users

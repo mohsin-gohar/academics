@@ -61,11 +61,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $pdo->beginTransaction();
 
-            $stmt = $pdo->prepare("UPDATE students SET full_name=?, email=?, phone=?, date_of_birth=?, gender=?, address=?, enrollment_date=?, status=?, updated_at=NOW() WHERE id=?");
+            $stmt = $pdo->prepare("UPDATE students SET full_name=?, email=?, phone=?, date_of_birth=?, gender=?, address=?, enrollment_date=?, status=?, updated_at=NOW() WHERE id=? AND school_id=?");
             $stmt->execute([
                 $form_data['full_name'], $form_data['email'], $form_data['phone'] ?: null,
                 $form_data['date_of_birth'] ?: null, $form_data['gender'] ?: null,
-                $form_data['address'] ?: null, $form_data['enrollment_date'], $form_data['status'], $id
+                $form_data['address'] ?: null, $form_data['enrollment_date'], $form_data['status'], $id,
+                (int)$student['school_id']
             ]);
             // Update linked user
             $accountActive = in_array($form_data['status'], ['Active', 'Graduated'], true) ? 1 : 0;
