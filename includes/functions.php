@@ -1008,27 +1008,25 @@ function logActivity($pdo, $userId, $action, $entityType = null, $entityId = nul
  * missing table can never lock every user out of the application.
  */
 function rate_limit_exceeded(PDO $pdo, string $bucket, string $identifier, int $maxAttempts, int $windowSeconds): bool {
-    if ($maxAttempts <= 0 || $windowSeconds <= 0) {
-        return false;
+    if ($maxAttempts <= 0 || $windowSeconds <= 0 || strlen($bucket) > 40) {
+        return true;
     }
     $key = hash('sha256', $identifier);
-    // The window is evaluated entirely in SQL. The connection may set a session
-    // time zone, so comparing against a PHP-generated timestamp would shift the
-    // cutoff and keep (or drop) the wrong rows.
+    // Insert before counting so concurrent requests cannot all pass the same
+    // pre-insert count. A request is allowed only while its own attempt remains
+    // within the configured window quota.
     try {
         $pdo->prepare("DELETE FROM rate_limits WHERE bucket = ? AND created_at < DATE_SUB(NOW(), INTERVAL ? SECOND)")
             ->execute([$bucket, $windowSeconds]);
+        $pdo->prepare("INSERT INTO rate_limits (bucket, identifier) VALUES (?, ?)")->execute([$bucket, $key]);
         $stmt = $pdo->prepare("SELECT COUNT(*) FROM rate_limits WHERE bucket = ? AND identifier = ? AND created_at >= DATE_SUB(NOW(), INTERVAL ? SECOND)");
         $stmt->execute([$bucket, $key, $windowSeconds]);
-        if ((int)$stmt->fetchColumn() >= $maxAttempts) {
-            return true;
-        }
-        $pdo->prepare("INSERT INTO rate_limits (bucket, identifier) VALUES (?, ?)")->execute([$bucket, $key]);
+        return (int)$stmt->fetchColumn() > $maxAttempts;
     } catch (PDOException $e) {
-        error_log('Rate limit check failed: ' . $e->getMessage());
-        return false;
+        // If the limiter cannot be trusted, deny the protected operation.
+        error_log('Rate limit check failed closed: ' . $e->getMessage());
+        return true;
     }
-    return false;
 }
 
 function recordActivity($pdo, $userId, $action, $entityType = null, $entityId = null, $description = null) {
