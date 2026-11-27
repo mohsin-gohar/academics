@@ -69,7 +69,7 @@ $toggleUser = (string)file_get_contents($root . '/admin/toggle_user.php');
 check('user activation changes revoke all existing sessions', str_contains($toggleUser, 'session_version = session_version + 1'));
 
 $deleteUser = (string)file_get_contents($root . '/admin/delete_user.php');
-check('user deletion checks all cascading foreign-key records', str_contains($deleteUser, 'information_schema.KEY_COLUMN_USAGE') && str_contains($deleteUser, "REFERENCED_TABLE_NAME = 'users'"));
+check('user deletion checks all cascading foreign-key records', str_contains($deleteUser, 'information_schema.KEY_COLUMN_USAGE') && str_contains($deleteUser, "kcu.REFERENCED_TABLE_NAME = 'users'") && str_contains($deleteUser, "rc.DELETE_RULE = 'CASCADE'"));
 
 $functions = (string)file_get_contents($root . '/includes/functions.php');
 check('live session checks trial expiry', str_contains($functions, 'trial_expired'));
