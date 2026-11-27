@@ -29,9 +29,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if (empty($errors)) {
             $id = createAssessment($pdo, $schoolId, (int)$old['course_id'], $old['title'], $old['assessment_type'], (float)$old['max_marks'], (float)$old['weight'], $old['due_date'] !== '' ? $old['due_date'] : null, $old['description'] !== '' ? $old['description'] : null, (int)($_SESSION['user_id'] ?? 0));
-            setFlashMessage('success', 'Assessment created.');
-            header('Location: index.php?course_id=' . (int)$old['course_id']);
-            exit;
+            if ($id > 0) {
+                setFlashMessage('success', 'Assessment created.');
+                header('Location: index.php?course_id=' . (int)$old['course_id']);
+                exit;
+            }
+            $errors[] = 'Selected course does not belong to this school.';
         }
     }
 }

@@ -44,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (empty($errors)) {
         try {
-            $upStmt = $pdo->prepare("UPDATE school_events SET title = ?, event_type = ?, description = ?, event_date = ?, end_date = ?, is_holiday = ?, status = ? WHERE id = ?");
+            $upStmt = $pdo->prepare("UPDATE school_events SET title = ?, event_type = ?, description = ?, event_date = ?, end_date = ?, is_holiday = ?, status = ? WHERE id = ? AND school_id = ?");
             $upStmt->execute([
                 $form_data['title'],
                 $form_data['event_type'],
@@ -53,7 +53,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $form_data['end_date'],
                 $form_data['is_holiday'],
                 $form_data['status'],
-                $id
+                $id,
+                (int)$event['school_id']
             ]);
 
             logActivity($pdo, $user_id, 'edit_event', 'school_events', $id, 'Updated event: ' . $form_data['title']);

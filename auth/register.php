@@ -1,6 +1,6 @@
 <?php
-session_start();
 require_once __DIR__ . '/../includes/functions.php';
+startSecureSession();
 require_once __DIR__ . '/../config/db.php';
 
 if (isLoggedIn()) {
@@ -89,12 +89,12 @@ $schools = $pdo->query("SELECT id, school_name, school_code FROM schools
                         <label class="form-label">Password</label>
                         <div class="input-group">
                             <span class="input-group-text bg-light"><i class="fas fa-lock text-muted"></i></span>
-                            <input type="password" name="password" id="password" class="form-control" placeholder="Create a strong password" required minlength="6">
+                            <input type="password" name="password" id="password" class="form-control" placeholder="Create a strong password" required minlength="10">
                             <button class="btn btn-outline-secondary" type="button" onclick="togglePassword('password')">
                                 <i class="fas fa-eye" id="toggleIcon1"></i>
                             </button>
                         </div>
-                        <small class="text-muted">Minimum 6 characters</small>
+                        <small class="text-muted">At least 10 characters with upper, lower, number and special character</small>
                     </div>
                     <div class="mb-4">
                         <label class="form-label">Confirm Password</label>

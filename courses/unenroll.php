@@ -24,7 +24,7 @@ if ($enrollmentSchool === false) {
 require_record_school(['school_id' => (int)$enrollmentSchool]);
 
 try {
-    $pdo->prepare("DELETE FROM enrollments WHERE id = ?")->execute([$id]);
+    $pdo->prepare("DELETE FROM enrollments WHERE id = ? AND school_id = ?")->execute([$id, (int)$enrollmentSchool]);
     logActivity($pdo, $_SESSION['user_id'], 'unenroll', 'course', $course_id, 'Unenrolled student');
     header('Location: show.php?id=' . $course_id . '&success=' . urlencode('Student unenrolled.'));
     exit;

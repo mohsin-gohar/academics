@@ -12,6 +12,9 @@ require_once __DIR__ . '/../includes/functions.php';
 startSecureSession();
 require_once __DIR__ . '/../config/db.php';
 
+// Seed deterministic data only for the isolated CI/test database.
+require_once __DIR__ . '/fixtures.php';
+
 // Core suites
 require_once __DIR__ . '/AuthTest.php';
 require_once __DIR__ . '/TasksTest.php';
@@ -19,6 +22,8 @@ require_once __DIR__ . '/StudentsCoursesTest.php';
 require_once __DIR__ . '/SecurityTest.php';
 require_once __DIR__ . '/EventsAlertsTest.php';
 require_once __DIR__ . '/SaasTest.php';
+require_once __DIR__ . '/TenantIsolationTest.php';
+require_once __DIR__ . '/HardeningTest.php';
 
 // Expanded modular suites
 require_once __DIR__ . '/test_auth.php';
@@ -46,6 +51,8 @@ $suites = [
     'School Events, Holidays & Alerts'  => new EventsAlertsTest($pdo),
     'Advanced Features: Attendance, Grades, Fees, Timetable (test_features)' => new TestFeaturesSuite($pdo),
     'SaaS Plans, Trials & Subscriptions' => new SaasTest($pdo),
+    'Multi-school tenant isolation' => new TenantIsolationTest($pdo),
+    'Production hardening regressions' => new HardeningTest($pdo),
 ];
 
 $totalTests = 0;

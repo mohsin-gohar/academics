@@ -32,17 +32,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $token) {
         // Validate password strength
         $strengthErrors = validatePasswordStrength($password);
         if (!empty($strengthErrors)) {
-            $error = implode('<br>', $strengthErrors);
+            $error = implode(' ', $strengthErrors);
         } elseif ($password !== $confirm) {
             $error = 'Passwords do not match.';
         } else {
-            // Consume token and reset password
-            if (consumePasswordResetToken($pdo, $token, $password)) {
-                // Log the activity
-                $email = validatePasswordResetToken($pdo, $token);
-                if ($email) {
-                    logActivity($pdo, null, 'password_reset_completed', 'user', null, 'Password reset completed for ' . $email);
-                }
+            // Capture the account for audit logging before the token is consumed.
+            $resetEmail = validatePasswordResetToken($pdo, $token);
+            if ($resetEmail !== null && consumePasswordResetToken($pdo, $token, $password)) {
+                logActivity($pdo, null, 'password_reset_completed', 'user', null, 'Password reset completed for ' . $resetEmail);
                 $success = 'Your password has been reset successfully. You can now <a href="login.php">sign in</a>.';
                 $token = ''; // Prevent re-use
             } else {
@@ -78,7 +75,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $token) {
             </div>
             <div class="auth-body">
                 <?php if ($error): ?>
-                    <div class="alert alert-danger"><i class="fas fa-exclamation-circle me-2"></i><?php echo $error; ?></div>
+                    <div class="alert alert-danger"><i class="fas fa-exclamation-circle me-2"></i><?php echo e($error); ?></div>
                 <?php endif; ?>
                 <?php if ($success): ?>
                     <div class="alert alert-success"><i class="fas fa-check-circle me-2"></i><?php echo $success; ?></div>

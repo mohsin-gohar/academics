@@ -15,13 +15,13 @@ if ($id <= 0 || $token === '' || !validateCsrfToken($token)) {
     exit;
 }
 
-$stmt = $pdo->prepare("SELECT * FROM tasks WHERE id = ?" . (isSuperAdmin() ? "" : " AND school_id = ?"));
-$params = isSuperAdmin() ? [$id] : [$id, (int)currentSchoolId()];
-$stmt->execute($params);
+$schoolId = (int)(currentSchoolId() ?? 0);
+$stmt = $pdo->prepare("SELECT * FROM tasks WHERE id = ? AND school_id = ?");
+$stmt->execute([$id, $schoolId]);
 $task = $stmt->fetch();
 if (!$task) { header('Location: index.php?error=' . urlencode('Task not found.')); exit; }
 
-if (!isSuperAdmin() && (int)$task['school_id'] !== (int)currentSchoolId()) {
+if ((int)$task['school_id'] !== $schoolId) {
     header('Location: index.php?error=' . urlencode('You do not have permission to delete this task.'));
     exit;
 }
@@ -33,11 +33,8 @@ if (!isAdmin() && (int)$task['user_id'] !== (int)$user_id) {
 }
 
 try {
-    $del = isSuperAdmin()
-        ? $pdo->prepare("DELETE FROM tasks WHERE id = ?")
-        : $pdo->prepare("DELETE FROM tasks WHERE id = ? AND school_id = ?");
-    $delParams = isSuperAdmin() ? [$id] : [$id, (int)currentSchoolId()];
-    $del->execute($delParams);
+    $del = $pdo->prepare("DELETE FROM tasks WHERE id = ? AND school_id = ?");
+    $del->execute([$id, $schoolId]);
     logActivity($pdo, $user_id, 'delete', 'task', $id, 'Deleted task: ' . $task['title']);
     header('Location: index.php?success=' . urlencode('Task deleted successfully.'));
     exit;

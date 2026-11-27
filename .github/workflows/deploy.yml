@@ -5,6 +5,10 @@ on:
     branches:
       - main
       - master
+  pull_request:
+    branches:
+      - main
+      - master
   workflow_dispatch:
 
 jobs:
@@ -34,13 +38,15 @@ jobs:
       DB_NAME_TEST: edusphere_test
     steps:
       - name: Checkout latest code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.2'
           extensions: mbstring, pdo, pdo_mysql, openssl, json, curl
           coverage: none
+      - name: Invite and session regression (no database)
+        run: php tests/security_invite_regression.php
       - name: Wait for MySQL
         run: |
           until mysqladmin ping --host=127.0.0.1 --user=root --password=root --silent; do
@@ -48,19 +54,87 @@ jobs:
           done
       - name: Run migrations
         run: php database/migrate.php up
+      - name: Verify upgrade from the legacy single-school schema
+        env:
+          MYSQL_PWD: root
+        run: |
+          mysql --host=127.0.0.1 --user=root < database/schema.sql
+          mysql --host=127.0.0.1 --user=root edusphere <<'SQL'
+          INSERT INTO users (full_name,email,password,role,is_active) VALUES
+            ('Legacy Teacher','legacy.teacher@example.test','legacy-hash','teacher',1),
+            ('Legacy Student','legacy.student@example.test','legacy-hash','student',1);
+          INSERT INTO students (user_id,student_number,full_name,email,enrollment_date,status)
+            SELECT id,'LEGACY-STU-001',full_name,email,CURDATE(),'Active'
+            FROM users WHERE email='legacy.student@example.test';
+          INSERT INTO courses (course_code,course_name,created_by,instructor_id,status)
+            SELECT 'LEGACY-101','Legacy Course',t.id,t.id,'Active'
+            FROM users t WHERE t.email='legacy.teacher@example.test';
+          INSERT INTO enrollments (student_id,course_id,enrollment_date,status)
+            SELECT s.id,c.id,CURDATE(),'Enrolled'
+            FROM students s JOIN users su ON su.id=s.user_id
+            JOIN courses c ON c.course_code='LEGACY-101'
+            WHERE su.email='legacy.student@example.test';
+          INSERT INTO tasks (user_id,student_id,course_id,title,status)
+            SELECT t.id,s.id,c.id,'Legacy Task','Pending'
+            FROM users t JOIN students s JOIN courses c
+            WHERE t.email='legacy.teacher@example.test'
+              AND s.email='legacy.student@example.test' AND c.course_code='LEGACY-101';
+          INSERT INTO school_events (title,event_type,event_date,created_by)
+            SELECT 'Legacy Event','Meeting',CURDATE(),id FROM users WHERE email='legacy.teacher@example.test';
+          INSERT INTO emergency_alerts (title,message,effective_date,updated_by)
+            SELECT 'Legacy Alert','Legacy alert fixture',CURDATE(),id FROM users WHERE email='legacy.teacher@example.test';
+          INSERT INTO activity_logs (user_id,action,entity_type,description)
+            SELECT id,'legacy_fixture','migration','Legacy upgrade fixture' FROM users WHERE email='legacy.teacher@example.test';
+          SQL
+          APP_ENV=test DB_NAME_TEST=edusphere DB_NAME=edusphere DB_HOST=127.0.0.1 DB_PORT=3306 DB_USER=root DB_PASS=root php database/migrate.php up
+          legacy_school_count=$(mysql --host=127.0.0.1 --user=root --batch --skip-column-names -e "SELECT COUNT(*) FROM edusphere.schools WHERE school_code='LEGACY001'")
+          test "$legacy_school_count" -eq 1
+          tenant_columns=$(mysql --host=127.0.0.1 --user=root --batch --skip-column-names -e "SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='edusphere' AND ((TABLE_NAME='users' AND COLUMN_NAME IN ('school_id','must_change_password')) OR (TABLE_NAME IN ('students','courses','enrollments','tasks','school_events','emergency_alerts','activity_logs','notifications') AND COLUMN_NAME='school_id'))")
+          test "$tenant_columns" -ge 10
+          migrated_rows=$(mysql --host=127.0.0.1 --user=root --batch --skip-column-names -e "SELECT (SELECT COUNT(*) FROM edusphere.users u JOIN edusphere.schools s ON s.id=u.school_id WHERE u.email='legacy.teacher@example.test') + (SELECT COUNT(*) FROM edusphere.students st JOIN edusphere.schools s ON s.id=st.school_id WHERE st.email='legacy.student@example.test') + (SELECT COUNT(*) FROM edusphere.courses c JOIN edusphere.schools s ON s.id=c.school_id WHERE c.course_code='LEGACY-101') + (SELECT COUNT(*) FROM edusphere.tasks t JOIN edusphere.schools s ON s.id=t.school_id WHERE t.title='Legacy Task') + (SELECT COUNT(*) FROM edusphere.enrollments e JOIN edusphere.schools s ON s.id=e.school_id)")
+          test "$migrated_rows" -ge 5
       - name: PHP syntax check
-        run: find . -type f -name '*.php' -not -path './storage/*' -exec php -l {} \;
+        run: find . -type f -name '*.php' -not -path './storage/cache/*' -exec php -l {} \;
       - name: Run automated tests
         run: php tests/run_tests.php
+      - name: Payment concurrency across two processes
+        run: php tests/concurrency_payment_test.php
+      - name: Start PHP web server for portal smoke tests
+        run: |
+          php -S 127.0.0.1:8090 > /tmp/academics-php-server.log 2>&1 &
+      - name: Wait for application
+        run: |
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:8090/auth/login.php > /dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/academics-php-server.log
+          exit 1
+      - name: Verify role-based portal pages
+        env:
+          ACADEMICS_BASE: http://127.0.0.1:8090
+        run: php storage/smoke_pages.php
+      - name: Browser workflows for all six roles
+        env:
+          ACADEMICS_BASE: http://127.0.0.1:8090
+        run: |
+          npm install --no-save @playwright/test@1.49.1
+          npx playwright install --with-deps chromium
+          npx playwright test --config=tests/e2e/playwright.config.js
+      - name: Show PHP server diagnostics on failure
+        if: failure()
+        run: cat /tmp/academics-php-server.log
 
   web-deploy:
     name: 🚀 Auto Deploy to InfinityFree via FTP
     needs: quality
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - name: 🚚 Checkout latest code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 2
 
@@ -78,5 +152,12 @@ jobs:
             **/.github*
             **/.github*/**
             **/tests/**
-            **/*.sql
+            **/.env*
+            **/storage/*.php
+            **/storage/cache/**
+            **/storage/logs/**
+            **/storage/tmp/**
+            **/database.sql
+            **/database/schema.sql
+            **/database/seed.sql
             **/*.md

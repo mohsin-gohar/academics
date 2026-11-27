@@ -6,7 +6,7 @@
  */
 
 // Minimal .env loader (no external dependency)
-function load_env(string $path = null): void
+function load_env(?string $path = null): void
 {
     // __DIR__ is config/, so the project-root .env is one level up.
     $path = $path ?: __DIR__ . '/../.env';
@@ -54,6 +54,17 @@ if (!defined('APP_ENV')) {
     $appEnv = getenv('APP_ENV');
     define('APP_ENV', $appEnv !== false && trim((string)$appEnv) !== '' ? strtolower(trim((string)$appEnv)) : 'local');
 }
+
+if (!defined('APP_DEBUG')) {
+    $debugEnv = getenv('APP_DEBUG');
+    $debugDefault = in_array(APP_ENV, ['local', 'development'], true);
+    define('APP_DEBUG', $debugEnv !== false
+        ? filter_var($debugEnv, FILTER_VALIDATE_BOOLEAN)
+        : $debugDefault);
+}
+error_reporting(E_ALL);
+ini_set('log_errors', '1');
+ini_set('display_errors', APP_DEBUG ? '1' : '0');
 $requestHost = strtolower((string)parse_url('http://' . ($_SERVER['HTTP_HOST'] ?? 'localhost'), PHP_URL_HOST));
 $isLocalDev = (APP_ENV === 'local' || APP_ENV === 'development')
     && (PHP_SAPI === 'cli' || in_array($requestHost, ['localhost', '127.0.0.1', '::1'], true));
@@ -130,23 +141,40 @@ $options = [
     PDO::ATTR_TIMEOUT            => 1,
 ];
 
-// Potential targets: XAMPP MariaDB (port 3306) and Oracle MySQL (port 3307)
-$targets = [
-    ['host' => '127.0.0.1', 'port' => 3306, 'pass' => 'root'],
-    ['host' => '127.0.0.1', 'port' => 3306, 'pass' => ''],
-    ['host' => '127.0.0.1', 'port' => 3307, 'pass' => ''],
-    ['host' => '127.0.0.1', 'port' => 3307, 'pass' => 'root'],
-    ['host' => 'localhost', 'port' => 3306, 'pass' => 'root'],
-    ['host' => 'localhost', 'port' => 3306, 'pass' => ''],
-    ['host' => 'localhost', 'port' => 3307, 'pass' => ''],
-];
+// Candidate endpoints. Guessing local passwords is a developer convenience and
+// must never run against a real deployment: a hosted install gets exactly the
+// one endpoint it is configured with, so a wrong password fails loudly.
+$targets = [];
+if (defined('IS_PRODUCTION') && IS_PRODUCTION) {
+    $targets[] = [
+        'host' => defined('DB_HOST') ? DB_HOST : '127.0.0.1',
+        'port' => defined('DB_PORT') ? (int)DB_PORT : 3306,
+        'pass' => defined('DB_PASS') ? (string)DB_PASS : '',
+    ];
+} elseif ($isLocalDev || $isTestEnv) {
+    $targets = [
+        ['host' => '127.0.0.1', 'port' => 3306, 'pass' => 'root'],
+        ['host' => '127.0.0.1', 'port' => 3306, 'pass' => ''],
+        ['host' => '127.0.0.1', 'port' => 3307, 'pass' => ''],
+        ['host' => '127.0.0.1', 'port' => 3307, 'pass' => 'root'],
+        ['host' => 'localhost', 'port' => 3306, 'pass' => 'root'],
+        ['host' => 'localhost', 'port' => 3306, 'pass' => ''],
+        ['host' => 'localhost', 'port' => 3307, 'pass' => ''],
+    ];
+} else {
+    $targets[] = [
+        'host' => getenv('DB_HOST') ?: '127.0.0.1',
+        'port' => (int)(getenv('DB_PORT') ?: 3306),
+        'pass' => getenv('DB_PASS') !== false ? (string)getenv('DB_PASS') : '',
+    ];
+}
 
 // If custom environment variables provided, prioritize them
 if (getenv('DB_PORT') || getenv('DB_HOST') || getenv('DB_PASS') !== false) {
     array_unshift($targets, [
         'host' => getenv('DB_HOST') ?: '127.0.0.1',
         'port' => (int)(getenv('DB_PORT') ?: 3306),
-        'pass' => getenv('DB_PASS') !== false ? getenv('DB_PASS') : 'root',
+        'pass' => getenv('DB_PASS') !== false ? getenv('DB_PASS') : '',
     ]);
 }
 
@@ -166,7 +194,8 @@ if ($isLocalDev && !$isTestEnv && is_file($dbTargetCache)) {
         array_unshift($targets, [
             'host' => (string)$cachedTarget['host'],
             'port' => (int)$cachedTarget['port'],
-            'pass' => isset($cachedTarget['pass']) ? (string)$cachedTarget['pass'] : '',
+            // The password is never cached; the configured one is used instead.
+            'pass' => defined('DB_PASS') ? (string)DB_PASS : (getenv('DB_PASS') !== false ? (string)getenv('DB_PASS') : ''),
         ]);
     }
 }
@@ -222,7 +251,7 @@ if ($serverPdo && $isLocalDev && !$isTestEnv) {
     // Persist the working local endpoint so the next request connects first-try.
     @file_put_contents(
         $dbTargetCache,
-        json_encode(['host' => $workingHost, 'port' => $workingPort, 'pass' => $workingPass], JSON_UNESCAPED_SLASHES),
+        json_encode(['host' => $workingHost, 'port' => $workingPort], JSON_UNESCAPED_SLASHES),
         LOCK_EX
     );
 }
@@ -265,9 +294,13 @@ try {
         "SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = " . $serverPdo->quote(DB_NAME)
     )->fetchColumn();
 
-    if (!$exists) {
+    if (!$exists && ($isLocalDev || $isTestEnv || getenv('DB_ALLOW_CREATE') === '1')) {
         $serverPdo->exec("CREATE DATABASE IF NOT EXISTS `" . DB_NAME . "` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
         error_log("Database '$DB_NAME' created. Run 'php database/migrate.php' to apply schema.");
+    } elseif (!$exists) {
+        error_log("Database '$DB_NAME' does not exist and automatic creation is disabled. Create it and run 'php database/migrate.php'.");
+        http_response_code(503);
+        exit('Database is not configured for this installation.');
     } else {
         // Check if schema_migrations table exists (canonical migrations applied)
         $tblExists = $serverPdo->query(
@@ -292,11 +325,12 @@ try {
     die("Database connection failed. Please check your configuration and ensure migrations have been applied.");
 }
 
-// Self-heal demo accounts for local development only (skip during migrations).
-if ($isLocalDev && !defined('MIGRATION_RUNNING')) {
+// Known demo passwords are not inserted automatically.
+// Opt in only on a private localhost lab: ALLOW_DEMO_ACCOUNTS=1
+if ($isLocalDev && !defined('MIGRATION_RUNNING') && getenv('ALLOW_DEMO_ACCOUNTS') === '1') {
     try {
         $demoAccounts = [
-            ['System Administrator', 'admin@edusphere.com', '$2y$10$mmx/UMwzNmkfhEKRGUYctuNSrl/xrRLp4f8o3R5M1ksN1c2J45tQu', 'admin'],
+            ['System Administrator', 'admin@edusphere.com', '$2y$10$mmx/UMwzNmkfhEKRGUYctuNSrl/xrRLp4f8o3R5M1ksN1c2J45tQu', 'super_admin'],
             ['Demo Teacher', 'teacher@edusphere.com', '$2y$10$QHDpb.tWT6fuT4va4VjzcO6SQfC1MTOl6kNAm4yjTytXQN3JJ/SXe', 'teacher'],
             ['Demo Student', 'student@edusphere.com', '$2y$10$k6JdjbAJbgtIGbf1I.fnE.wfB4TW1ditc8qgSGdj5VUIg9k/qlqzS', 'student'],
         ];

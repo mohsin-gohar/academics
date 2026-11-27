@@ -15,12 +15,18 @@ enforceSession($pdo);
 $userId = $_SESSION['user_id'];
 $schoolId = currentSchoolId();
 
-$stmt = $pdo->prepare("SELECT m.*, u.full_name as sender_name, u.role as sender_role
-                       FROM messages m
-                       JOIN users u ON m.sender_id = u.id
-                       WHERE m.receiver_id = ?
-                       ORDER BY m.created_at DESC");
-$stmt->execute([$userId]);
+$sql = "SELECT m.*, u.full_name as sender_name, u.role as sender_role
+        FROM messages m
+        JOIN users u ON m.sender_id = u.id
+        WHERE m.receiver_id = ?";
+$params = [$userId];
+if ($schoolId) {
+    $sql .= " AND (m.school_id = ? OR u.role = 'super_admin')";
+    $params[] = $schoolId;
+}
+$sql .= " ORDER BY m.created_at DESC";
+$stmt = $pdo->prepare($sql);
+$stmt->execute($params);
 $messages = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 require_once __DIR__ . '/../includes/header.php';

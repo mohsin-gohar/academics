@@ -39,7 +39,11 @@ if (!$contextSchool && $postedContext > 0) {
     $contextSchool = school_by_id($pdo, $postedContext);
 }
 
-$stmt = $pdo->prepare("SELECT id, full_name, email, password, role, is_active, school_id, must_change_password FROM users WHERE email = ?");
+$userColumns = 'id, full_name, email, password, role, is_active, school_id, must_change_password';
+if (dbTableHasColumn($pdo, 'users', 'session_version')) {
+    $userColumns .= ', session_version';
+}
+$stmt = $pdo->prepare("SELECT {$userColumns} FROM users WHERE email = ?");
 $stmt->execute([$email]);
 $user = $stmt->fetch();
 
@@ -71,8 +75,8 @@ if ($schoolId !== null) {
 }
 
 // A school subdomain is a tenant boundary: accounts from another school cannot
-// sign in there. Platform administrators may still sign in to any portal.
-$isPlatformAdmin = ($user['role'] === 'super_admin') || ($user['role'] === 'admin' && $schoolId === null);
+// sign in there. Only super_admin may sign in to any portal.
+$isPlatformAdmin = isPlatformOperator((string)$user['role'], $schoolId);
 if ($contextSchool && !$isPlatformAdmin && $schoolId !== (int)$contextSchool['id']) {
     header('Location: login.php?error=' . urlencode('This account belongs to a different school portal. Please use your own school link.'));
     exit;
@@ -90,6 +94,7 @@ $_SESSION['user_email'] = $user['email'];
 $_SESSION['user_role'] = $user['role'];
 $_SESSION['logged_in'] = true;
 $_SESSION['must_change_password'] = ((int)$user['must_change_password'] === 1);
+$_SESSION['session_version'] = (int)($user['session_version'] ?? 1);
 if ($schoolId !== null) {
     $_SESSION['school_id'] = $schoolId;
 } else {

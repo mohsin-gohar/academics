@@ -6,12 +6,8 @@ requireStaff();
 $errors = [];
 $form_data = [];
 
-$instructorSql = "SELECT id, full_name, role FROM users WHERE role IN ('teacher', 'admin') AND is_active = 1";
-$instructorParams = [];
-if (!isSuperAdmin()) {
-    $instructorSql .= " AND school_id = ?";
-    $instructorParams[] = currentSchoolId();
-}
+$instructorSql = "SELECT id, full_name, role FROM users WHERE role IN ('teacher', 'admin', 'school_admin') AND is_active = 1 AND school_id = ?";
+$instructorParams = [(int)(currentSchoolId() ?? 0)];
 $instructorSql .= " ORDER BY full_name";
 $instructorStmt = $pdo->prepare($instructorSql);
 $instructorStmt->execute($instructorParams);
@@ -37,9 +33,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($form_data['course_name'])) $errors[] = 'Course name is required.';
     if ($form_data['credits'] < 1) $errors[] = 'Credits must be at least 1.';
 
+    // Courses always belong to one school. A platform administrator must
+    // operate through a school context rather than creating a NULL-tenant row.
+    $courseSchoolId = currentSchoolId();
+    if ($courseSchoolId === null) {
+        $errors[] = 'A school context is required to create a course.';
+    }
+
+    if ($form_data['instructor_id'] !== null && $courseSchoolId !== null) {
+        $instructorCheck = $pdo->prepare(
+            "SELECT id FROM users
+             WHERE id = ? AND school_id = ? AND role IN ('teacher', 'admin', 'school_admin') AND is_active = 1"
+        );
+        $instructorCheck->execute([$form_data['instructor_id'], $courseSchoolId]);
+        if (!$instructorCheck->fetchColumn()) {
+            $errors[] = 'Selected instructor is not active in this school.';
+        }
+    }
+
     if (empty($errors)) {
         $stmt = $pdo->prepare("SELECT id FROM courses WHERE course_code = ? AND school_id = ?");
-        $stmt->execute([$form_data['course_code'], currentSchoolId()]);
+        $stmt->execute([$form_data['course_code'], $courseSchoolId]);
         if ($stmt->fetch()) $errors[] = 'Course code already exists.';
     }
 
@@ -47,7 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $stmt = $pdo->prepare("INSERT INTO courses (school_id, course_code, course_name, description, credits, instructor_id, schedule, capacity, status, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
             $stmt->execute([
-                currentSchoolId(),
+                $courseSchoolId,
                 $form_data['course_code'], $form_data['course_name'], $form_data['description'] ?: null,
                 $form_data['credits'], $form_data['instructor_id'], $form_data['schedule'] ?: null,
                 $form_data['capacity'], $form_data['status'], $_SESSION['user_id']

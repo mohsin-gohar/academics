@@ -11,22 +11,20 @@ $user_id = $_SESSION['user_id'];
 $errors = [];
 $form_data = [];
 
-$students = [];
-if (isSuperAdmin()) {
-    $courses = $pdo->query("SELECT id, course_code, course_name FROM courses WHERE status = 'Active' ORDER BY course_name")->fetchAll();
-} else {
-    $courseStmt = $pdo->prepare("SELECT id, course_code, course_name FROM courses WHERE status = 'Active' AND school_id = ? ORDER BY course_name");
-    $courseStmt->execute([currentSchoolId()]);
-    $courses = $courseStmt->fetchAll();
+$schoolId = currentSchoolId();
+if (!$schoolId) {
+    http_response_code(403);
+    exit('Open a school portal before creating tasks. Platform view cannot list every school.');
 }
+
+$students = [];
+$courseStmt = $pdo->prepare("SELECT id, course_code, course_name FROM courses WHERE status = 'Active' AND school_id = ? ORDER BY course_name");
+$courseStmt->execute([$schoolId]);
+$courses = $courseStmt->fetchAll();
 if (isStaff()) {
-    if (isSuperAdmin()) {
-        $students = $pdo->query("SELECT id, full_name, student_number FROM students WHERE status = 'Active' ORDER BY full_name")->fetchAll();
-    } else {
-        $studentStmt = $pdo->prepare("SELECT id, full_name, student_number FROM students WHERE status = 'Active' AND school_id = ? ORDER BY full_name");
-        $studentStmt->execute([currentSchoolId()]);
-        $students = $studentStmt->fetchAll();
-    }
+    $studentStmt = $pdo->prepare("SELECT id, full_name, student_number FROM students WHERE status = 'Active' AND school_id = ? ORDER BY full_name");
+    $studentStmt->execute([$schoolId]);
+    $students = $studentStmt->fetchAll();
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -36,8 +34,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $assignedStudentId = (int)($_POST['student_id'] ?? 0);
     if (isStudent()) {
-        $stStmt = $pdo->prepare("SELECT id FROM students WHERE user_id = ?");
-        $stStmt->execute([$user_id]);
+        $stStmt = $pdo->prepare("SELECT id FROM students WHERE user_id = ? AND school_id = ?");
+        $stStmt->execute([$user_id, $schoolId]);
         $stRow = $stStmt->fetch();
         if ($stRow) {
             $assignedStudentId = (int)$stRow['id'];
@@ -64,18 +62,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors[] = 'Due date is not a valid calendar date.';
     }
 
-    // Tenant guard: linked records must belong to the actor's school.
-    if (!isSuperAdmin()) {
-        if ($form_data['student_id']) {
-            $chk = $pdo->prepare("SELECT 1 FROM students WHERE id = ? AND school_id = ?");
-            $chk->execute([$form_data['student_id'], currentSchoolId()]);
-            if (!$chk->fetchColumn()) $errors[] = 'Selected student is not available for your school.';
-        }
-        if ($form_data['course_id']) {
-            $chk = $pdo->prepare("SELECT 1 FROM courses WHERE id = ? AND school_id = ?");
-            $chk->execute([$form_data['course_id'], currentSchoolId()]);
-            if (!$chk->fetchColumn()) $errors[] = 'Selected course is not available for your school.';
-        }
+    // Linked records must belong to this school, including platform operators.
+    if ($form_data['student_id']) {
+        $chk = $pdo->prepare("SELECT 1 FROM students WHERE id = ? AND school_id = ?");
+        $chk->execute([$form_data['student_id'], $schoolId]);
+        if (!$chk->fetchColumn()) $errors[] = 'Selected student is not available for your school.';
+    }
+    if ($form_data['course_id']) {
+        $chk = $pdo->prepare("SELECT 1 FROM courses WHERE id = ? AND school_id = ?");
+        $chk->execute([$form_data['course_id'], $schoolId]);
+        if (!$chk->fetchColumn()) $errors[] = 'Selected course is not available for your school.';
     }
 
     if (empty($errors)) {

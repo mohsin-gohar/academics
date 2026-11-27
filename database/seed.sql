@@ -1,4 +1,13 @@
--- Academics Demo Seed Data
+-- LOCAL LAB FIXTURE ONLY.
+-- Do not import this file into a shared or production database.
+-- It resets the lab school and forces must_change_password = 1.
+-- Abort if the current schema name looks like production, then switch to `edusphere`.
+SELECT CASE
+    WHEN IFNULL(DATABASE(), '') REGEXP 'prod|live|production' THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Seed aborted: current database name looks like production.'
+    ELSE 1
+END AS __seed_safety_check__;
 USE edusphere;
 
 -- ---------------------------------------------------------------------------
@@ -43,13 +52,14 @@ INSERT INTO application_settings (setting_key, setting_value, description) VALUE
 ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value);
 
 -- ---------------------------------------------------------------------------
--- Users (Admin, Teacher, Student, Parent)
--- Password hashes are bcrypt of the demo passwords for LOCAL DEV only:
---   admin@edusphere.com   = Admin@123
---   teacher@edusphere.com = Teacher@123
---   student@edusphere.com = Student@123
---   parent@edusphere.com  = Parent@123
--- must_change_password is set so these can never be used unchanged in prod.
+-- Local lab users. These are not production credentials.
+-- First login must change the password (must_change_password = 1).
+--   superadmin@academics.app  lab password Admin@123   role super_admin
+--   admin@edusphere.com       lab password Admin@123   role school_admin of Demo School
+--   teacher@edusphere.com     lab password Teacher@123
+--   student@edusphere.com     lab password Student@123
+--   parent@edusphere.com      lab password Parent@123
+-- New real accounts do not use these passwords. They receive a setup email.
 -- ---------------------------------------------------------------------------
 INSERT INTO users (id, full_name, email, password, role, is_active, must_change_password, school_id) VALUES
 (1, 'Platform Super Admin', 'superadmin@academics.app', '$2y$10$mmx/UMwzNmkfhEKRGUYctuNSrl/xrRLp4f8o3R5M1ksN1c2J45tQu', 'super_admin', 1, 1, NULL),

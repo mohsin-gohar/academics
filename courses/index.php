@@ -9,11 +9,14 @@ $offset = ($page - 1) * $perPage;
 $search = trim($_GET['search'] ?? '');
 $status = trim($_GET['status'] ?? '');
 
-$where = ['1=1'];
+$where = [];
 $params = [];
-if (!isSuperAdmin()) {
+$schoolId = currentSchoolId();
+if ($schoolId) {
     $where[] = 'c.school_id = ?';
-    $params[] = currentSchoolId();
+    $params[] = (int)$schoolId;
+} else {
+    $where[] = '1=0';
 }
 if (!empty($search)) {
     $where[] = '(course_code LIKE ? OR course_name LIKE ?)';

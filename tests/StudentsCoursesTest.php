@@ -17,7 +17,7 @@ class StudentsCoursesTest {
         $this->ensureTestSchool();
 
         // 1. Unique Student Number Generation
-        $num1 = generateStudentNumber($this->pdo);
+        $num1 = generateStudentNumber($this->pdo, $this->schoolId);
         $results[] = [
             'name' => 'generateStudentNumber returns standard STU-YYYY-XXXX format',
             'pass' => (bool)preg_match('/^STU-\d{4}-\d{4}$/', $num1)

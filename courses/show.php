@@ -14,8 +14,8 @@ if ($id <= 0) { header('Location: index.php'); exit; }
 // Students only see their own enrollment and tasks, never classmates' data.
 $viewerStudentId = 0;
 if (isStudent()) {
-    $own = $pdo->prepare("SELECT id FROM students WHERE user_id = ? LIMIT 1");
-    $own->execute([$_SESSION['user_id']]);
+    $own = $pdo->prepare("SELECT id FROM students WHERE user_id = ? AND school_id = ? LIMIT 1");
+    $own->execute([$_SESSION['user_id'], (int)currentSchoolId()]);
     $viewerStudentId = (int)($own->fetchColumn() ?: 0);
 }
 
@@ -52,13 +52,8 @@ $tasks = $stmt->fetchAll();
 // Available students to enroll (staff only, same school only).
 $availableStudents = [];
 if (isStaff()) {
-    $studentSql = "SELECT id, full_name, student_number FROM students WHERE status = 'Active'";
-    $studentParams = [];
-    if (!isSuperAdmin()) {
-        $studentSql .= " AND school_id = ?";
-        $studentParams[] = currentSchoolId();
-    }
-    $studentSql .= " ORDER BY full_name";
+    $studentSql = "SELECT id, full_name, student_number FROM students WHERE status = 'Active' AND school_id = ? ORDER BY full_name";
+    $studentParams = [(int)$course['school_id']];
     $stmt = $pdo->prepare($studentSql);
     $stmt->execute($studentParams);
     $availableStudents = $stmt->fetchAll();

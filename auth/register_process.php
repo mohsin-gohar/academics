@@ -27,6 +27,13 @@ if (!validateCsrfToken($_POST['csrf_token'] ?? '')) {
     exit;
 }
 
+// Public signup is unauthenticated: throttle per client+email before any work.
+$clientKey = strtolower(trim((string)($_POST['email'] ?? ''))) . '|' . ($_SERVER['REMOTE_ADDR'] ?? 'unknown');
+if (rate_limit_exceeded($pdo, 'register', $clientKey, 5, 3600)) {
+    header('Location: register.php?error=' . urlencode('Too many registration attempts. Please try again later.'));
+    exit;
+}
+
 $full_name = trim($_POST['full_name'] ?? '');
 $email = trim($_POST['email'] ?? '');
 $school_id = (int)($_POST['school_id'] ?? 0);
@@ -108,9 +115,9 @@ try {
     $userId = (int)$pdo->lastInsertId();
 
     // Student profile (still linked so admins can review the signup)
-    $student_number = generateStudentNumber($pdo);
+    $student_number = generateStudentNumber($pdo, $school_id);
     $stmt = $pdo->prepare("INSERT INTO students (school_id, user_id, student_number, full_name, email, enrollment_date, status)
-                           VALUES (?, ?, ?, ?, ?, CURDATE(), 'Active')");
+                           VALUES (?, ?, ?, ?, ?, CURDATE(), 'Inactive')");
     $stmt->execute([$school_id, $userId, $student_number, $full_name, $email]);
 
     logActivity($pdo, $userId, 'self_register', 'user', $userId,

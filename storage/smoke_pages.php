@@ -29,27 +29,76 @@ function http(string $url, ?string $jar = null, array $post = null): array {
     return ['code' => $code, 'body' => $body, 'url' => $final];
 }
 
+function studentCannotOpenOtherProfile(string $label, int $targetStudentId, int $ownStudentId, string $jar): void {
+    global $base, $pass, $fail, $rows;
+    $r = http($base . '/students/show.php?id=' . $targetStudentId, $jar);
+    $path = (string)(parse_url($r['url'], PHP_URL_PATH) ?? '');
+    $query = [];
+    parse_str((string)(parse_url($r['url'], PHP_URL_QUERY) ?? ''), $query);
+    $ok = $r['code'] === 200 && $path === '/students/show.php'
+        && (int)($query['id'] ?? 0) === $ownStudentId;
+    if ($ok) $pass++; else $fail++;
+    $rows[] = ($ok ? 'PASS ' : 'FAIL ') . str_pad($label, 42)
+        . ' HTTP ' . $r['code'] . '  ' . $r['url'];
+}
+
 function login(string $email, string $pw): string {
     global $base, $tmp;
     $jar = tempnam($tmp, 'smoke_');
     $p = http("$base/auth/login.php", $jar);
     preg_match('/name="csrf_token"\s+value="([a-f0-9]{64})"/', $p['body'], $m);
-    http("$base/auth/login_process.php", $jar, ['csrf_token' => $m[1] ?? '', 'email' => $email, 'password' => $pw]);
+    if (empty($m[1])) {
+        @unlink($jar);
+        throw new RuntimeException("Login page did not provide a CSRF token for {$email}.");
+    }
+
+    $result = http("$base/auth/login_process.php", $jar, [
+        'csrf_token' => $m[1],
+        'email' => $email,
+        'password' => $pw,
+    ]);
+    $path = (string)(parse_url($result['url'], PHP_URL_PATH) ?? '');
+    if ($result['code'] >= 400 || preg_match('#/auth/login\.php$#', $path)) {
+        @unlink($jar);
+        throw new RuntimeException("Authentication failed for fixture account {$email}; final URL: {$result['url']} (HTTP {$result['code']}).");
+    }
+
+    // Confirm the cookie jar actually carries the authenticated session.
+    $probe = http("$base/dashboard.php", $jar);
+    $probePath = (string)(parse_url($probe['url'], PHP_URL_PATH) ?? '');
+    if ($probe['code'] >= 400 || preg_match('#/auth/login\.php$#', $probePath)) {
+        @unlink($jar);
+        throw new RuntimeException("Authenticated session was not retained for fixture account {$email}.");
+    }
     return $jar;
 }
 
-function page(string $label, string $path, string $jar): void {
+function page(string $label, string $path, string $jar, int $expectedCode = 200): void {
     global $base, $pass, $fail, $rows;
     $r = http($base . $path, $jar);
+    $finalPath = (string)(parse_url($r['url'], PHP_URL_PATH) ?? '');
+    $isAuthenticatedRequest = $jar !== '';
+    $unexpectedLoginRedirect = $isAuthenticatedRequest
+        && $expectedCode === 200
+        && preg_match('#/auth/login\.php$#', $finalPath);
     $bad = preg_match('/(<b>(Fatal error|Warning|Notice|Deprecated)<\/b>|Uncaught (Error|Exception)|(Fatal error|Warning|Notice|Deprecated):\s+.*\s+in\s+.*\s+on line)/i', $r['body']);
-    $ok = $r['code'] === 200 && !$bad;
+    $ok = $r['code'] === $expectedCode && !$bad && !$unexpectedLoginRedirect;
     if ($ok) $pass++; else $fail++;
-    $rows[] = ($ok ? 'PASS ' : 'FAIL ') . str_pad($label, 42) . ' HTTP ' . $r['code'] . ($bad ? '  PHP-ERROR-IN-BODY' : '') . '  ' . $r['url'];
+    $reason = $unexpectedLoginRedirect ? '  UNAUTHENTICATED-REDIRECT' : '';
+    $rows[] = ($ok ? 'PASS ' : 'FAIL ') . str_pad($label, 42) . ' HTTP ' . $r['code'] . ' (expected ' . $expectedCode . ')' . ($bad ? '  PHP-ERROR-IN-BODY' : '') . $reason . '  ' . $r['url'];
 }
 
 $sch1Student = (int)$pdo->query("SELECT st.id FROM students st JOIN users u ON u.id=st.user_id WHERE u.email='student@sch001.com' LIMIT 1")->fetchColumn();
 $sch1Event = (int)$pdo->query("SELECT id FROM school_events WHERE school_id=(SELECT id FROM schools WHERE school_code='SCH001') LIMIT 1")->fetchColumn();
 $sch1User = (int)$pdo->query("SELECT id FROM users WHERE email='teacher@sch001.com' LIMIT 1")->fetchColumn();
+$otherStudent = (int)$pdo->query("SELECT id FROM students WHERE email = 'student@sch002.com' AND school_id = 2 LIMIT 1")->fetchColumn();
+$otherCourse = (int)$pdo->query("SELECT id FROM courses WHERE course_code = 'TEST201' AND school_id = 2 LIMIT 1")->fetchColumn();
+$otherTask = (int)$pdo->query("SELECT id FROM tasks WHERE title = 'Second School Task' AND school_id = 2 LIMIT 1")->fetchColumn();
+$otherEvent = (int)$pdo->query("SELECT id FROM school_events WHERE title = 'Second School Event' AND school_id = 2 LIMIT 1")->fetchColumn();
+if ($otherStudent <= 0 || $otherStudent === $sch1Student || $otherCourse <= 0 || $otherTask <= 0 || $otherEvent <= 0) {
+    fwrite(STDERR, "Cross-tenant smoke fixtures are missing or overlap the primary school fixtures.\n");
+    exit(1);
+}
 
 $super = login('admin@edusphere.com', 'Admin@123');
 foreach ([
@@ -73,6 +122,21 @@ foreach ([
     'super school detail' => '/super-admin/school.php?id=1',
 ] as $label => $path) page($label, $path, $super);
 
+$superStudents = http($base . '/students/index.php', $super);
+$superSearch = http($base . '/search.php?q=' . rawurlencode('sch002'), $super);
+$superEvents = http($base . '/events/index.php', $super);
+$platformLeak = str_contains($superStudents['body'], 'student@sch002.com')
+    || str_contains($superSearch['body'], 'student@sch002.com')
+    || str_contains($superSearch['body'], 'Second School Student')
+    || str_contains($superEvents['body'], 'Second School Event');
+$platformOk = !$platformLeak
+    && $superStudents['code'] === 200
+    && $superSearch['code'] === 200
+    && $superEvents['code'] === 200;
+if ($platformOk) $pass++; else $fail++;
+$rows[] = ($platformOk ? 'PASS ' : 'FAIL ') . str_pad('super admin operational pages stay inside no school', 42)
+    . ' students=' . $superStudents['code'] . ' search=' . $superSearch['code'] . ' events=' . $superEvents['code'];
+
 $schoolAdmin = login('schooladmin@sch001.com', 'School@123');
 foreach ([
     'school admin dashboard' => '/school-admin/dashboard.php',
@@ -91,6 +155,10 @@ foreach ([
     'school admin edit user' => '/admin/edit_user.php?id=' . $sch1User,
     'school admin messages' => '/admin/messages.php',
 ] as $label => $path) page($label, $path, $schoolAdmin);
+page('school admin cross-school student denied', '/students/show.php?id=' . $otherStudent, $schoolAdmin, 403);
+page('school admin cross-school course denied', '/courses/show.php?id=' . $otherCourse, $schoolAdmin, 403);
+page('school admin cross-school task denied', '/tasks/show.php?id=' . $otherTask, $schoolAdmin, 403);
+page('school admin cross-school event denied', '/events/edit.php?id=' . $otherEvent, $schoolAdmin, 403);
 
 $teacher = login('teacher@sch001.com', 'Teacher@123');
 foreach ([
@@ -102,8 +170,12 @@ foreach ([
     'teacher event create' => '/events/create.php',
     'teacher courses' => '/courses/index.php',
     'teacher reports' => '/reports/index.php?type=students',
-    'teacher emergency' => '/admin/emergency_alert.php',
+    // Teachers must not access school-administration emergency controls.
 ] as $label => $path) page($label, $path, $teacher);
+page('teacher emergency denied', '/admin/emergency_alert.php', $teacher, 403);
+page('teacher cross-school student denied', '/students/show.php?id=' . $otherStudent, $teacher, 403);
+page('teacher cross-school course denied', '/courses/show.php?id=' . $otherCourse, $teacher, 403);
+page('teacher cross-school task denied', '/tasks/show.php?id=' . $otherTask, $teacher, 403);
 
 $student = login('student@sch001.com', 'Student@123');
 foreach ([
@@ -115,6 +187,22 @@ foreach ([
     'student own profile' => '/students/show.php?id=' . $sch1Student,
     'student profile page' => '/profile.php',
 ] as $label => $path) page($label, $path, $student);
+studentCannotOpenOtherProfile('student cross-school profile redirects to own', $otherStudent, $sch1Student, $student);
+
+// Logout is state-changing: GET must be rejected and a valid CSRF POST must end the session.
+$logoutJar = login('admin@edusphere.com', 'Admin@123');
+$logoutDashboard = http($base . '/dashboard.php', $logoutJar);
+preg_match('/name="csrf_token"\\s+value="([a-f0-9]{64})"/', $logoutDashboard['body'], $logoutToken);
+$logoutGet = http($base . '/auth/logout.php', $logoutJar);
+$logoutPost = http($base . '/auth/logout.php', $logoutJar, ['csrf_token' => $logoutToken[1] ?? '']);
+$afterLogout = http($base . '/dashboard.php', $logoutJar);
+$logoutOk = $logoutGet['code'] === 405
+    && $logoutPost['code'] === 200
+    && strpos($logoutPost['url'], '/auth/login.php') !== false
+    && strpos($afterLogout['url'], '/auth/login.php') !== false;
+if ($logoutOk) $pass++; else $fail++;
+$rows[] = ($logoutOk ? 'PASS ' : 'FAIL ') . str_pad('logout requires CSRF POST', 42)
+    . ' GET=' . $logoutGet['code'] . ' POST=' . $logoutPost['code'] . ' AFTER=' . $afterLogout['url'];
 
 $parent = login('parent@sch001.com', 'Parent@123');
 foreach ([
@@ -126,6 +214,44 @@ foreach ([
     'parent events' => '/events/index.php',
 ] as $label => $path) page($label, $path, $parent);
 
+// A school must retain at least one active school administrator.
+$superDashboard = http($base . '/dashboard.php', $super);
+preg_match('/name="csrf_token"\\s+value="([a-f0-9]{64})"/', $superDashboard['body'], $superCsrf);
+$lastSchoolAdminId = (int)$pdo->query("SELECT id FROM users WHERE email='schooladmin@sch001.com'")->fetchColumn();
+$lastAdminToggle = http($base . '/admin/toggle_user.php', $super, [
+    'id' => $lastSchoolAdminId,
+    'csrf_token' => $superCsrf[1] ?? '',
+]);
+$lastAdminStillActive = (int)$pdo->query("SELECT is_active FROM users WHERE id = " . $lastSchoolAdminId)->fetchColumn();
+$lastAdminGuardOk = $lastAdminStillActive === 1 && strpos($lastAdminToggle['url'], 'users.php?error=') !== false;
+if ($lastAdminGuardOk) $pass++; else $fail++;
+$rows[] = ($lastAdminGuardOk ? 'PASS ' : 'FAIL ') . str_pad('last school admin cannot be deactivated', 42)
+    . ' ACTIVE=' . $lastAdminStillActive . '  ' . $lastAdminToggle['url'];
+
+// Verify student account activation and student profile status stay in sync.
+$schoolAdminDashboard = http($base . '/dashboard.php', $schoolAdmin);
+preg_match('/name="csrf_token"\\s+value="([a-f0-9]{64})"/', $schoolAdminDashboard['body'], $schoolAdminCsrf);
+$studentUserId = (int)$pdo->query("SELECT id FROM users WHERE email='student@sch001.com'")->fetchColumn();
+$toggleStudentOnce = http($base . '/admin/toggle_user.php', $schoolAdmin, [
+    'id' => $studentUserId,
+    'csrf_token' => $schoolAdminCsrf[1] ?? '',
+]);
+$inactiveUser = (int)$pdo->query("SELECT is_active FROM users WHERE id = " . $studentUserId)->fetchColumn();
+$inactiveProfile = (string)$pdo->query("SELECT status FROM students WHERE user_id = " . $studentUserId)->fetchColumn();
+$toggleStudentTwice = http($base . '/admin/toggle_user.php', $schoolAdmin, [
+    'id' => $studentUserId,
+    'csrf_token' => $schoolAdminCsrf[1] ?? '',
+]);
+$activeUser = (int)$pdo->query("SELECT is_active FROM users WHERE id = " . $studentUserId)->fetchColumn();
+$activeProfile = (string)$pdo->query("SELECT status FROM students WHERE user_id = " . $studentUserId)->fetchColumn();
+$studentToggleOk = $inactiveUser === 0 && $inactiveProfile === 'Inactive'
+    && $activeUser === 1 && $activeProfile === 'Active'
+    && $toggleStudentOnce['code'] === 200 && $toggleStudentTwice['code'] === 200;
+if ($studentToggleOk) $pass++; else $fail++;
+$rows[] = ($studentToggleOk ? 'PASS ' : 'FAIL ') . str_pad('student activation keeps profile status synced', 42)
+    . ' USER=' . $activeUser . '/' . $inactiveUser . ' PROFILE=' . $activeProfile . '/' . $inactiveProfile;
+
+// Public routes remain available without an authenticated session.
 foreach ([
     'public landing' => '/index.php',
     'public school registration' => '/register.php',

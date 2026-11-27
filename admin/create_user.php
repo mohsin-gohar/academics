@@ -28,8 +28,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $form_data = [
         'full_name' => trim($_POST['full_name'] ?? ''),
-        'email' => trim($_POST['email'] ?? ''),
-        'password' => $_POST['password'] ?? '',
+        'email' => strtolower(trim($_POST['email'] ?? '')),
         'role' => $_POST['role'] ?? 'student',
         'is_active' => isset($_POST['is_active']) ? 1 : 0,
         'school_id' => isset($_POST['school_id']) ? (int)$_POST['school_id'] : null,
@@ -38,15 +37,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $currentSchoolId = currentSchoolId();
     $isSuperAdmin = isSuperAdmin();
 
-    if (empty($form_data['full_name'])) $errors[] = 'Full name is required.';
+    if (mb_strlen($form_data['full_name']) < 2 || mb_strlen($form_data['full_name']) > 100) $errors[] = 'Full name must be between 2 and 100 characters.';
     if (empty($form_data['email'])) $errors[] = 'Email is required.';
     elseif (!isValidEmail($form_data['email'])) $errors[] = 'Invalid email.';
-    if (empty($form_data['password'])) {
-        $errors[] = 'Password is required.';
-    } else {
-        $pwErrors = validatePasswordStrength($form_data['password']);
-        if ($pwErrors) $errors[] = implode(' ', $pwErrors);
-    }
     if (!in_array($form_data['role'], ['super_admin','school_admin','admin','teacher','student','parent'])) $errors[] = 'Invalid role.';
 
     // Only super_admin can create super_admin users
@@ -68,11 +61,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // School-scoped admin: user must belong to their own school
         $form_data['school_id'] = $currentSchoolId;
     } elseif ($isSuperAdmin && $form_data['school_id'] !== null) {
-        // Validate school exists
-        $schoolCheck = $pdo->prepare("SELECT id FROM schools WHERE id = ? LIMIT 1");
+        // Only assign accounts to a currently accessible tenant.
+        $schoolCheck = $pdo->prepare("SELECT * FROM schools WHERE id = ? LIMIT 1");
         $schoolCheck->execute([$form_data['school_id']]);
-        if (!$schoolCheck->fetch()) {
-            $errors[] = 'Selected school does not exist.';
+        $selectedSchool = $schoolCheck->fetch(PDO::FETCH_ASSOC);
+        if (!$selectedSchool || !saas_school_is_accessible($selectedSchool)) {
+            $errors[] = 'Selected school does not exist or is not currently accessible.';
         }
     }
 
@@ -84,7 +78,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (empty($errors)) {
         try {
-            $hashed = password_hash($form_data['password'], PASSWORD_DEFAULT);
+            $pdo->beginTransaction();
+            $hashed = hashUnusablePassword();
             $stmt = $pdo->prepare("INSERT INTO users (full_name, email, password, role, is_active, school_id, must_change_password) VALUES (?, ?, ?, ?, ?, ?, 1)");
             $stmt->execute([
                 $form_data['full_name'],
@@ -92,20 +87,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $hashed,
                 $form_data['role'],
                 $form_data['is_active'],
-                $form_data['school_id'] !== null ? $form_data['school_id'] : null,
+                $form_data['school_id'],
             ]);
-            $uid = $pdo->lastInsertId();
+            $uid = (int)$pdo->lastInsertId();
 
             if ($form_data['role'] === 'student') {
-                $stuNum = generateStudentNumber($pdo);
-                $stmt = $pdo->prepare("INSERT INTO students (school_id, user_id, student_number, full_name, email, enrollment_date, status) VALUES (?, ?, ?, ?, ?, CURDATE(), 'Active')");
-                $stmt->execute([$form_data['school_id'], $uid, $stuNum, $form_data['full_name'], $form_data['email']]);
+                if (empty($form_data['school_id'])) {
+                    throw new RuntimeException('A student must belong to a school.');
+                }
+                $stuNum = generateStudentNumber($pdo, (int)$form_data['school_id']);
+                $stmt = $pdo->prepare("INSERT INTO students (school_id, user_id, student_number, full_name, email, enrollment_date, status) VALUES (?, ?, ?, ?, ?, CURDATE(), ?)");
+                $stmt->execute([
+                    $form_data['school_id'], $uid, $stuNum, $form_data['full_name'], $form_data['email'],
+                    $form_data['is_active'] === 1 ? 'Active' : 'Inactive'
+                ]);
             }
 
-            logActivity($pdo, $_SESSION['user_id'], 'create', 'user', $uid, 'Created user: ' . $form_data['full_name'] . ' (' . $form_data['role'] . ')');
-            header('Location: users.php?success=' . urlencode('User created successfully!'));
+            $pdo->commit();
+            logActivity($pdo, (int)$_SESSION['user_id'], 'create', 'user', $uid, 'Created user: ' . $form_data['full_name'] . ' (' . $form_data['role'] . ')');
+            $sent = ((int)$form_data['is_active'] === 1) && deliverAccountSetupLink($pdo, $form_data['email']);
+            setFlashMessage('success', accountProvisionedMessage($form_data['email'], $sent));
+            header('Location: users.php');
             exit;
-        } catch (PDOException $e) {
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
             error_log("User create failed: " . $e->getMessage());
             $errors[] = 'Failed to create user.';
         }
@@ -132,8 +137,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <input type="email" name="email" class="form-control" value="<?php echo e($form_data['email'] ?? ''); ?>" required>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Password *</label>
-                        <input type="password" name="password" class="form-control" required minlength="10">
+                        <p class="form-text mb-0">No password is set on this form. An active account receives a one-time setup email and must choose a password before use.</p>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Role *</label>

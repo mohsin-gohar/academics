@@ -27,6 +27,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($form_data['email'])) $errors[] = 'Email is required.';
     elseif (!isValidEmail($form_data['email'])) $errors[] = 'Invalid email address.';
     if (empty($form_data['enrollment_date'])) $errors[] = 'Enrollment date is required.';
+    if (currentSchoolId() === null) {
+        $errors[] = 'A school context is required to create a student.';
+    }
 
     // Check unique email
     if (empty($errors)) {
@@ -43,11 +46,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $pdo->beginTransaction();
 
-            // C5: never provision an account with a shared/known password.
-            // Generate a cryptographically random one-time password and force
-            // the student to change it on first login.
-            $temp_password = generateTemporaryPassword(16);
-            $password_hash = password_hash($temp_password, PASSWORD_DEFAULT);
+            // C5: the account password is random and never shown, logged, or put in a URL.
+            // The student receives a one-time setup link and must choose their own password.
+            $password_hash = hashUnusablePassword();
             $stmt = $pdo->prepare("INSERT INTO users (full_name, email, password, role, school_id, is_active, must_change_password) VALUES (?, ?, ?, 'student', ?, 1, 1)");
             $stmt->execute([$form_data['full_name'], $form_data['email'], $password_hash, currentSchoolId()]);
             $user_id = $pdo->lastInsertId();
@@ -67,10 +68,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo->commit();
             logActivity($pdo, $_SESSION['user_id'], 'create', 'student', $student_id, 'Created student: ' . $form_data['full_name']);
 
-            // Show the one-time password in a session flash (never in a URL).
-            setFlashMessage('success',
-                'Student added successfully. One-time password for ' . $form_data['email'] .
-                ': ' . $temp_password . ' — share this securely; the student must change it on first login.');
+            $sent = deliverAccountSetupLink($pdo, $form_data['email']);
+            setFlashMessage('success', accountProvisionedMessage($form_data['email'], $sent));
             header('Location: index.php');
             exit;
         } catch (PDOException $e) {

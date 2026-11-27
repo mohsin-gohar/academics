@@ -33,33 +33,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $full_name = trim($_POST['full_name'] ?? '');
         $email = trim($_POST['email'] ?? '');
         $is_active = isset($_POST['is_active']) ? 1 : 0;
-        $password = $_POST['password'] ?? '';
+        $sendSetup = isset($_POST['send_setup_link']);
 
         if (empty($full_name) || empty($email)) {
             $errors[] = 'Name and email are required.';
         } elseif (!isValidEmail($email)) {
             $errors[] = 'Invalid email address.';
         } else {
-            // Check email uniqueness excluding self
             $chk = $pdo->prepare("SELECT id FROM users WHERE email = ? AND id != ?");
             $chk->execute([$email, $teacherId]);
             if ($chk->fetch()) {
                 $errors[] = 'Another user with this email address already exists.';
             } else {
-                if (!empty($password)) {
-                    if (strlen($password) < 8) {
-                        $errors[] = 'Password must be at least 8 characters.';
-                    } else {
-                        $upd = $pdo->prepare("UPDATE users SET full_name = ?, email = ?, password = ?, is_active = ? WHERE id = ?");
-                        $upd->execute([$full_name, $email, hashPassword($password), $is_active, $teacherId]);
-                    }
+                $statusChanged = (int)$teacher['is_active'] !== $is_active;
+                $versionSql = dbTableHasColumn($pdo, 'users', 'session_version')
+                    && ($sendSetup || $statusChanged)
+                    ? ', session_version = session_version + 1'
+                    : '';
+                if ($sendSetup) {
+                    $upd = $pdo->prepare("UPDATE users SET full_name = ?, email = ?, password = ?, is_active = ?, must_change_password = 1{$versionSql} WHERE id = ? AND school_id = ?");
+                    $upd->execute([$full_name, $email, hashUnusablePassword(), $is_active, $teacherId, $schoolId]);
                 } else {
-                    $upd = $pdo->prepare("UPDATE users SET full_name = ?, email = ?, is_active = ? WHERE id = ?");
-                    $upd->execute([$full_name, $email, $is_active, $teacherId]);
+                    $upd = $pdo->prepare("UPDATE users SET full_name = ?, email = ?, is_active = ?{$versionSql} WHERE id = ? AND school_id = ?");
+                    $upd->execute([$full_name, $email, $is_active, $teacherId, $schoolId]);
                 }
 
                 if (empty($errors)) {
                     recordActivity($pdo, $_SESSION['user_id'], 'edit_teacher', 'user', $teacherId, "Updated teacher: {$full_name}");
+                    if ($sendSetup && $is_active === 1) {
+                        $sent = deliverAccountSetupLink($pdo, $email);
+                        setFlashMessage('success', accountProvisionedMessage($email, $sent));
+                        header('Location: index.php');
+                        exit;
+                    }
                     redirect('index.php', 'success', 'Teacher updated successfully.');
                 }
             }
@@ -108,8 +114,10 @@ require_once __DIR__ . '/../includes/header.php';
                     </div>
 
                     <div class="col-md-6">
-                        <label class="form-label">New Password (leave blank to keep current)</label>
-                        <input type="password" name="password" class="form-control bg-dark text-white border-secondary" placeholder="••••••••">
+                        <div class="form-check mb-3">
+                            <input type="checkbox" name="send_setup_link" class="form-check-input" id="send_setup_link">
+                            <label class="form-check-label" for="send_setup_link">Email a new setup link and sign out other sessions</label>
+                        </div>
                     </div>
 
                     <div class="col-md-6 d-flex align-items-center mt-4">

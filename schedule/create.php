@@ -8,7 +8,7 @@ require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/tenant.php';
 startSecureSession();
 require_once __DIR__ . '/../config/db.php';
-requireStaff();
+requireSchoolManagement();
 // C4: validate live session (account/role/school)
 enforceSession($pdo);
 
@@ -33,28 +33,79 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         $course_id = (int)($_POST['course_id'] ?? 0);
         $teacher_id = (int)($_POST['teacher_id'] ?? 0);
-        $day_of_week = trim($_POST['day_of_week'] ?? '');
-        $start_time = trim($_POST['start_time'] ?? '');
-        $end_time = trim($_POST['end_time'] ?? '');
-        $room = trim($_POST['room'] ?? '');
+        $day_of_week = trim((string)($_POST['day_of_week'] ?? ''));
+        $start_time = trim((string)($_POST['start_time'] ?? ''));
+        $end_time = trim((string)($_POST['end_time'] ?? ''));
+        $room = trim((string)($_POST['room'] ?? ''));
+        $validDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
-        if ($course_id <= 0 || $teacher_id <= 0 || empty($day_of_week) || empty($start_time) || empty($end_time)) {
+        if ($course_id <= 0 || $teacher_id <= 0 || $start_time === '' || $end_time === '') {
             $errors[] = 'Please fill in all required fields.';
-        } elseif (strtotime($start_time) >= strtotime($end_time)) {
-            $errors[] = 'End time must be after start time.';
-        } else {
-            // Check conflicts for teacher at same day and overlapping time
-            $conflictStmt = $pdo->prepare("SELECT COUNT(*) FROM timetables
-                WHERE teacher_id = ? AND day_of_week = ? AND status = 'Active'
-                AND ((start_time < ? AND end_time > ?) OR (start_time < ? AND end_time > ?))");
-            $conflictStmt->execute([$teacher_id, $day_of_week, $end_time, $start_time, $start_time, $end_time]);
-            if ($conflictStmt->fetchColumn() > 0) {
-                $errors[] = 'Teacher already has a conflicting class scheduled during this time slot.';
-            } else {
-                $insert = $pdo->prepare("INSERT INTO timetables (school_id, teacher_id, course_id, day_of_week, start_time, end_time, room, status)
-                                         VALUES (?, ?, ?, ?, ?, ?, ?, 'Active')");
-                $insert->execute([$schoolId, $teacher_id, $course_id, $day_of_week, $start_time, $end_time, $room]);
+        }
+        if (!in_array($day_of_week, $validDays, true)) {
+            $errors[] = 'Select a valid day of the week.';
+        }
+        if (!preg_match('/^(?:[01]\\d|2[0-3]):[0-5]\\d$/', $start_time)
+            || !preg_match('/^(?:[01]\\d|2[0-3]):[0-5]\\d$/', $end_time)
+            || $start_time >= $end_time) {
+            $errors[] = 'Enter valid times and ensure the end time is after the start time.';
+        }
+        if (mb_strlen($room) > 50) {
+            $errors[] = 'Room name cannot exceed 50 characters.';
+        }
+
+        if (empty($errors)) {
+            try {
+                $pdo->beginTransaction();
+
+                // Lock and validate both linked records inside the transaction.
+                $courseCheck = $pdo->prepare(
+                    "SELECT id FROM courses
+                     WHERE id = ? AND school_id = ? AND status = 'Active'
+                     FOR UPDATE"
+                );
+                $courseCheck->execute([$course_id, $schoolId]);
+                if (!$courseCheck->fetchColumn()) {
+                    throw new InvalidArgumentException('Selected course is not active in this school.');
+                }
+
+                // Locking the teacher row serializes concurrent schedule writes
+                // for this teacher, preventing overlapping slots from racing.
+                $teacherCheck = $pdo->prepare(
+                    "SELECT id FROM users
+                     WHERE id = ? AND school_id = ? AND role = 'teacher' AND is_active = 1
+                     FOR UPDATE"
+                );
+                $teacherCheck->execute([$teacher_id, $schoolId]);
+                if (!$teacherCheck->fetchColumn()) {
+                    throw new InvalidArgumentException('Selected teacher is not active in this school.');
+                }
+
+                $conflictStmt = $pdo->prepare(
+                    "SELECT id FROM timetables
+                     WHERE school_id = ? AND teacher_id = ? AND day_of_week = ? AND status = 'Active'
+                       AND start_time < ? AND end_time > ?
+                     LIMIT 1"
+                );
+                $conflictStmt->execute([$schoolId, $teacher_id, $day_of_week, $end_time, $start_time]);
+                if ($conflictStmt->fetchColumn()) {
+                    throw new InvalidArgumentException('Teacher already has a conflicting class scheduled during this time slot.');
+                }
+
+                $insert = $pdo->prepare(
+                    "INSERT INTO timetables (school_id, teacher_id, course_id, day_of_week, start_time, end_time, room, status)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, 'Active')"
+                );
+                $insert->execute([$schoolId, $teacher_id, $course_id, $day_of_week, $start_time, $end_time, $room !== '' ? $room : null]);
+                $pdo->commit();
                 redirect('index.php', 'success', 'Timetable slot created successfully.');
+            } catch (InvalidArgumentException $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                $errors[] = $e->getMessage();
+            } catch (Throwable $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                error_log('Timetable creation failed: ' . $e->getMessage());
+                $errors[] = 'Timetable slot could not be saved. Please try again.';
             }
         }
     }

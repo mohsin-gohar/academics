@@ -12,10 +12,12 @@ $isStaff = isStaff();
 
 $where = ["status != 'Cancelled'"];
 $params = [];
-
-if (!isSuperAdmin()) {
+$schoolId = (int)(currentSchoolId() ?? 0);
+if ($schoolId > 0) {
     $where[] = 'e.school_id = ?';
-    $params[] = currentSchoolId();
+    $params[] = $schoolId;
+} else {
+    $where[] = '1=0';
 }
 
 if (!empty($typeFilter)) {
@@ -35,12 +37,19 @@ $stmt->execute($params);
 $events = $stmt->fetchAll();
 
 // Counts for filter pills
-$countScope = isSuperAdmin() ? '' : ' AND school_id = ' . (int)currentSchoolId();
-$totalCount = $pdo->query("SELECT COUNT(*) FROM school_events WHERE status != 'Cancelled'$countScope")->fetchColumn();
-$holidayCount = $pdo->query("SELECT COUNT(*) FROM school_events WHERE is_holiday = 1 AND status != 'Cancelled'$countScope")->fetchColumn();
-$functionCount = $pdo->query("SELECT COUNT(*) FROM school_events WHERE event_type = 'Function' AND status != 'Cancelled'$countScope")->fetchColumn();
-$examCount = $pdo->query("SELECT COUNT(*) FROM school_events WHERE event_type = 'Exam' AND status != 'Cancelled'$countScope")->fetchColumn();
-$meetingCount = $pdo->query("SELECT COUNT(*) FROM school_events WHERE event_type = 'Meeting' AND status != 'Cancelled'$countScope")->fetchColumn();
+$countFor = function (string $extraSql, array $extraParams = []) use ($pdo, $schoolId): int {
+    if ($schoolId <= 0) {
+        return 0;
+    }
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM school_events WHERE status != 'Cancelled' AND school_id = ? $extraSql");
+    $stmt->execute(array_merge([$schoolId], $extraParams));
+    return (int)$stmt->fetchColumn();
+};
+$totalCount = $countFor('');
+$holidayCount = $countFor('AND is_holiday = 1');
+$functionCount = $countFor("AND event_type = 'Function'");
+$examCount = $countFor("AND event_type = 'Exam'");
+$meetingCount = $countFor("AND event_type = 'Meeting'");
 ?>
 
 <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">

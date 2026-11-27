@@ -39,6 +39,12 @@ if (!empty($_SESSION['contact_last']) && (time() - (int)$_SESSION['contact_last'
 }
 $_SESSION['contact_last'] = time();
 
+// Session-scoped cooldown above stops double submits; this stops a client that
+// simply throws away its cookie.
+if (rate_limit_exceeded($pdo, 'contact', (string)($_SERVER['REMOTE_ADDR'] ?? 'unknown'), 5, 3600)) {
+    contact_redirect($target, 'contact_error=' . urlencode('Too many messages from this network. Please try again later.'));
+}
+
 $contextSchool = saas_bootstrap_school_context($pdo);
 
 try {

@@ -4,6 +4,10 @@
  * Adds Attendance and Password Reset tables.
  * Safe to run multiple times.
  */
+if (PHP_SAPI !== 'cli') {
+    http_response_code(404);
+    exit;
+}
 if (!isset($pdo)) {
     require_once __DIR__ . '/../config/db.php';
 }

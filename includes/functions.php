@@ -272,11 +272,29 @@ function getAttendanceStatuses(): array
     return ['present' => 'Present', 'absent' => 'Absent', 'late' => 'Late', 'excused' => 'Excused'];
 }
 
-function markAttendance(PDO $pdo, int $schoolId, int $studentId, string $date, string $status, ?string $remarks, ?int $markedBy): bool
+function isOnOrBeforeToday(string $date, ?string $today = null): bool
 {
-    if (!array_key_exists($status, getAttendanceStatuses())) {
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
         return false;
     }
+    $today = $today ?: date('Y-m-d');
+    return $date <= $today;
+}
+
+function markAttendance(PDO $pdo, int $schoolId, int $studentId, string $date, string $status, ?string $remarks, ?int $markedBy): bool
+{
+    if (!array_key_exists($status, getAttendanceStatuses())
+        || !preg_match('/^\\d{4}-\\d{2}-\\d{2}$/', $date)
+        || !checkdate((int)substr($date, 5, 2), (int)substr($date, 8, 2), (int)substr($date, 0, 4))
+        || !isOnOrBeforeToday($date)) {
+        return false;
+    }
+    $studentCheck = $pdo->prepare("SELECT id FROM students WHERE id = ? AND school_id = ? LIMIT 1");
+    $studentCheck->execute([$studentId, $schoolId]);
+    if (!$studentCheck->fetchColumn()) {
+        return false;
+    }
+
     $stmt = $pdo->prepare("INSERT INTO attendance (school_id, student_id, attendance_date, status, remarks, marked_by)
         VALUES (?,?,?,?,?,?)
         ON DUPLICATE KEY UPDATE status=VALUES(status), remarks=VALUES(remarks), marked_by=VALUES(marked_by), updated_at=NOW()");
@@ -371,15 +389,54 @@ function validatePasswordResetToken(PDO $pdo, string $raw): ?string
 
 function consumePasswordResetToken(PDO $pdo, string $raw, string $newPassword): bool
 {
-    $email = validatePasswordResetToken($pdo, $raw);
-    if ($email === null) {
+    if (!preg_match('/^[a-f0-9]{64}$/', $raw) || $newPassword === '') {
         return false;
     }
-    $hash = password_hash($newPassword, PASSWORD_DEFAULT);
-    $stmt = $pdo->prepare("UPDATE users SET password = ? WHERE email = ?");
-    $stmt->execute([$hash, $email]);
-    $pdo->prepare("UPDATE password_resets SET used = 1 WHERE token_hash = ?")->execute([hash('sha256', $raw)]);
-    return true;
+
+    $ownsTransaction = !$pdo->inTransaction();
+    try {
+        if ($ownsTransaction) $pdo->beginTransaction();
+
+        // Lock the token row so concurrent requests cannot redeem it twice.
+        $tokenStmt = $pdo->prepare(
+            "SELECT id, email FROM password_resets
+             WHERE token_hash = ? AND used = 0 AND expires_at > NOW()
+             LIMIT 1 FOR UPDATE"
+        );
+        $tokenStmt->execute([hash('sha256', $raw)]);
+        $token = $tokenStmt->fetch(PDO::FETCH_ASSOC);
+        if (!$token) {
+            if ($ownsTransaction) $pdo->rollBack();
+            return false;
+        }
+
+        $passwordHash = password_hash($newPassword, PASSWORD_DEFAULT);
+        if ($passwordHash === false) throw new RuntimeException('Password hashing failed.');
+
+        $versionSql = dbTableHasColumn($pdo, 'users', 'session_version')
+            ? ', session_version = session_version + 1'
+            : '';
+        $userStmt = $pdo->prepare(
+            "UPDATE users SET password = ?, must_change_password = 0{$versionSql}
+             WHERE email = ? AND is_active = 1"
+        );
+        $userStmt->execute([$passwordHash, $token['email']]);
+        if ($userStmt->rowCount() !== 1) {
+            if ($ownsTransaction) $pdo->rollBack();
+            return false;
+        }
+
+        // Invalidate every outstanding reset link for this account.
+        $consumeStmt = $pdo->prepare("UPDATE password_resets SET used = 1 WHERE email = ? AND used = 0");
+        $consumeStmt->execute([$token['email']]);
+
+        if ($ownsTransaction) $pdo->commit();
+        return true;
+    } catch (Throwable $e) {
+        if ($ownsTransaction && $pdo->inTransaction()) $pdo->rollBack();
+        error_log('Password reset token consumption failed: ' . $e->getMessage());
+        return false;
+    }
 }
 
 /* =========================================================================
@@ -392,76 +449,177 @@ function consumePasswordResetToken(PDO $pdo, string $raw, string $newPassword): 
  * Order of preference:
  *   1. SMTP (configured via MAIL_* env vars)
  *   2. PHP mail() wrapper
- *   3. Local dev fallback: append link to storage/logs/reset-links.log
  *
- * Never returns the raw token to the caller; the response is always generic.
+ * Never returns the raw token to the caller and never writes it to a log.
+ * The HTTP response is always generic.
  */
 function sendPasswordResetEmail(string $email, string $token): bool
 {
-    $resetLink = 'reset_password.php?token=' . urlencode($token);
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL) || !preg_match('/^[a-f0-9]{64}$/', $token)) {
+        return false;
+    }
 
-    // Try SMTP if configured
-    $mailHost = getenv('MAIL_HOST');
+    // Reset links sent by email must be absolute and point to /auth/reset_password.php.
+    // Prefer an explicitly configured canonical URL; never trust an arbitrary Host
+    // header when constructing production password-reset links.
+    $appUrl = trim((string)(getenv('APP_URL') ?: ''));
+    if ($appUrl === '' && defined('APP_DOMAIN') && trim((string)APP_DOMAIN) !== '') {
+        $domain = trim((string)APP_DOMAIN);
+        $appUrl = preg_match('#^https?://#i', $domain) ? $domain : 'https://' . $domain;
+    }
+    if ($appUrl === '' && (!defined('IS_PRODUCTION') || !IS_PRODUCTION)) {
+        $host = (string)($_SERVER['HTTP_HOST'] ?? 'localhost');
+        if (!preg_match('/^[a-z0-9.-]+(?::[0-9]{1,5})?$/i', $host)) return false;
+        $https = (!empty($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off');
+        $scheme = $https ? 'https' : 'http';
+        $scriptDir = str_replace('\\', '/', dirname((string)($_SERVER['SCRIPT_NAME'] ?? '/auth/forgot_password.php')));
+        $basePath = rtrim(dirname($scriptDir), '/.');
+        $appUrl = $scheme . '://' . $host . $basePath;
+    }
+    if ($appUrl === '' || !preg_match('#^https?://#i', $appUrl)) {
+        error_log('Password reset delivery skipped: canonical APP_URL/APP_DOMAIN is not configured.');
+        return false;
+    }
+    $resetLink = rtrim($appUrl, '/') . '/auth/reset_password.php?token=' . urlencode($token);
+
+    $mailHost = trim((string)(getenv('MAIL_HOST') ?: ''));
     $mailPort = (int)(getenv('MAIL_PORT') ?: 587);
-    $mailUser = getenv('MAIL_USERNAME');
-    $mailPass = getenv('MAIL_PASSWORD');
-    $mailFrom = getenv('MAIL_FROM_ADDRESS') ?: 'noreply@academics.app';
-    $mailFromName = getenv('MAIL_FROM_NAME') ?: 'Academics';
-    $mailEncrypt = getenv('MAIL_ENCRYPTION') ?: 'tls';
+    $mailUser = (string)(getenv('MAIL_USERNAME') ?: '');
+    $mailPass = (string)(getenv('MAIL_PASSWORD') ?: '');
+    $mailFrom = trim((string)(getenv('MAIL_FROM_ADDRESS') ?: 'noreply@academics.app'));
+    $mailFromName = trim((string)(getenv('MAIL_FROM_NAME') ?: 'Academics'));
+    $mailEncrypt = strtolower(trim((string)(getenv('MAIL_ENCRYPTION') ?: 'tls')));
+    $subject = 'Password Reset - Academics';
+    $body = "Click the link below to reset your password:\n\n{$resetLink}\n\nThis link expires in 1 hour and can be used once.";
 
-    if ($mailHost && $mailUser && $mailPass) {
+    // Use configured SMTP credentials when present. This is a real SMTP
+    // transport (STARTTLS/SMTPS + AUTH LOGIN), not PHP mail() masquerading as SMTP.
+    if ($mailHost !== '' && $mailPort > 0 && $mailPort <= 65535
+        && filter_var($mailFrom, FILTER_VALIDATE_EMAIL)
+        && !preg_match('/[\r\n]/', $mailHost)
+        && in_array($mailEncrypt, ['tls', 'ssl', 'none'], true)) {
+        $socket = null;
         try {
-            $subject = 'Password Reset - Academics';
-            $body = "Click the link below to reset your password:\n\n$resetLink\n\nThis link expires in 1 hour and can be used once.";
-            $headers = "From: $mailFromName <$mailFrom>\r\n";
-            $headers .= "Reply-To: $mailFrom\r\n";
-            $headers .= "MIME-Version: 1.0\r\n";
-            $headers .= "Content-Type: text/plain; charset=UTF-8\r\n";
-
-            $smtpSuccess = @mail($email, $subject, $body, $headers, "-f $mailFrom");
-            if ($smtpSuccess) {
-                return true;
+            $scheme = $mailEncrypt === 'ssl' ? 'ssl://' : 'tcp://';
+            $sslContext = stream_context_create([
+                'ssl' => [
+                    'verify_peer' => true,
+                    'verify_peer_name' => true,
+                    'peer_name' => $mailHost,
+                    'SNI_enabled' => true,
+                ],
+            ]);
+            $errno = 0;
+            $errstr = '';
+            $socket = @stream_socket_client(
+                $scheme . $mailHost . ':' . $mailPort,
+                $errno,
+                $errstr,
+                15,
+                STREAM_CLIENT_CONNECT,
+                $sslContext
+            );
+            if (!is_resource($socket)) {
+                throw new RuntimeException('SMTP connection failed (' . $errno . ').');
             }
-        } catch (Throwable $e) {
-            error_log("SMTP email failed for $email: " . $e->getMessage());
-        }
-    }
+            stream_set_timeout($socket, 15);
 
-    // Fallback: PHP mail()
-    if (function_exists('mail')) {
-        try {
-            $subject = 'Password Reset - Academics';
-            $body = "Click the link below to reset your password:\n\n$resetLink\n\nThis link expires in 1 hour and can be used once.";
-            $headers = "From: $mailFromName <$mailFrom>\r\n";
-            $headers .= "MIME-Version: 1.0\r\n";
-            $headers .= "Content-Type: text/plain; charset=UTF-8\r\n";
+            $readResponse = static function () use ($socket): array {
+                $response = '';
+                $line = '';
+                do {
+                    $line = fgets($socket, 515);
+                    if ($line === false) throw new RuntimeException('SMTP server closed the connection.');
+                    $response .= $line;
+                } while (isset($line[3]) && $line[3] === '-');
+                return [(int)substr($line, 0, 3), trim($response)];
+            };
+            $command = static function (string $command, array $expected) use ($socket, $readResponse): string {
+                $written = fwrite($socket, $command . "\r\n");
+                if ($written === false) throw new RuntimeException('Could not write SMTP command.');
+                [$code, $response] = $readResponse();
+                if (!in_array($code, $expected, true)) {
+                    throw new RuntimeException('SMTP command rejected with code ' . $code . '.');
+                }
+                return $response;
+            };
 
-            if (@mail($email, $subject, $body, $headers)) {
-                return true;
+            [$greetingCode] = $readResponse();
+            if ($greetingCode !== 220) throw new RuntimeException('SMTP server greeting was rejected.');
+
+            $hello = preg_replace('/[^a-zA-Z0-9.-]/', '', (string)(gethostname() ?: 'localhost'));
+            if ($hello === '') $hello = 'localhost';
+            $command('EHLO ' . $hello, [250]);
+
+            if ($mailEncrypt === 'tls') {
+                $command('STARTTLS', [220]);
+                $crypto = @stream_socket_enable_crypto($socket, true, STREAM_CRYPTO_METHOD_TLS_CLIENT);
+                if ($crypto !== true) throw new RuntimeException('SMTP STARTTLS negotiation failed.');
+                $command('EHLO ' . $hello, [250]);
             }
-        } catch (Throwable $e) {
-            error_log("PHP mail() failed for $email: " . $e->getMessage());
-        }
-    }
 
-    // Local dev fallback: log to file (only in local dev)
-    $isLocalDev = (getenv('APP_ENV') ?? 'local') === 'local'
-        && in_array($_SERVER['HTTP_HOST'] ?? 'localhost', ['localhost', '127.0.0.1', '::1'], true);
-    if ($isLocalDev) {
-        try {
-            $logDir = dirname(__DIR__) . '/storage/logs';
-            if (!is_dir($logDir)) {
-                @mkdir($logDir, 0700, true);
+            if ($mailUser !== '' || $mailPass !== '') {
+                if ($mailUser === '' || $mailPass === '') {
+                    throw new RuntimeException('Both SMTP username and password are required.');
+                }
+                $command('AUTH LOGIN', [334]);
+                $command(base64_encode($mailUser), [334]);
+                $command(base64_encode($mailPass), [235]);
             }
-            $logFile = $logDir . '/reset-links.log';
-            $entry = date('Y-m-d H:i:s') . ' | ' . $email . ' | ' . $resetLink . "\n";
-            file_put_contents($logFile, $entry, FILE_APPEND | LOCK_EX);
+
+            $command('MAIL FROM:<' . $mailFrom . '>', [250]);
+            $command('RCPT TO:<' . $email . '>', [250, 251]);
+            $command('DATA', [354]);
+
+            $safeName = str_replace(["\r", "\n"], '', $mailFromName);
+            $encodedName = '=?UTF-8?B?' . base64_encode($safeName) . '?=';
+            $fromDomain = substr(strrchr($mailFrom, '@') ?: '@localhost', 1);
+            $headers = [
+                'Date: ' . date(DATE_RFC2822),
+                'From: ' . $encodedName . ' <' . $mailFrom . '>',
+                'To: <' . $email . '>',
+                'Reply-To: ' . $mailFrom,
+                'Subject: =?UTF-8?B?' . base64_encode($subject) . '?=',
+                'Message-ID: <' . bin2hex(random_bytes(12)) . '@' . $fromDomain . '>',
+                'MIME-Version: 1.0',
+                'Content-Type: text/plain; charset=UTF-8',
+                'Content-Transfer-Encoding: 8bit',
+                'X-Mailer: Academics',
+            ];
+            $message = implode("\r\n", $headers) . "\r\n\r\n";
+            $bodyLines = preg_split('/\r\n|\r|\n/', $body) ?: [];
+            foreach ($bodyLines as $line) {
+                $message .= (str_starts_with($line, '.') ? '.' : '') . $line . "\r\n";
+            }
+            $written = fwrite($socket, $message . ".\r\n");
+            if ($written === false) throw new RuntimeException('Could not write SMTP message.');
+            [$dataCode] = $readResponse();
+            if ($dataCode !== 250) throw new RuntimeException('SMTP server did not accept the message.');
+
+            try { $command('QUIT', [221]); } catch (Throwable $ignored) {}
+            fclose($socket);
             return true;
         } catch (Throwable $e) {
-            error_log("Local reset link logging failed: " . $e->getMessage());
+            if (is_resource($socket)) fclose($socket);
+            error_log('SMTP password reset delivery failed: ' . $e->getMessage());
         }
     }
 
+    // Fallback for hosts that expose PHP's configured mail transport.
+    if (function_exists('mail') && filter_var($mailFrom, FILTER_VALIDATE_EMAIL)) {
+        try {
+            $safeName = str_replace(["\r", "\n"], '', $mailFromName);
+            $headers = "From: {$safeName} <{$mailFrom}>\r\n";
+            $headers .= "MIME-Version: 1.0\r\n";
+            $headers .= "Content-Type: text/plain; charset=UTF-8\r\n";
+            if (@mail($email, $subject, $body, $headers, '-f' . $mailFrom)) return true;
+        } catch (Throwable $e) {
+            error_log('PHP mail() password reset delivery failed: ' . $e->getMessage());
+        }
+    }
+
+    // Do not write reset links to disk. A link in a log is a password.
+    // If SMTP and mail() both fail, the caller shows a generic delivery error.
     return false;
 }
 
@@ -475,6 +633,12 @@ function getAssessmentTypes(): array
 
 function createAssessment(PDO $pdo, int $schoolId, int $courseId, string $title, string $type, float $maxMarks, float $weight, ?string $dueDate, ?string $description, ?int $createdBy): int
 {
+    $courseCheck = $pdo->prepare("SELECT id FROM courses WHERE id = ? AND school_id = ? LIMIT 1");
+    $courseCheck->execute([$courseId, $schoolId]);
+    if (!$courseCheck->fetchColumn() || $maxMarks <= 0 || $weight <= 0 || trim($title) === '') {
+        return 0;
+    }
+
     $stmt = $pdo->prepare("INSERT INTO assessments (school_id, course_id, title, assessment_type, max_marks, weight, due_date, description, created_by)
         VALUES (?,?,?,?,?,?,?,?,?)");
     $stmt->execute([$schoolId, $courseId, $title, $type, $maxMarks, $weight, $dueDate, $description, $createdBy]);
@@ -499,15 +663,21 @@ function recordMark(PDO $pdo, int $schoolId, int $assessmentId, int $studentId, 
         return false;
     }
 
-    $enrStmt = $pdo->prepare("SELECT st.id FROM students st JOIN enrollments e ON e.student_id = st.id
-        WHERE st.id = ? AND st.school_id = ? AND e.course_id = ? AND e.status = 'Enrolled' LIMIT 1");
-    $enrStmt->execute([$studentId, $schoolId, (int)$assessment['course_id']]);
+    $enrStmt = $pdo->prepare("SELECT st.id FROM students st
+        JOIN enrollments e ON e.student_id = st.id AND e.school_id = st.school_id
+        JOIN courses c ON c.id = e.course_id AND c.school_id = e.school_id
+        WHERE st.id = ? AND st.school_id = ? AND e.school_id = ?
+          AND e.course_id = ? AND e.status = 'Enrolled' LIMIT 1");
+    $enrStmt->execute([$studentId, $schoolId, $schoolId, (int)$assessment['course_id']]);
     if (!$enrStmt->fetchColumn()) {
         return false;
     }
 
     $max = (float)$assessment['max_marks'];
     if ($marks !== null && ($marks < 0 || $marks > $max)) {
+        return false;
+    }
+    if ($remarks !== null && mb_strlen($remarks) > 500) {
         return false;
     }
 
@@ -597,6 +767,22 @@ function generateInvoiceNumber(PDO $pdo, int $schoolId): string
 
 function createInvoice(PDO $pdo, int $schoolId, int $studentId, ?int $feeStructureId, string $title, float $amount, ?string $dueDate, ?int $createdBy): int
 {
+    if ($amount <= 0 || trim($title) === '') {
+        return 0;
+    }
+    $studentCheck = $pdo->prepare("SELECT id FROM students WHERE id = ? AND school_id = ? LIMIT 1");
+    $studentCheck->execute([$studentId, $schoolId]);
+    if (!$studentCheck->fetchColumn()) {
+        return 0;
+    }
+    if ($feeStructureId !== null) {
+        $feeCheck = $pdo->prepare("SELECT id FROM fee_structures WHERE id = ? AND school_id = ? LIMIT 1");
+        $feeCheck->execute([$feeStructureId, $schoolId]);
+        if (!$feeCheck->fetchColumn()) {
+            return 0;
+        }
+    }
+
     $num = generateInvoiceNumber($pdo, $schoolId);
     $stmt = $pdo->prepare("INSERT INTO invoices (school_id, student_id, fee_structure_id, invoice_number, title, amount, due_date, created_by) VALUES (?,?,?,?,?,?,?,?)");
     $stmt->execute([$schoolId, $studentId, $feeStructureId, $num, $title, $amount, $dueDate, $createdBy]);
@@ -605,8 +791,18 @@ function createInvoice(PDO $pdo, int $schoolId, int $studentId, ?int $feeStructu
 
 function recordPayment(PDO $pdo, int $schoolId, int $invoiceId, float $amount, string $date, ?string $method, ?string $reference, ?int $receivedBy, ?string $notes): bool
 {
-    // H4: validate invoice, amount, and outstanding balance inside a transaction.
-    if ($amount <= 0) {
+    // Validate all values at the shared write boundary, not only in the form.
+    $method = $method === null ? null : strtolower(trim($method));
+    $methodAliases = ['bank transfer' => 'bank', 'bank_transfer' => 'bank', 'credit card' => 'card'];
+    if ($method !== null) $method = $methodAliases[$method] ?? $method;
+    $validMethods = ['cash', 'bank', 'card', 'online', 'cheque'];
+    if ($amount <= 0 || abs($amount - round($amount, 2)) > 0.00001
+        || !preg_match('/^\\d{4}-\\d{2}-\\d{2}$/', $date)
+        || !checkdate((int)substr($date, 5, 2), (int)substr($date, 8, 2), (int)substr($date, 0, 4))
+        || !isOnOrBeforeToday($date)
+        || ($method !== null && !in_array($method, $validMethods, true))
+        || ($reference !== null && mb_strlen($reference) > 100)
+        || ($notes !== null && mb_strlen($notes) > 500)) {
         return false;
     }
 
@@ -616,7 +812,7 @@ function recordPayment(PDO $pdo, int $schoolId, int $invoiceId, float $amount, s
         $stmt = $pdo->prepare("SELECT amount, status FROM invoices WHERE id = ? AND school_id = ? FOR UPDATE");
         $stmt->execute([$invoiceId, $schoolId]);
         $invoice = $stmt->fetch(PDO::FETCH_ASSOC);
-        if (!$invoice || $invoice['status'] === 'cancelled') {
+        if (!$invoice || in_array($invoice['status'], ['cancelled', 'paid'], true)) {
             $pdo->rollBack();
             return false;
         }
@@ -648,6 +844,7 @@ function recordPayment(PDO $pdo, int $schoolId, int $invoiceId, float $amount, s
         if ($pdo->inTransaction()) {
             $pdo->rollBack();
         }
+        error_log('recordPayment failed: ' . $e->getMessage());
         return false;
     }
 }
@@ -706,6 +903,8 @@ function requireAuth() {
         header('Location: ' . getBasePath() . 'auth/login.php');
         exit;
     }
+    // Every authenticated gate re-checks account, role, school and session version.
+    enforceSession();
 }
 
 // Require specific role
@@ -764,6 +963,16 @@ function getFlashMessage() {
     return null;
 }
 
+/**
+ * Consume the current one-time flash message.
+ * Kept as a named alias for the shared page header.
+ */
+function consumeFlashMessage(): ?array
+{
+    $message = getFlashMessage();
+    return is_array($message) ? $message : null;
+}
+
 // Set flash message
 function setFlashMessage($type, $message) {
     startSecureSession();
@@ -791,6 +1000,56 @@ function logActivity($pdo, $userId, $action, $entityType = null, $entityId = nul
 }
 
 // Alias for logActivity
+/**
+ * Sliding-window rate limit backed by the rate_limits table.
+ *
+ * Records one attempt when the window is not full and returns true when the
+ * caller must be refused. Failures are logged and treated as "allowed" so a
+ * missing table can never lock every user out of the application.
+ */
+function rate_limit_exceeded(PDO $pdo, string $bucket, string $identifier, int $maxAttempts, int $windowSeconds): bool {
+    if ($maxAttempts <= 0 || $windowSeconds <= 0 || strlen($bucket) > 40) {
+        return true;
+    }
+    $key = hash('sha256', $identifier);
+    // Serialize requests for this bucket/identifier. Without a per-key lock,
+    // simultaneous requests can all observe the same count and bypass quota.
+    $lockName = 'rl:' . substr(hash('sha256', $bucket . ':' . $key), 0, 61);
+    $locked = false;
+    try {
+        $lock = $pdo->prepare('SELECT GET_LOCK(?, 2)');
+        $lock->execute([$lockName]);
+        $locked = (int)$lock->fetchColumn() === 1;
+        if (!$locked) {
+            return true;
+        }
+
+        // Use the database clock so connection time zones cannot shift the window.
+        $pdo->prepare("DELETE FROM rate_limits WHERE bucket = ? AND created_at < DATE_SUB(NOW(), INTERVAL ? SECOND)")
+            ->execute([$bucket, $windowSeconds]);
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM rate_limits WHERE bucket = ? AND identifier = ? AND created_at >= DATE_SUB(NOW(), INTERVAL ? SECOND)");
+        $stmt->execute([$bucket, $key, $windowSeconds]);
+        if ((int)$stmt->fetchColumn() >= $maxAttempts) {
+            return true;
+        }
+        $pdo->prepare("INSERT INTO rate_limits (bucket, identifier) VALUES (?, ?)")->execute([$bucket, $key]);
+        return false;
+    } catch (PDOException $e) {
+        // If the limiter cannot be trusted, deny the protected operation.
+        error_log('Rate limit check failed closed: ' . $e->getMessage());
+        return true;
+    } finally {
+        if ($locked) {
+            try {
+                $release = $pdo->prepare('SELECT RELEASE_LOCK(?)');
+                $release->execute([$lockName]);
+            } catch (Throwable $e) {
+                error_log('Rate limit lock release failed: ' . $e->getMessage());
+            }
+        }
+    }
+}
+
 function recordActivity($pdo, $userId, $action, $entityType = null, $entityId = null, $description = null) {
     return logActivity($pdo, $userId, $action, $entityType, $entityId, $description);
 }
@@ -962,24 +1221,82 @@ function getActiveEmergencyAlert($pdo, $schoolId = null) {
     }
 }
 
-// Get upcoming school events and holidays
-// $schoolId null = platform-wide feed (super admin); otherwise tenant-scoped.
+// Upcoming events for one school. A missing school id returns nothing —
+// never the calendar of every tenant.
 function getSchoolEventsList($pdo, $limit = 6, $onlyUpcoming = true, ?int $schoolId = null) {
+    if ($schoolId === null || $schoolId <= 0) {
+        return [];
+    }
     try {
         $where = $onlyUpcoming ? "event_date >= CURDATE() AND status != 'Cancelled'" : "1=1";
-        $params = [];
-        if ($schoolId !== null) {
-            $where .= " AND e.school_id = ?";
-            $params[] = (int)$schoolId;
-        }
+        $where .= " AND e.school_id = ?";
         $stmt = $pdo->prepare("SELECT e.*, u.full_name as author_name FROM school_events e LEFT JOIN users u ON e.created_by = u.id WHERE $where ORDER BY e.event_date ASC LIMIT ?");
-        foreach ($params as $i => $p) $stmt->bindValue($i + 1, $p, PDO::PARAM_INT);
-        $stmt->bindValue(count($params) + 1, (int)$limit, PDO::PARAM_INT);
+        $stmt->bindValue(1, (int)$schoolId, PDO::PARAM_INT);
+        $stmt->bindValue(2, (int)$limit, PDO::PARAM_INT);
         $stmt->execute();
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     } catch (PDOException $e) {
         return [];
     }
+}
+
+// Only a platform super administrator is unbounded by a school.
+// A school-scoped "admin" with a NULL school_id is not a platform operator.
+function isPlatformOperator(string $role, $schoolId = null): bool
+{
+    return $role === 'super_admin';
+}
+
+function dbTableHasColumn(PDO $pdo, string $table, string $column): bool
+{
+    static $cache = [];
+    $key = $table . '.' . $column;
+    if (array_key_exists($key, $cache)) {
+        return $cache[$key];
+    }
+    if (!preg_match('/^[A-Za-z0-9_]+$/', $table) || !preg_match('/^[A-Za-z0-9_]+$/', $column)) {
+        return $cache[$key] = false;
+    }
+    try {
+        $stmt = $pdo->prepare(
+            "SELECT COUNT(*) FROM information_schema.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?"
+        );
+        $stmt->execute([$table, $column]);
+        return $cache[$key] = ((int)$stmt->fetchColumn() > 0);
+    } catch (Throwable $e) {
+        return $cache[$key] = false;
+    }
+}
+
+function hashUnusablePassword(): string
+{
+    $hash = password_hash(bin2hex(random_bytes(32)), PASSWORD_DEFAULT);
+    if ($hash === false) {
+        throw new RuntimeException('Password hashing failed.');
+    }
+    return $hash;
+}
+
+/**
+ * Email a single-use setup/reset link. The raw token is never returned.
+ */
+function deliverAccountSetupLink(PDO $pdo, string $email): bool
+{
+    $token = createPasswordResetToken($pdo, $email);
+    if ($token === null) {
+        return false;
+    }
+    return sendPasswordResetEmail($email, $token);
+}
+
+function accountProvisionedMessage(string $email, bool $setupEmailSent): string
+{
+    $who = filter_var($email, FILTER_VALIDATE_EMAIL) ? $email : 'the new account';
+    if ($setupEmailSent) {
+        return 'Account created for ' . $who . '. A one-time setup link was emailed. It expires in one hour. The password is not shown.';
+    }
+    return 'Account created for ' . $who . ', but the setup email could not be sent. Ask them to use Forgot password. No password was displayed or logged.';
 }
 
 // Enforce session validation on every request (C4: live session invalidation)
@@ -993,9 +1310,8 @@ function getSchoolEventsList($pdo, $limit = 6, $onlyUpcoming = true, ?int $schoo
  *   - students.id       (must exist and be scoped to the user's school)
  *   - schools.is_active / schools.status (suspended/disabled -> immediate logout)
  *
- * Results are cached for at most 60 seconds per session, keyed to a fingerprint
- * of user_id + role + school_id, so a normal page load doesn't hit the DB beyond
- * once a minute but a suspension/deactivation is enforced within 60s.
+ * Results are not cached. Deactivation, suspension, trial expiry, role changes
+ * and password changes take effect on the next request.
  *
  * Safe to call from AJAX/JSON endpoints: responds with 401 JSON instead of an
  * HTML redirect when the request is an XHR / expects JSON.
@@ -1058,26 +1374,17 @@ function enforceSession(?PDO $pdo = null): void
         $fail('invalid_role', $isAjax);
     }
 
-    // 3. Without a DB handle, only the structural checks above can run
-    //    (e.g. during the login POST before $pdo is available).
-    if (!$pdo) {
-        return;
+    // 3. Authentication must fail closed if the database cannot be reached.
+    // Structural session keys alone are never sufficient authorization.
+    if (!$pdo instanceof PDO) {
+        $fail('session_validation_unavailable', $isAjax);
     }
 
-    // 4. Up to 60s of caching keyed to the session fingerprint.
-    $now = time();
-    $validatedAt = (int)($_SESSION['_validated_at'] ?? 0);
-    $fingerprint = hash('sha256',
-        (string)($_SESSION['user_id'] ?? '') . '|' .
-        (string)($_SESSION['user_role'] ?? '') . '|' .
-        (string)($_SESSION['school_id'] ?? '')
-    );
-    if ($validatedAt > 0 && ($now - $validatedAt) < 60 && ($_SESSION['_validated_fp'] ?? '') === $fingerprint) {
-        return;
+    $userColumns = 'id, role, is_active, school_id';
+    if (dbTableHasColumn($pdo, 'users', 'session_version')) {
+        $userColumns .= ', session_version';
     }
-
-    // 5. Re-read the user row and check account state
-    $stmt = $pdo->prepare("SELECT id, role, is_active, school_id FROM users WHERE id = ? LIMIT 1");
+    $stmt = $pdo->prepare("SELECT {$userColumns} FROM users WHERE id = ? LIMIT 1");
     $stmt->execute([(int)$_SESSION['user_id']]);
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -1090,20 +1397,38 @@ function enforceSession(?PDO $pdo = null): void
         $fail('role_changed', $isAjax);
     }
 
-    // 6. School-scoped roles must have a live, non-suspended school
+    if (array_key_exists('session_version', $user)) {
+        $liveVersion = (int)$user['session_version'];
+        if (!isset($_SESSION['session_version']) || (int)$_SESSION['session_version'] !== $liveVersion) {
+            $fail('session_revoked', $isAjax);
+        }
+    }
+
+    // School-scoped roles must have a live, non-suspended, non-expired school.
     $schoolScoped = in_array((string)$user['role'], ['school_admin', 'admin', 'teacher', 'student', 'parent'], true);
     if ($schoolScoped) {
         if (empty($user['school_id'])) {
             $fail('school_id_missing', $isAjax);
         }
-        $sStmt = $pdo->prepare("SELECT id, status, is_active FROM schools WHERE id = ? LIMIT 1");
+        $schoolColumns = 'id, status, is_active';
+        if (dbTableHasColumn($pdo, 'schools', 'trial_ends_at')) {
+            $schoolColumns .= ', trial_ends_at';
+        }
+        $sStmt = $pdo->prepare("SELECT {$schoolColumns} FROM schools WHERE id = ? LIMIT 1");
         $sStmt->execute([(int)$user['school_id']]);
         $school = $sStmt->fetch(PDO::FETCH_ASSOC);
         if (!$school || (int)$school['is_active'] !== 1) {
             $fail('school_inactive', $isAjax);
         }
-        if (in_array(strtolower((string)$school['status']), ['suspended', 'disabled'], true)) {
+        $schoolStatus = strtolower((string)($school['status'] ?? 'active'));
+        if (in_array($schoolStatus, ['suspended', 'disabled'], true)) {
             $fail('school_suspended', $isAjax);
+        }
+        if ($schoolStatus === 'trial' && !empty($school['trial_ends_at'])) {
+            $trialEnds = strtotime((string)$school['trial_ends_at']);
+            if ($trialEnds !== false && $trialEnds < time()) {
+                $fail('trial_expired', $isAjax);
+            }
         }
         $_SESSION['school_id'] = (int)$user['school_id'];
     } else {
@@ -1121,14 +1446,6 @@ function enforceSession(?PDO $pdo = null): void
         }
         $_SESSION['student_id'] = (int)$studentId;
     }
-
-    // 8. Cache the successful validation for up to 60 seconds
-    $_SESSION['_validated_at'] = $now;
-    $_SESSION['_validated_fp'] = hash('sha256',
-        (string)$_SESSION['user_id'] . '|' .
-        (string)$_SESSION['user_role'] . '|' .
-        (string)($_SESSION['school_id'] ?? '')
-    );
 }
 
 // Force a first-login password change when users.must_change_password is set.

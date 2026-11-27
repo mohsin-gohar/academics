@@ -80,10 +80,13 @@ Academics is a comprehensive student management system built with PHP designed f
 "4. Start PHP dev server: php -S localhost:8001 -t project-root"
 "5. Access: http://localhost:8001/auth/login.php"
 
-"| Role | Email | Password |"
-"| Admin | admin@edusphere.com | Admin@123 |"
+"Lab-only accounts after database/seed.sql (must change password; not for production):"
+"| Role | Email | Lab password |"
+"| Platform super admin | superadmin@academics.app | Admin@123 |"
+"| School admin | admin@edusphere.com | Admin@123 |"
 "| Teacher | teacher@edusphere.com | Teacher@123 |"
 "| Student | student@edusphere.com | Student@123 |"
+"| Parent | parent@edusphere.com | Parent@123 |"
 
 "- auth/login.php - Login page with CSRF protection"
 "- auth/login_process.php - Authentication handler"

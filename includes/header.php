@@ -102,7 +102,16 @@ $csrf_token = generateCsrfToken();
     <link rel="stylesheet" href="<?php echo $base; ?>assets/css/style.css">
     <link rel="stylesheet" href="<?php echo $base; ?>assets/css/edustudy-theme.css">
     <?php if (function_exists('isLoggedIn') && isLoggedIn()): ?>
-    <?php require_once __DIR__ . '/push.php'; $__vapid = push_ensure_vapid($pdo); ?>
+    <?php
+        require_once __DIR__ . '/push.php';
+        try {
+            $__vapid = push_ensure_vapid($pdo);
+        } catch (Throwable $e) {
+            // Push is optional; a VAPID/OpenSSL failure must not take down the ERP.
+            error_log('Academics VAPID initialization failed: ' . $e->getMessage());
+            $__vapid = ['public' => ''];
+        }
+    ?>
     <meta name="academics-vapid-key" content="<?php echo e($__vapid['public']); ?>">
     <script>window.ACADEMICS_BASE = <?php echo json_encode($base); ?>; window.ACADEMICS_VAPID_PUBLIC_KEY = <?php echo json_encode($__vapid['public']); ?>;</script>
     <?php unset($__vapid); endif; ?>
@@ -161,9 +170,12 @@ $csrf_token = generateCsrfToken();
                     <a href="<?php echo $base; ?>index.php" target="_blank" class="btn btn-sm btn-outline-primary" title="View Public School Website">
                         <i class="fas fa-globe me-1"></i> Public Site
                     </a>
-                    <a href="<?php echo $base; ?>auth/logout.php" class="btn btn-sm btn-outline-danger">
-                        <i class="fas fa-sign-out-alt me-1"></i> Logout
-                    </a>
+                    <form action="<?php echo $base; ?>auth/logout.php" method="POST" class="d-inline">
+                        <input type="hidden" name="csrf_token" value="<?php echo e($csrf_token); ?>">
+                        <button type="submit" class="btn btn-sm btn-outline-danger">
+                            <i class="fas fa-sign-out-alt me-1"></i> Logout
+                        </button>
+                    </form>
                 </div>
             </nav>
             <?php endif; ?>

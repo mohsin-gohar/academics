@@ -35,12 +35,14 @@ $status = trim($_GET['status'] ?? '');
 $course = trim($_GET['course'] ?? '');
 
 // Build query
-$where = ['1=1'];
+$schoolId = currentSchoolId();
+$where = [];
 $params = [];
-
-if (!isSuperAdmin()) {
+if (!$schoolId) {
+    $where[] = '1=0';
+} else {
     $where[] = 's.school_id = ?';
-    $params[] = currentSchoolId();
+    $params[] = $schoolId;
 }
 
 if (!empty($search)) {
@@ -53,7 +55,7 @@ if (!empty($status)) {
     $params[] = $status;
 }
 if (!empty($course)) {
-    $where[] = 'EXISTS (SELECT 1 FROM enrollments e WHERE e.student_id = s.id AND e.course_id = ?)';
+    $where[] = 'EXISTS (SELECT 1 FROM enrollments e WHERE e.student_id = s.id AND e.course_id = ? AND e.school_id = s.school_id)';
     $params[] = $course;
 }
 
@@ -74,13 +76,9 @@ $stmt->execute($params);
 $students = $stmt->fetchAll();
 
 // Courses for filter
-if (isSuperAdmin()) {
-    $courses = $pdo->query("SELECT id, course_code, course_name FROM courses WHERE status = 'Active' ORDER BY course_name")->fetchAll();
-} else {
-    $cStmt = $pdo->prepare("SELECT id, course_code, course_name FROM courses WHERE status = 'Active' AND school_id = ? ORDER BY course_name");
-    $cStmt->execute([currentSchoolId()]);
-    $courses = $cStmt->fetchAll();
-}
+$cStmt = $pdo->prepare("SELECT id, course_code, course_name FROM courses WHERE status = 'Active' AND school_id = ? ORDER BY course_name");
+$cStmt->execute([$schoolId ?: 0]);
+$courses = $cStmt->fetchAll();
 ?>
 
 <div class="card mb-4">

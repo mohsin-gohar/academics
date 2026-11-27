@@ -60,7 +60,7 @@ class EventsAlertsTest {
         ];
 
         // Test 4: School event can be queried via helper
-        $events = getSchoolEventsList($this->pdo, 10, true);
+        $events = getSchoolEventsList($this->pdo, 10, true, 1);
         $found = false;
         foreach ($events as $ev) {
             if ($ev['title'] === $testTitle) {

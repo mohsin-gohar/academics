@@ -30,7 +30,7 @@ if (!$event) {
 require_record_school($event);
 
 try {
-    $pdo->prepare("DELETE FROM school_events WHERE id = ?")->execute([$id]);
+    $pdo->prepare("DELETE FROM school_events WHERE id = ? AND school_id = ?")->execute([$id, (int)$event['school_id']]);
     logActivity($pdo, $user_id, 'delete_event', 'school_events', $id, 'Deleted event: ' . $event['title']);
     setFlashMessage('success', 'Event removed successfully.');
     header('Location: index.php');

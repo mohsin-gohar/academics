@@ -9,41 +9,29 @@ $results = ['students' => [], 'courses' => [], 'tasks' => []];
 if ($q !== '') {
     $like = '%' . $q . '%';
     $sid = currentSchoolId();
-    $super = isSuperAdmin();
-    // Students
-    if (isStaff()) {
-        if ($super || $sid === null) {
-            $st = $pdo->prepare("SELECT id, full_name, student_number, email, status FROM students WHERE full_name LIKE ? OR student_number LIKE ? OR email LIKE ? ORDER BY full_name LIMIT 20");
-            $st->execute([$like, $like, $like]);
-        } else {
-            $st = $pdo->prepare("SELECT id, full_name, student_number, email, status FROM students WHERE school_id = ? AND (full_name LIKE ? OR student_number LIKE ? OR email LIKE ?) ORDER BY full_name LIMIT 20");
-            $st->execute([$sid, $like, $like, $like]);
-        }
+    $hasSchool = $sid !== null && (int)$sid > 0;
+
+    if (isStaff() && $hasSchool) {
+        $st = $pdo->prepare("SELECT id, full_name, student_number, email, status FROM students WHERE school_id = ? AND (full_name LIKE ? OR student_number LIKE ? OR email LIKE ?) ORDER BY full_name LIMIT 20");
+        $st->execute([(int)$sid, $like, $like, $like]);
         $results['students'] = $st->fetchAll();
     }
-    // Courses
-    if ($super || $sid === null) {
-        $cs = $pdo->prepare("SELECT id, course_code, course_name, status FROM courses WHERE course_code LIKE ? OR course_name LIKE ? ORDER BY course_name LIMIT 20");
-        $cs->execute([$like, $like]);
-    } else {
+
+    if ($hasSchool) {
         $cs = $pdo->prepare("SELECT id, course_code, course_name, status FROM courses WHERE school_id = ? AND (course_code LIKE ? OR course_name LIKE ?) ORDER BY course_name LIMIT 20");
-        $cs->execute([$sid, $like, $like]);
+        $cs->execute([(int)$sid, $like, $like]);
+        $results['courses'] = $cs->fetchAll();
     }
-    $results['courses'] = $cs->fetchAll();
-    // Tasks
-    if (isStaff()) {
-        if ($super || $sid === null) {
-            $ts = $pdo->prepare("SELECT t.id, t.title, t.status, t.priority, s.full_name AS student_name FROM tasks t LEFT JOIN students s ON t.student_id = s.id WHERE t.title LIKE ? OR t.description LIKE ? ORDER BY t.created_at DESC LIMIT 20");
-            $ts->execute([$like, $like]);
-        } else {
-            $ts = $pdo->prepare("SELECT t.id, t.title, t.status, t.priority, s.full_name AS student_name FROM tasks t LEFT JOIN students s ON t.student_id = s.id WHERE t.school_id = ? AND (t.title LIKE ? OR t.description LIKE ?) ORDER BY t.created_at DESC LIMIT 20");
-            $ts->execute([$sid, $like, $like]);
-        }
-    } else {
-        $ts = $pdo->prepare("SELECT t.id, t.title, t.status, t.priority, s.full_name AS student_name FROM tasks t LEFT JOIN students s ON t.student_id = s.id WHERE (t.title LIKE ? OR t.description LIKE ?) AND t.student_id = (SELECT id FROM students WHERE user_id = ?) ORDER BY t.created_at DESC LIMIT 20");
-        $ts->execute([$like, $like, (int)$_SESSION['user_id']]);
+
+    if (isStaff() && $hasSchool) {
+        $ts = $pdo->prepare("SELECT t.id, t.title, t.status, t.priority, s.full_name AS student_name FROM tasks t LEFT JOIN students s ON t.student_id = s.id AND s.school_id = t.school_id WHERE t.school_id = ? AND (t.title LIKE ? OR t.description LIKE ?) ORDER BY t.created_at DESC LIMIT 20");
+        $ts->execute([(int)$sid, $like, $like]);
+        $results['tasks'] = $ts->fetchAll();
+    } elseif (!isStaff() && $hasSchool && isStudent()) {
+        $ts = $pdo->prepare("SELECT t.id, t.title, t.status, t.priority, s.full_name AS student_name FROM tasks t LEFT JOIN students s ON t.student_id = s.id WHERE t.school_id = ? AND (t.title LIKE ? OR t.description LIKE ?) AND t.student_id = (SELECT id FROM students WHERE user_id = ? AND school_id = ? LIMIT 1) ORDER BY t.created_at DESC LIMIT 20");
+        $ts->execute([(int)$sid, $like, $like, (int)$_SESSION['user_id'], (int)$sid]);
+        $results['tasks'] = $ts->fetchAll();
     }
-    $results['tasks'] = $ts->fetchAll();
 }
 ?>
 <div class="mb-4">

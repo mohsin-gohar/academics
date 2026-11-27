@@ -258,6 +258,10 @@ function saas_school_access_state(array $school): array
         return ['allowed' => false, 'reason' => 'disabled'];
     }
 
+    if (in_array($status, ['expired', 'cancelled', 'past_due'], true)) {
+        return ['allowed' => false, 'reason' => 'subscription_expired'];
+    }
+
     if ($status === 'trial') {
         $ends = $school['trial_ends_at'] ?? null;
         if (!empty($ends) && strtotime((string)$ends) !== false && strtotime((string)$ends) < time()) {
@@ -278,6 +282,7 @@ function saas_access_message(string $reason): string
     return match ($reason) {
         'suspended'     => 'This school portal has been suspended. Please contact the platform administrator.',
         'trial_expired' => 'This school trial has expired. Please contact the platform administrator to activate a subscription.',
+        'subscription_expired' => 'This school subscription has expired. Please contact the platform administrator to renew it.',
         'disabled'      => 'This school portal is currently disabled. Please contact the platform administrator.',
         default         => 'This school portal is not available right now.',
     };

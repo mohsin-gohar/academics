@@ -19,12 +19,13 @@ $type = $_GET['type'] ?? 'students';
 // Resolve a strict school scope. Never allow a null/zero scope to fall through
 // into an unscoped query: that is exactly the leak this endpoint had.
 $schoolId = currentSchoolId();
-if ($schoolId === null && !isSuperAdmin()) {
+if ($schoolId === null || (int)$schoolId <= 0) {
     http_response_code(403);
     header('Content-Type: text/plain; charset=utf-8');
     echo 'School context is required for exports.';
     exit;
 }
+$schoolId = (int)$schoolId;
 
 // Filename and headers
 $filename = 'export_' . preg_replace('/[^a-zA-Z0-9_-]/', '', $type) . '_' . date('Y-m-d') . '.csv';

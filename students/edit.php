@@ -34,32 +34,69 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($form_data['full_name'])) $errors[] = 'Full name is required.';
     if (empty($form_data['email'])) $errors[] = 'Email is required.';
     elseif (!isValidEmail($form_data['email'])) $errors[] = 'Invalid email address.';
+    if (!in_array($form_data['status'], ['Active', 'Inactive', 'Graduated', 'Suspended', 'Withdrawn'], true)) {
+        $errors[] = 'Invalid student status.';
+    }
+    if (!preg_match('/^\\d{4}-\\d{2}-\\d{2}$/', $form_data['enrollment_date'])
+        || !checkdate((int)substr($form_data['enrollment_date'], 5, 2), (int)substr($form_data['enrollment_date'], 8, 2), (int)substr($form_data['enrollment_date'], 0, 4))) {
+        $errors[] = 'A valid enrollment date is required.';
+    }
+    if ($form_data['date_of_birth'] !== ''
+        && (!preg_match('/^\\d{4}-\\d{2}-\\d{2}$/', $form_data['date_of_birth'])
+            || !checkdate((int)substr($form_data['date_of_birth'], 5, 2), (int)substr($form_data['date_of_birth'], 8, 2), (int)substr($form_data['date_of_birth'], 0, 4)))) {
+        $errors[] = 'Date of birth must be a valid date.';
+    }
 
     if (empty($errors)) {
         $stmt = $pdo->prepare("SELECT id FROM students WHERE email = ? AND id != ? AND school_id = ?");
         $stmt->execute([$form_data['email'], $id, (int)($student['school_id'] ?? 0)]);
         if ($stmt->fetch()) $errors[] = 'Email already in use by another student.';
+
+        $userEmailCheck = $pdo->prepare("SELECT id FROM users WHERE email = ? AND id <> ? LIMIT 1");
+        $userEmailCheck->execute([$form_data['email'], (int)$student['user_id']]);
+        if ($userEmailCheck->fetchColumn()) $errors[] = 'Email address is already used by another account.';
     }
 
     if (empty($errors)) {
         try {
             $pdo->beginTransaction();
 
-            $stmt = $pdo->prepare("UPDATE students SET full_name=?, email=?, phone=?, date_of_birth=?, gender=?, address=?, enrollment_date=?, status=?, updated_at=NOW() WHERE id=?");
+            $stmt = $pdo->prepare("UPDATE students SET full_name=?, email=?, phone=?, date_of_birth=?, gender=?, address=?, enrollment_date=?, status=?, updated_at=NOW() WHERE id=? AND school_id=?");
             $stmt->execute([
                 $form_data['full_name'], $form_data['email'], $form_data['phone'] ?: null,
                 $form_data['date_of_birth'] ?: null, $form_data['gender'] ?: null,
-                $form_data['address'] ?: null, $form_data['enrollment_date'], $form_data['status'], $id
+                $form_data['address'] ?: null, $form_data['enrollment_date'], $form_data['status'], $id,
+                (int)$student['school_id']
             ]);
-            // Update linked user
-            $stmt = $pdo->prepare("UPDATE users SET full_name=?, email=?, updated_at=NOW() WHERE id=?");
-            $stmt->execute([$form_data['full_name'], $form_data['email'], $student['user_id']]);
+            // Lock the linked account and revoke its existing sessions whenever
+            // the student status changes account access.
+            $accountActive = in_array($form_data['status'], ['Active', 'Graduated'], true) ? 1 : 0;
+            $userLock = $pdo->prepare(
+                "SELECT is_active FROM users WHERE id = ? AND school_id = ? FOR UPDATE"
+            );
+            $userLock->execute([(int)$student['user_id'], (int)$student['school_id']]);
+            $currentUserActive = $userLock->fetchColumn();
+            if ($currentUserActive === false) {
+                throw new RuntimeException('The linked student account no longer exists.');
+            }
+            $versionSql = dbTableHasColumn($pdo, 'users', 'session_version')
+                && (int)$currentUserActive !== $accountActive
+                ? ', session_version = session_version + 1'
+                : '';
+            $stmt = $pdo->prepare(
+                "UPDATE users SET full_name=?, email=?, is_active=?{$versionSql}, updated_at=NOW()
+                 WHERE id=? AND school_id = ?"
+            );
+            $stmt->execute([
+                $form_data['full_name'], $form_data['email'], $accountActive,
+                $student['user_id'], (int)$student['school_id']
+            ]);
 
             $pdo->commit();
             logActivity($pdo, $_SESSION['user_id'], 'update', 'student', $id, 'Updated student: ' . $form_data['full_name']);
             header('Location: show.php?id=' . $id . '&success=' . urlencode('Student updated successfully!'));
             exit;
-        } catch (PDOException $e) {
+        } catch (Throwable $e) {
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();
             }
@@ -121,6 +158,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <option value="Inactive" <?php echo $form_data['status'] === 'Inactive' ? 'selected' : ''; ?>>Inactive</option>
                                 <option value="Graduated" <?php echo $form_data['status'] === 'Graduated' ? 'selected' : ''; ?>>Graduated</option>
                                 <option value="Suspended" <?php echo $form_data['status'] === 'Suspended' ? 'selected' : ''; ?>>Suspended</option>
+                                <option value="Withdrawn" <?php echo $form_data['status'] === 'Withdrawn' ? 'selected' : ''; ?>>Withdrawn</option>
                             </select>
                         </div>
                         <div class="col-12">

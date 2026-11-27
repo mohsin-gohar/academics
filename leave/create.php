@@ -24,6 +24,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $old['leave_type'] = $_POST['leave_type'] ?? $old['leave_type'];
 
+        if ($schoolId === null || (int)$schoolId <= 0) $errors[] = 'A school context is required to request leave.';
         if (!in_array($old['leave_type'], array_keys($leaveTypes), true)) $errors[] = 'Invalid leave type.';
         if ($old['start_date'] === '') $errors[] = 'Start date is required.';
         if ($old['end_date'] === '') $errors[] = 'End date is required.';

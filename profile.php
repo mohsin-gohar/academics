@@ -55,9 +55,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($pwErrors) {
                     $error = implode(' ', $pwErrors);
                 } else {
-                    $pdo->prepare("UPDATE users SET password = ?, must_change_password = 0 WHERE id = ?")
-                        ->execute([password_hash($new, PASSWORD_DEFAULT), $userId]);
-                    // Re-login: clear the forced-change flag and rotate the session.
+                    $sql = "UPDATE users SET password = ?, must_change_password = 0";
+                    if (dbTableHasColumn($pdo, 'users', 'session_version')) {
+                        $sql .= ", session_version = session_version + 1";
+                    }
+                    $sql .= " WHERE id = ?";
+                    $pdo->prepare($sql)->execute([password_hash($new, PASSWORD_DEFAULT), $userId]);
+                    if (dbTableHasColumn($pdo, 'users', 'session_version')) {
+                        $ver = $pdo->prepare("SELECT session_version FROM users WHERE id = ?");
+                        $ver->execute([$userId]);
+                        $_SESSION['session_version'] = (int)$ver->fetchColumn();
+                    }
                     $_SESSION['must_change_password'] = 0;
                     session_regenerate_id(true);
                     logActivity($pdo, $userId, 'update', 'user', $userId, 'Password changed');
@@ -142,11 +150,11 @@ if (isStudent()) {
                 <div class="row g-3">
                     <div class="col-md-6">
                         <label class="form-label">New Password</label>
-                        <input type="password" name="new_password" class="form-control" minlength="8" required>
+                        <input type="password" name="new_password" class="form-control" minlength="10" required>
                     </div>
                     <div class="col-md-6">
                         <label class="form-label">Confirm New Password</label>
-                        <input type="password" name="confirm_password" class="form-control" minlength="8" required>
+                        <input type="password" name="confirm_password" class="form-control" minlength="10" required>
                     </div>
                 </div>
                 <div class="mt-3">

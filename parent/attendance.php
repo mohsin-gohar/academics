@@ -8,14 +8,15 @@ requireParent();
 
 $parentId = (int)($_SESSION['user_id'] ?? 0);
 $schoolId = (int)(currentSchoolId() ?? 0);
+if ($schoolId <= 0) {
+    http_response_code(403);
+    exit('A school context is required.');
+}
 
-// linked children
 $stmt = $pdo->prepare("SELECT s.id, s.full_name, s.student_number
                        FROM parent_student ps JOIN students s ON s.id = ps.student_id
-                       WHERE ps.parent_id = ?" . ($schoolId > 0 ? " AND ps.school_id = ?" : ""));
-$params = [$parentId];
-if ($schoolId > 0) $params[] = $schoolId;
-$stmt->execute($params);
+                       WHERE ps.parent_id = ? AND ps.school_id = ?");
+$stmt->execute([$parentId, $schoolId]);
 $children = $stmt->fetchAll();
 
 $from = trim((string)($_GET['from'] ?? date('Y-m-d', strtotime('-30 days'))));
@@ -54,9 +55,8 @@ if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $to)) $to = date('Y-m-d');
     <?php foreach ($children as $child): ?>
         <?php
         $cid = (int)$child['id'];
-        $cschool = $schoolId > 0 ? $schoolId : (int)($pdo->query("SELECT school_id FROM students WHERE id = $cid")->fetchColumn() ?: 0);
-        $summary = getStudentAttendanceSummary($pdo, $cschool, $cid, $from, $to);
-        $records = getAttendanceRecords($pdo, $cschool, $from, $to, $cid);
+        $summary = getStudentAttendanceSummary($pdo, $schoolId, $cid, $from, $to);
+        $records = getAttendanceRecords($pdo, $schoolId, $from, $to, $cid);
         $recent = array_slice($records, 0, 10);
         ?>
         <div class="card border-0 shadow-sm mb-4">

@@ -32,18 +32,11 @@ $errors = [];
 $form_data = $task;
 
 $students = [];
-$courseSql = "SELECT id, course_code, course_name FROM courses WHERE status = 'Active'";
-$courseParams = [];
-$studentSql = "SELECT id, full_name, student_number FROM students WHERE status = 'Active'";
-$studentParams = [];
-if (!isSuperAdmin()) {
-    $courseSql .= " AND school_id = ?";
-    $courseParams[] = currentSchoolId();
-    $studentSql .= " AND school_id = ?";
-    $studentParams[] = currentSchoolId();
-}
-$courseSql .= " ORDER BY course_name";
-$studentSql .= " ORDER BY full_name";
+$taskSchoolId = (int)($task['school_id'] ?? 0);
+$courseSql = "SELECT id, course_code, course_name FROM courses WHERE status = 'Active' AND school_id = ? ORDER BY course_name";
+$courseParams = [$taskSchoolId];
+$studentSql = "SELECT id, full_name, student_number FROM students WHERE status = 'Active' AND school_id = ? ORDER BY full_name";
+$studentParams = [$taskSchoolId];
 $stmt = $pdo->prepare($courseSql);
 $stmt->execute($courseParams);
 $courses = $stmt->fetchAll();
@@ -78,18 +71,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors[] = 'Due date is not a valid calendar date.';
     }
 
-    // Tenant guard: linked records must belong to the actor's school.
-    if (!isSuperAdmin()) {
-        if ($form_data['student_id']) {
-            $chk = $pdo->prepare("SELECT 1 FROM students WHERE id = ? AND school_id = ?");
-            $chk->execute([$form_data['student_id'], currentSchoolId()]);
-            if (!$chk->fetchColumn()) $errors[] = 'Selected student is not available for your school.';
-        }
-        if ($form_data['course_id']) {
-            $chk = $pdo->prepare("SELECT 1 FROM courses WHERE id = ? AND school_id = ?");
-            $chk->execute([$form_data['course_id'], currentSchoolId()]);
-            if (!$chk->fetchColumn()) $errors[] = 'Selected course is not available for your school.';
-        }
+    if ($form_data['student_id']) {
+        $chk = $pdo->prepare("SELECT 1 FROM students WHERE id = ? AND school_id = ?");
+        $chk->execute([$form_data['student_id'], $taskSchoolId]);
+        if (!$chk->fetchColumn()) $errors[] = 'Selected student is not available for your school.';
+    }
+    if ($form_data['course_id']) {
+        $chk = $pdo->prepare("SELECT 1 FROM courses WHERE id = ? AND school_id = ?");
+        $chk->execute([$form_data['course_id'], $taskSchoolId]);
+        if (!$chk->fetchColumn()) $errors[] = 'Selected course is not available for your school.';
     }
 
     if (empty($errors)) {

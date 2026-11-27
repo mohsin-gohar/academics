@@ -8,6 +8,10 @@ requireParent();
 
 $parentId = (int)($_SESSION['user_id'] ?? 0);
 $schoolId = (int)(currentSchoolId() ?? 0);
+if ($schoolId <= 0) {
+    http_response_code(403);
+    exit('A school context is required.');
+}
 
 $stmt = $pdo->prepare("SELECT s.id, s.full_name, s.student_number FROM parent_student ps JOIN students s ON s.id = ps.student_id WHERE ps.parent_id = ?" . ($schoolId > 0 ? " AND ps.school_id = ?" : ""));
 $params = [$parentId];
@@ -28,8 +32,7 @@ $children = $stmt->fetchAll();
     <?php foreach ($children as $child): ?>
         <?php
         $cid = (int)$child['id'];
-        $cschool = $schoolId > 0 ? $schoolId : (int)($pdo->query("SELECT school_id FROM students WHERE id = $cid")->fetchColumn() ?: 0);
-        $summary = getStudentGradeSummary($pdo, $cschool, $cid);
+        $summary = getStudentGradeSummary($pdo, $schoolId, $cid);
         ?>
         <div class="card border-0 shadow-sm mb-4">
             <div class="card-header bg-white d-flex justify-content-between align-items-center">

@@ -16,7 +16,10 @@ $stmt = $pdo->prepare("SELECT * FROM users WHERE id = ?");
 $stmt->execute([$id]);
 $user = $stmt->fetch();
 if (!$user) { header('Location: users.php?error=' . urlencode('User not found.')); exit; }
-require_record_school($user);
+// Platform operators manage accounts in every school. School staff cannot.
+if (!isSuperAdmin()) {
+    require_record_school($user);
+}
 
 $currentSchoolId = currentSchoolId();
 $isSuperAdmin = isSuperAdmin();
@@ -31,71 +34,187 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $form_data = [
         'full_name' => trim($_POST['full_name'] ?? ''),
-        'email' => trim($_POST['email'] ?? ''),
-        'password' => $_POST['password'] ?? '',
-        'role' => $_POST['role'] ?? 'student',
+        'email' => strtolower(trim($_POST['email'] ?? '')),
+        'send_setup_link' => isset($_POST['send_setup_link']),
+        'role' => (string)($_POST['role'] ?? 'student'),
         'is_active' => isset($_POST['is_active']) ? 1 : 0,
-        'school_id' => isset($_POST['school_id']) ? (int)$_POST['school_id'] : $user['school_id'],
+        'school_id' => isset($_POST['school_id']) && $_POST['school_id'] !== ''
+            ? (int)$_POST['school_id']
+            : ($isSuperAdmin ? null : $currentSchoolId),
     ];
 
-    if (empty($form_data['full_name'])) $errors[] = 'Full name is required.';
-    if (empty($form_data['email'])) $errors[] = 'Email is required.';
-    elseif (!isValidEmail($form_data['email'])) $errors[] = 'Invalid email.';
-    if (!empty($form_data['password']) && strlen($form_data['password']) < 10) $errors[] = 'Password must be at least 10 characters.';
-    if (!in_array($form_data['role'], ['super_admin','school_admin','admin','teacher','student','parent'])) $errors[] = 'Invalid role.';
-
-    // Only super_admin can change role to super_admin
+    if (mb_strlen($form_data['full_name']) < 2 || mb_strlen($form_data['full_name']) > 100) {
+        $errors[] = 'Full name must be between 2 and 100 characters.';
+    }
+    if (!isValidEmail($form_data['email'])) {
+        $errors[] = 'A valid email address is required.';
+    }
+    if (!in_array($form_data['role'], ['super_admin', 'school_admin', 'admin', 'teacher', 'student', 'parent'], true)) {
+        $errors[] = 'Invalid role.';
+    }
     if ($form_data['role'] === 'super_admin' && !$isSuperAdmin) {
         $errors[] = 'Only platform super administrators can assign super admin role.';
     }
-    // Prevent demoting the last super_admin
-    if ($user['role'] === 'super_admin' && $form_data['role'] !== 'super_admin') {
-        $stmt = $pdo->prepare("SELECT COUNT(*) FROM users WHERE role = 'super_admin' AND is_active = 1");
-        $stmt->execute();
-        if ((int)$stmt->fetchColumn() <= 1) {
-            $errors[] = 'Cannot demote the last active super administrator.';
-        }
+    if ((int)$id === (int)($_SESSION['user_id'] ?? 0)
+        && ($form_data['role'] !== (string)$user['role'] || $form_data['is_active'] !== 1)) {
+        $errors[] = 'You cannot change your own role or deactivate your own account.';
     }
 
-    // School assignment rules
     if ($form_data['role'] === 'super_admin') {
-        // Super admin users have no school scope
         $form_data['school_id'] = null;
-    } elseif ($isSuperAdmin && $form_data['school_id'] === null) {
-        // Super admin editing a school-scoped user without selecting a school — reject
-        $errors[] = 'A school must be selected for this role.';
     } elseif (!$isSuperAdmin) {
-        // School-scoped admin: user must belong to their own school
         $form_data['school_id'] = $currentSchoolId;
-    } elseif ($isSuperAdmin && $form_data['school_id'] !== null) {
-        // Validate school exists
-        $schoolCheck = $pdo->prepare("SELECT id FROM schools WHERE id = ? LIMIT 1");
+    } elseif (empty($form_data['school_id'])) {
+        $errors[] = 'A school must be selected for this role.';
+    } else {
+        $schoolCheck = $pdo->prepare("SELECT id FROM schools WHERE id = ? AND is_active = 1 LIMIT 1");
         $schoolCheck->execute([$form_data['school_id']]);
-        if (!$schoolCheck->fetch()) {
-            $errors[] = 'Selected school does not exist.';
-        }
+        if (!$schoolCheck->fetchColumn()) $errors[] = 'Selected school does not exist or is inactive.';
     }
 
     if (empty($errors)) {
-        $stmt = $pdo->prepare("SELECT id FROM users WHERE email = ? AND id != ?");
-        $stmt->execute([$form_data['email'], $id]);
-        if ($stmt->fetch()) $errors[] = 'Email already in use.';
+        $duplicate = $pdo->prepare("SELECT id FROM users WHERE email = ? AND id <> ? LIMIT 1");
+        $duplicate->execute([$form_data['email'], $id]);
+        if ($duplicate->fetchColumn()) $errors[] = 'Email already in use.';
     }
 
     if (empty($errors)) {
         try {
-            if (!empty($form_data['password'])) {
-                $hashed = password_hash($form_data['password'], PASSWORD_DEFAULT);
-                $stmt = $pdo->prepare("UPDATE users SET full_name=?, email=?, password=?, role=?, is_active=?, school_id=?, updated_at=NOW() WHERE id=?");
-                $stmt->execute([$form_data['full_name'], $form_data['email'], $hashed, $form_data['role'], $form_data['is_active'], $form_data['school_id'] !== null ? $form_data['school_id'] : null, $id]);
-            } else {
-                $stmt = $pdo->prepare("UPDATE users SET full_name=?, email=?, role=?, is_active=?, school_id=?, updated_at=NOW() WHERE id=?");
-                $stmt->execute([$form_data['full_name'], $form_data['email'], $form_data['role'], $form_data['is_active'], $form_data['school_id'] !== null ? $form_data['school_id'] : null, $id]);
+            $pdo->beginTransaction();
+
+            $lockUser = $pdo->prepare("SELECT id, role, is_active, school_id FROM users WHERE id = ? FOR UPDATE");
+            $lockUser->execute([$id]);
+            $lockedUser = $lockUser->fetch(PDO::FETCH_ASSOC);
+            if (!$lockedUser) throw new InvalidArgumentException('User no longer exists.');
+
+            // Do not silently move existing school data across tenants. A
+            // transfer needs a dedicated workflow that moves every dependent
+            // academic, financial, attendance and messaging record together.
+            $oldSchoolId = $lockedUser['school_id'] !== null ? (int)$lockedUser['school_id'] : null;
+            $newSchoolId = $form_data['school_id'] !== null ? (int)$form_data['school_id'] : null;
+            if ($oldSchoolId !== null && $newSchoolId !== null && $oldSchoolId !== $newSchoolId) {
+                throw new InvalidArgumentException('School transfers are not supported from this screen.');
             }
-            logActivity($pdo, $_SESSION['user_id'], 'update', 'user', $id, 'Updated user: ' . $form_data['full_name'] . ' (' . $form_data['role'] . ')');
-            header('Location: users.php?success=' . urlencode('User updated successfully!'));
+
+            // Lock all active platform administrators before the last-admin
+            // check, preventing two concurrent requests from removing both.
+            if ($lockedUser['role'] === 'super_admin' && (int)$lockedUser['is_active'] === 1
+                && ($form_data['role'] !== 'super_admin' || $form_data['is_active'] !== 1)) {
+                $activeSupers = $pdo->query(
+                    "SELECT id FROM users WHERE role = 'super_admin' AND is_active = 1 FOR UPDATE"
+                )->fetchAll(PDO::FETCH_COLUMN);
+                if (count($activeSupers) <= 1) {
+                    throw new InvalidArgumentException('Cannot demote or deactivate the last active super administrator.');
+                }
+            }
+            if ($lockedUser['role'] === 'school_admin' && (int)$lockedUser['is_active'] === 1
+                && ($form_data['role'] !== 'school_admin' || $form_data['is_active'] !== 1)
+                && $lockedUser['school_id'] !== null) {
+                $schoolAdmins = $pdo->prepare(
+                    "SELECT id FROM users WHERE role = 'school_admin' AND is_active = 1 AND school_id = ? FOR UPDATE"
+                );
+                $schoolAdmins->execute([(int)$lockedUser['school_id']]);
+                if (count($schoolAdmins->fetchAll(PDO::FETCH_COLUMN)) <= 1) {
+                    throw new InvalidArgumentException('Cannot demote or deactivate the last active school administrator.');
+                }
+            }
+
+            $studentLock = $pdo->prepare("SELECT id, school_id FROM students WHERE user_id = ? LIMIT 1 FOR UPDATE");
+            $studentLock->execute([$id]);
+            $studentProfile = $studentLock->fetch(PDO::FETCH_ASSOC);
+
+            if ($studentProfile && $form_data['role'] === 'student'
+                && (int)$studentProfile['school_id'] !== (int)$form_data['school_id']) {
+                throw new InvalidArgumentException('A student profile cannot be moved to another school from this screen.');
+            }
+
+            $versionSql = '';
+            $resetPassword = !empty($form_data['send_setup_link']);
+            if ($resetPassword
+                || (string)$lockedUser['role'] !== (string)$form_data['role']
+                || (int)$lockedUser['is_active'] !== (int)$form_data['is_active']) {
+                if (dbTableHasColumn($pdo, 'users', 'session_version')) {
+                    $versionSql = ', session_version = session_version + 1';
+                }
+            }
+            if ($resetPassword) {
+                $hashed = hashUnusablePassword();
+                $updateUser = $pdo->prepare(
+                    "UPDATE users SET full_name = ?, email = ?, password = ?, role = ?, is_active = ?,
+                     school_id = ?, must_change_password = 1, updated_at = NOW(){$versionSql} WHERE id = ?"
+                );
+                $updateUser->execute([
+                    $form_data['full_name'], $form_data['email'], $hashed, $form_data['role'],
+                    $form_data['is_active'], $form_data['school_id'], $id
+                ]);
+            } else {
+                $updateUser = $pdo->prepare(
+                    "UPDATE users SET full_name = ?, email = ?, role = ?, is_active = ?,
+                     school_id = ?, updated_at = NOW(){$versionSql} WHERE id = ?"
+                );
+                $updateUser->execute([
+                    $form_data['full_name'], $form_data['email'], $form_data['role'],
+                    $form_data['is_active'], $form_data['school_id'], $id
+                ]);
+            }
+
+            if ($form_data['role'] === 'student') {
+                if (!$studentProfile) {
+                    $studentNumber = generateStudentNumber($pdo, (int)$form_data['school_id']);
+                    $createStudent = $pdo->prepare(
+                        "INSERT INTO students (school_id, user_id, student_number, full_name, email, enrollment_date, status)
+                         VALUES (?, ?, ?, ?, ?, CURDATE(), ?)"
+                    );
+                    $createStudent->execute([
+                        (int)$form_data['school_id'], $id, $studentNumber,
+                        $form_data['full_name'], $form_data['email'],
+                        $form_data['is_active'] === 1 ? 'Active' : 'Inactive'
+                    ]);
+                } else {
+                    $syncStudent = $pdo->prepare(
+                        "UPDATE students
+                         SET full_name = ?, email = ?,
+                             status = CASE WHEN ? = 0 THEN 'Inactive' WHEN status = 'Inactive' THEN 'Active' ELSE status END,
+                             updated_at = NOW()
+                         WHERE id = ?"
+                    );
+                    $syncStudent->execute([
+                        $form_data['full_name'], $form_data['email'],
+                        $form_data['is_active'], (int)$studentProfile['id']
+                    ]);
+                }
+            } elseif ($studentProfile) {
+                // Preserve academic history while removing the profile from
+                // active student lists after a role change.
+                $pdo->prepare("UPDATE students SET status = 'Inactive', updated_at = NOW() WHERE id = ? AND status = 'Active'")
+                    ->execute([(int)$studentProfile['id']]);
+            }
+
+            $pdo->commit();
+            $sent = false;
+            if ($resetPassword && (int)$form_data['is_active'] === 1) {
+                $sent = deliverAccountSetupLink($pdo, $form_data['email']);
+            }
+            logActivity(
+                $pdo,
+                $_SESSION['user_id'],
+                'update',
+                'user',
+                $id,
+                'Updated user: ' . $form_data['full_name'] . ' (' . $form_data['role'] . ')'
+            );
+            if ($resetPassword) {
+                setFlashMessage('success', accountProvisionedMessage($form_data['email'], $sent));
+                header('Location: users.php');
+            } else {
+                header('Location: users.php?success=' . urlencode('User updated successfully!'));
+            }
             exit;
-        } catch (PDOException $e) {
+        } catch (InvalidArgumentException $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            $errors[] = $e->getMessage();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
             error_log("User update failed: " . $e->getMessage());
             $errors[] = 'Failed to update user.';
         }
@@ -121,10 +240,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <label class="form-label">Email *</label>
                         <input type="email" name="email" class="form-control" value="<?php echo e($form_data['email']); ?>" required>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Password (leave blank to keep)</label>
-                        <input type="password" name="password" class="form-control" minlength="10">
-                        <div class="form-text">Must be at least 10 characters with upper, lower, number, and special character</div>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" name="send_setup_link" class="form-check-input" id="send_setup_link" <?php echo !empty($form_data['send_setup_link']) ? 'checked' : ''; ?>>
+                        <label class="form-check-label" for="send_setup_link">Email a new setup link and sign out their other sessions</label>
+                        <div class="form-text">This replaces the current password. The new password is never shown.</div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Role *</label>
