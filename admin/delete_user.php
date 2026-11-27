@@ -49,12 +49,17 @@ try {
     // Discover every ON DELETE CASCADE reference to users so future modules
     // cannot silently lose business records when an account is removed.
     $cascadeRefs = $pdo->prepare(
-        "SELECT TABLE_NAME, COLUMN_NAME
-         FROM information_schema.KEY_COLUMN_USAGE
-         WHERE REFERENCED_TABLE_SCHEMA = DATABASE()
-           AND REFERENCED_TABLE_NAME = 'users'
-           AND REFERENCED_COLUMN_NAME = 'id'
-           AND TABLE_NAME NOT IN ('students', 'user_redis_cache', 'notifications', 'push_subscriptions')"
+        "SELECT kcu.TABLE_NAME, kcu.COLUMN_NAME
+         FROM information_schema.KEY_COLUMN_USAGE kcu
+         JOIN information_schema.REFERENTIAL_CONSTRAINTS rc
+           ON rc.CONSTRAINT_SCHEMA = kcu.CONSTRAINT_SCHEMA
+          AND rc.TABLE_NAME = kcu.TABLE_NAME
+          AND rc.CONSTRAINT_NAME = kcu.CONSTRAINT_NAME
+         WHERE kcu.REFERENCED_TABLE_SCHEMA = DATABASE()
+           AND kcu.REFERENCED_TABLE_NAME = 'users'
+           AND kcu.REFERENCED_COLUMN_NAME = 'id'
+           AND rc.DELETE_RULE = 'CASCADE'
+           AND kcu.TABLE_NAME NOT IN ('students', 'user_redis_cache', 'notifications', 'push_subscriptions')"
     );
     $cascadeRefs->execute();
     foreach ($cascadeRefs->fetchAll(PDO::FETCH_ASSOC) as $reference) {
