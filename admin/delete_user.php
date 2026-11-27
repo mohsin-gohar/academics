@@ -22,7 +22,9 @@ try {
         header('Location: users.php?error=' . urlencode('User not found.'));
         exit;
     }
-    require_record_school($target);
+    if (!isSuperAdmin()) {
+        require_record_school($target);
+    }
 
     if ($target['role'] === 'super_admin' && (int)$target['is_active'] === 1) {
         $admins = $pdo->query("SELECT id FROM users WHERE role = 'super_admin' AND is_active = 1 FOR UPDATE")->fetchAll(PDO::FETCH_COLUMN);

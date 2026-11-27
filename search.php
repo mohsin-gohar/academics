@@ -27,7 +27,7 @@ if ($q !== '') {
         $ts = $pdo->prepare("SELECT t.id, t.title, t.status, t.priority, s.full_name AS student_name FROM tasks t LEFT JOIN students s ON t.student_id = s.id AND s.school_id = t.school_id WHERE t.school_id = ? AND (t.title LIKE ? OR t.description LIKE ?) ORDER BY t.created_at DESC LIMIT 20");
         $ts->execute([(int)$sid, $like, $like]);
         $results['tasks'] = $ts->fetchAll();
-    } elseif (!$isStaff() && $hasSchool && isStudent()) {
+    } elseif (!isStaff() && $hasSchool && isStudent()) {
         $ts = $pdo->prepare("SELECT t.id, t.title, t.status, t.priority, s.full_name AS student_name FROM tasks t LEFT JOIN students s ON t.student_id = s.id WHERE t.school_id = ? AND (t.title LIKE ? OR t.description LIKE ?) AND t.student_id = (SELECT id FROM students WHERE user_id = ? AND school_id = ? LIMIT 1) ORDER BY t.created_at DESC LIMIT 20");
         $ts->execute([(int)$sid, $like, $like, (int)$_SESSION['user_id'], (int)$sid]);
         $results['tasks'] = $ts->fetchAll();

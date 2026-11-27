@@ -21,7 +21,9 @@ try {
         header('Location: users.php?error=' . urlencode('User not found.'));
         exit;
     }
-    require_record_school($target);
+    if (!isSuperAdmin()) {
+        require_record_school($target);
+    }
 
     $newStatus = (int)$target['is_active'] === 1 ? 0 : 1;
     if ($target['role'] === 'super_admin' && $newStatus === 0) {

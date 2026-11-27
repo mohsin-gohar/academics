@@ -128,9 +128,13 @@ $superEvents = http($base . '/events/index.php', $super);
 $platformLeak = str_contains($superStudents['body'], 'Second School Student')
     || str_contains($superSearch['body'], 'Second School Student')
     || str_contains($superEvents['body'], 'Second School Event');
-if (!$platformLeak && $superStudents['code'] === 200 && $superSearch['code'] === 200) $pass++; else $fail++;
-$rows[] = (!$platformLeak ? 'PASS ' : 'FAIL ') . str_pad('super admin operational pages stay inside no school', 42)
-    . ' students=' . $superStudents['code'] . ' search=' . $superSearch['code'];
+$platformOk = !$platformLeak
+    && $superStudents['code'] === 200
+    && $superSearch['code'] === 200
+    && $superEvents['code'] === 200;
+if ($platformOk) $pass++; else $fail++;
+$rows[] = ($platformOk ? 'PASS ' : 'FAIL ') . str_pad('super admin operational pages stay inside no school', 42)
+    . ' students=' . $superStudents['code'] . ' search=' . $superSearch['code'] . ' events=' . $superEvents['code'];
 
 $schoolAdmin = login('schooladmin@sch001.com', 'School@123');
 foreach ([
