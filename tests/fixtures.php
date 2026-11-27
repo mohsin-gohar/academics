@@ -4,7 +4,31 @@
  * Invoked only when APP_ENV=test/testing; never seed demo users in production.
  */
 if (!defined('APP_ENV') || !in_array(APP_ENV, ['test', 'testing'], true)) {
-    return;
+    throw new RuntimeException(
+        'Refusing to load test fixtures: APP_ENV must be "test" (current: ' .
+        (defined('APP_ENV') ? APP_ENV : 'unset') . ').'
+    );
+}
+
+// Fixtures upsert accounts and reset lab passwords. Only an explicitly
+// allowlisted database on a loopback host may be touched, so a developer or
+// production database is never overwritten by a stray test run.
+$fixtureDbName = defined('DB_NAME') ? (string)DB_NAME : (string)getenv('DB_NAME');
+$fixtureHost = defined('DB_HOST') ? (string)DB_HOST : (string)getenv('DB_HOST');
+$fixtureAllowlist = array_values(array_filter(array_map(
+    'trim',
+    explode(',', (string)(getenv('FIXTURE_DB_ALLOWLIST') ?: getenv('DB_NAME_TEST') ?: ''))
+)));
+if ($fixtureDbName === '' || !in_array($fixtureDbName, $fixtureAllowlist, true)) {
+    throw new RuntimeException(
+        'Refusing to load test fixtures: database "' . $fixtureDbName .
+        '" is not in the allowlist (set FIXTURE_DB_ALLOWLIST or DB_NAME_TEST).'
+    );
+}
+if (!in_array($fixtureHost, ['127.0.0.1', 'localhost', '::1'], true)) {
+    throw new RuntimeException(
+        'Refusing to load test fixtures: database host "' . $fixtureHost . '" is not loopback.'
+    );
 }
 
 function ensureTestFixture(PDO $pdo): void

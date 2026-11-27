@@ -38,13 +38,13 @@ if ((int)$expense['school_id'] !== (int)$schoolId || (int)$schoolId <= 0) {
     exit;
 }
 
-if ($expense['status'] !== 'Pending') {
+if (strtolower((string)$expense['status']) !== 'pending') {
     setFlashMessage('danger', 'This expense has already been processed.');
     header('Location: index.php');
     exit;
 }
 
-$newStatus = $action === 'approve' ? 'Approved' : 'Rejected';
+$newStatus = $action === 'approve' ? 'approved' : 'rejected';
 $stmt = $pdo->prepare("UPDATE expenses SET status = ?, approved_by = ?, approved_at = NOW() WHERE id = ? AND school_id = ? AND status = 'Pending'");
 $stmt->execute([$newStatus, $userId, $id, (int)$expense['school_id']]);
 

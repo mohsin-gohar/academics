@@ -27,6 +27,13 @@ if (!validateCsrfToken($_POST['csrf_token'] ?? '')) {
     exit;
 }
 
+// Public signup is unauthenticated: throttle per client+email before any work.
+$clientKey = strtolower(trim((string)($_POST['email'] ?? ''))) . '|' . ($_SERVER['REMOTE_ADDR'] ?? 'unknown');
+if (rate_limit_exceeded($pdo, 'register', $clientKey, 5, 3600)) {
+    header('Location: register.php?error=' . urlencode('Too many registration attempts. Please try again later.'));
+    exit;
+}
+
 $full_name = trim($_POST['full_name'] ?? '');
 $email = trim($_POST['email'] ?? '');
 $school_id = (int)($_POST['school_id'] ?? 0);

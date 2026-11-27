@@ -6,7 +6,7 @@
  */
 
 // Minimal .env loader (no external dependency)
-function load_env(string $path = null): void
+function load_env(?string $path = null): void
 {
     // __DIR__ is config/, so the project-root .env is one level up.
     $path = $path ?: __DIR__ . '/../.env';
@@ -141,23 +141,40 @@ $options = [
     PDO::ATTR_TIMEOUT            => 1,
 ];
 
-// Potential targets: XAMPP MariaDB (port 3306) and Oracle MySQL (port 3307)
-$targets = [
-    ['host' => '127.0.0.1', 'port' => 3306, 'pass' => 'root'],
-    ['host' => '127.0.0.1', 'port' => 3306, 'pass' => ''],
-    ['host' => '127.0.0.1', 'port' => 3307, 'pass' => ''],
-    ['host' => '127.0.0.1', 'port' => 3307, 'pass' => 'root'],
-    ['host' => 'localhost', 'port' => 3306, 'pass' => 'root'],
-    ['host' => 'localhost', 'port' => 3306, 'pass' => ''],
-    ['host' => 'localhost', 'port' => 3307, 'pass' => ''],
-];
+// Candidate endpoints. Guessing local passwords is a developer convenience and
+// must never run against a real deployment: a hosted install gets exactly the
+// one endpoint it is configured with, so a wrong password fails loudly.
+$targets = [];
+if (defined('IS_PRODUCTION') && IS_PRODUCTION) {
+    $targets[] = [
+        'host' => defined('DB_HOST') ? DB_HOST : '127.0.0.1',
+        'port' => defined('DB_PORT') ? (int)DB_PORT : 3306,
+        'pass' => defined('DB_PASS') ? (string)DB_PASS : '',
+    ];
+} elseif ($isLocalDev || $isTestEnv) {
+    $targets = [
+        ['host' => '127.0.0.1', 'port' => 3306, 'pass' => 'root'],
+        ['host' => '127.0.0.1', 'port' => 3306, 'pass' => ''],
+        ['host' => '127.0.0.1', 'port' => 3307, 'pass' => ''],
+        ['host' => '127.0.0.1', 'port' => 3307, 'pass' => 'root'],
+        ['host' => 'localhost', 'port' => 3306, 'pass' => 'root'],
+        ['host' => 'localhost', 'port' => 3306, 'pass' => ''],
+        ['host' => 'localhost', 'port' => 3307, 'pass' => ''],
+    ];
+} else {
+    $targets[] = [
+        'host' => getenv('DB_HOST') ?: '127.0.0.1',
+        'port' => (int)(getenv('DB_PORT') ?: 3306),
+        'pass' => getenv('DB_PASS') !== false ? (string)getenv('DB_PASS') : '',
+    ];
+}
 
 // If custom environment variables provided, prioritize them
 if (getenv('DB_PORT') || getenv('DB_HOST') || getenv('DB_PASS') !== false) {
     array_unshift($targets, [
         'host' => getenv('DB_HOST') ?: '127.0.0.1',
         'port' => (int)(getenv('DB_PORT') ?: 3306),
-        'pass' => getenv('DB_PASS') !== false ? getenv('DB_PASS') : 'root',
+        'pass' => getenv('DB_PASS') !== false ? getenv('DB_PASS') : '',
     ]);
 }
 
@@ -177,7 +194,8 @@ if ($isLocalDev && !$isTestEnv && is_file($dbTargetCache)) {
         array_unshift($targets, [
             'host' => (string)$cachedTarget['host'],
             'port' => (int)$cachedTarget['port'],
-            'pass' => isset($cachedTarget['pass']) ? (string)$cachedTarget['pass'] : '',
+            // The password is never cached; the configured one is used instead.
+            'pass' => defined('DB_PASS') ? (string)DB_PASS : (getenv('DB_PASS') !== false ? (string)getenv('DB_PASS') : ''),
         ]);
     }
 }
@@ -233,7 +251,7 @@ if ($serverPdo && $isLocalDev && !$isTestEnv) {
     // Persist the working local endpoint so the next request connects first-try.
     @file_put_contents(
         $dbTargetCache,
-        json_encode(['host' => $workingHost, 'port' => $workingPort, 'pass' => $workingPass], JSON_UNESCAPED_SLASHES),
+        json_encode(['host' => $workingHost, 'port' => $workingPort], JSON_UNESCAPED_SLASHES),
         LOCK_EX
     );
 }
@@ -276,9 +294,13 @@ try {
         "SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = " . $serverPdo->quote(DB_NAME)
     )->fetchColumn();
 
-    if (!$exists) {
+    if (!$exists && ($isLocalDev || $isTestEnv || getenv('DB_ALLOW_CREATE') === '1')) {
         $serverPdo->exec("CREATE DATABASE IF NOT EXISTS `" . DB_NAME . "` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
         error_log("Database '$DB_NAME' created. Run 'php database/migrate.php' to apply schema.");
+    } elseif (!$exists) {
+        error_log("Database '$DB_NAME' does not exist and automatic creation is disabled. Create it and run 'php database/migrate.php'.");
+        http_response_code(503);
+        exit('Database is not configured for this installation.');
     } else {
         // Check if schema_migrations table exists (canonical migrations applied)
         $tblExists = $serverPdo->query(

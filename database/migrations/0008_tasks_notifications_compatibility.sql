@@ -116,7 +116,15 @@ SET @academics_sql = IF(
         LEFT(@academics_status_type, CHAR_LENGTH(@academics_status_type) - 1),
         ',''Cancelled'')',
         IF(@academics_status_nullable = 'YES', ' NULL', ' NOT NULL'),
-        IF(@academics_status_default IS NULL, '', CONCAT(' DEFAULT ', QUOTE(@academics_status_default)))
+        -- MySQL 8 reports COLUMN_DEFAULT unquoted, MariaDB reports it already
+        -- quoted; re-quoting the latter yields '''Pending''' and aborts with
+        -- "Invalid default value". Preserve an existing quote, else quote it.
+        IF(@academics_status_default IS NULL, '',
+           IF(UPPER(@academics_status_default) = 'NULL', ' DEFAULT NULL',
+              CONCAT(' DEFAULT ',
+                     IF(LEFT(@academics_status_default, 1) = '''',
+                        @academics_status_default,
+                        QUOTE(@academics_status_default)))))
     ),
     'SELECT 1'
 );

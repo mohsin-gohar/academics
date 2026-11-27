@@ -23,6 +23,7 @@ require_once __DIR__ . '/SecurityTest.php';
 require_once __DIR__ . '/EventsAlertsTest.php';
 require_once __DIR__ . '/SaasTest.php';
 require_once __DIR__ . '/TenantIsolationTest.php';
+require_once __DIR__ . '/HardeningTest.php';
 
 // Expanded modular suites
 require_once __DIR__ . '/test_auth.php';
@@ -51,6 +52,7 @@ $suites = [
     'Advanced Features: Attendance, Grades, Fees, Timetable (test_features)' => new TestFeaturesSuite($pdo),
     'SaaS Plans, Trials & Subscriptions' => new SaasTest($pdo),
     'Multi-school tenant isolation' => new TenantIsolationTest($pdo),
+    'Production hardening regressions' => new HardeningTest($pdo),
 ];
 
 $totalTests = 0;

@@ -381,6 +381,35 @@ switch ($command) {
     case 'up':
         run_migrations($dryRun);
         break;
+    case 'verify':
+        global $pdo;
+        ensure_schema_table($pdo);
+        $appliedChecksums = get_applied_migration_checksums($pdo);
+        $pending = [];
+        $drifted = [];
+        foreach (get_migration_files() as $file) {
+            $version = basename($file, '.sql');
+            if (!isset($appliedChecksums[$version])) {
+                $pending[] = $version;
+                continue;
+            }
+            $sql = file_get_contents($file);
+            $sql = $sql === false ? '' : preg_replace('/^\xEF\xBB\xBF/', '', $sql);
+            if (!hash_equals($appliedChecksums[$version], compute_checksum($sql))) {
+                $drifted[] = $version;
+            }
+        }
+        if ($pending) {
+            echo "PENDING: " . implode(', ', $pending) . "\n";
+        }
+        if ($drifted) {
+            echo "DRIFTED: " . implode(', ', $drifted) . "\n";
+        }
+        if ($pending || $drifted) {
+            exit(1);
+        }
+        echo "All migrations applied and checksums verified.\n";
+        break;
     case 'down':
         $count = isset($argv[2]) && is_numeric($argv[2]) ? (int)$argv[2] : 1;
         rollback_last($count);
@@ -406,6 +435,6 @@ switch ($command) {
         }
         break;
     default:
-        echo "Usage: php database/migrate.php [up|down|status] [--dry-run]\n";
+        echo "Usage: php database/migrate.php [up|down|status|verify] [--dry-run]\n";
         exit(1);
 }

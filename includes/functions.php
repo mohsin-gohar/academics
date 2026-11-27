@@ -1000,6 +1000,37 @@ function logActivity($pdo, $userId, $action, $entityType = null, $entityId = nul
 }
 
 // Alias for logActivity
+/**
+ * Sliding-window rate limit backed by the rate_limits table.
+ *
+ * Records one attempt when the window is not full and returns true when the
+ * caller must be refused. Failures are logged and treated as "allowed" so a
+ * missing table can never lock every user out of the application.
+ */
+function rate_limit_exceeded(PDO $pdo, string $bucket, string $identifier, int $maxAttempts, int $windowSeconds): bool {
+    if ($maxAttempts <= 0 || $windowSeconds <= 0) {
+        return false;
+    }
+    $key = hash('sha256', $identifier);
+    // The window is evaluated entirely in SQL. The connection may set a session
+    // time zone, so comparing against a PHP-generated timestamp would shift the
+    // cutoff and keep (or drop) the wrong rows.
+    try {
+        $pdo->prepare("DELETE FROM rate_limits WHERE bucket = ? AND created_at < DATE_SUB(NOW(), INTERVAL ? SECOND)")
+            ->execute([$bucket, $windowSeconds]);
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM rate_limits WHERE bucket = ? AND identifier = ? AND created_at >= DATE_SUB(NOW(), INTERVAL ? SECOND)");
+        $stmt->execute([$bucket, $key, $windowSeconds]);
+        if ((int)$stmt->fetchColumn() >= $maxAttempts) {
+            return true;
+        }
+        $pdo->prepare("INSERT INTO rate_limits (bucket, identifier) VALUES (?, ?)")->execute([$bucket, $key]);
+    } catch (PDOException $e) {
+        error_log('Rate limit check failed: ' . $e->getMessage());
+        return false;
+    }
+    return false;
+}
+
 function recordActivity($pdo, $userId, $action, $entityType = null, $entityId = null, $description = null) {
     return logActivity($pdo, $userId, $action, $entityType, $entityId, $description);
 }
